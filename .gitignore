@@ -1,0 +1,12 @@
+# 探针抓包输出（体积大、每次不同，不入库）
+captures/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 本地临时
+.gh-tmp/
+*.log
