@@ -30,6 +30,17 @@
 | `tools/proto_ref.py` | Python 参考实现：自检、生成向量、解析抓包 |
 | `tools/probe.py` | 只读探针（形态 A 遗留，不再使用） |
 
+## 面板服部署（不需要 SSH）
+
+产物是**自包含单文件**，不依赖 .NET 运行时。完整清单见 [docs/panel-deploy.md](docs/panel-deploy.md)：
+
+1. 从 Releases 下载 `bunny-loader-server-linux-x64.zip`；
+2. 上传其中的 `BunnyLoader.Server`；
+3. 启动命令：`sh -c 'chmod +x ./BunnyLoader.Server && SERVER_PORT=你的端口 MSG3_SPECIAL_FLAG=true ./BunnyLoader.Server'`；
+4. 看到 `"ev":"server.start"` 就是在监听。
+
+要切换消息 3 的 bool，只改 `MSG3_SPECIAL_FLAG=false` 重启，**不用重传文件**。
+
 ## 构建与回归（CI，每次 push 自动跑）
 
 `.github/workflows/build.yml` 做四件事：

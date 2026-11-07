@@ -1,13 +1,14 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using BunnyLoader.Server.Protocol;
 
 namespace BunnyLoader.Server;
 
 /// <summary>
-/// R2 入口：加载配置、监听、按帧分派握手（消息 1/3/68/200/6/7）。
-/// 方块数据与玩家生成在 R3。
+/// 入口。优先级：命令行参数 &gt; 环境变量 &gt; 配置文件 &gt; 内置默认值。
+/// 配置文件可缺失（面板只上传一个二进制也能跑）。
 /// </summary>
 public static class Program
 {
@@ -20,47 +21,49 @@ public static class Program
         string testDataPath = DefaultTestData;
         string? captureDirectory = null;
         bool selftest = false;
+        bool printConfig = false;
+        int? cliPort = null;
+        string? cliMsg3 = null;
 
         for (int i = 0; i < args.Length; i++)
         {
             switch (args[i])
             {
                 case "--config":
-                    if (i + 1 >= args.Length)
-                    {
-                        Console.Error.WriteLine("--config 需要一个路径");
-                        return 2;
-                    }
-                    configPath = args[++i];
+                    if (!TryValue(args, ref i, out configPath)) return 2;
                     break;
-
                 case "--testdata":
-                    if (i + 1 >= args.Length)
-                    {
-                        Console.Error.WriteLine("--testdata 需要一个路径");
-                        return 2;
-                    }
-                    testDataPath = args[++i];
+                    if (!TryValue(args, ref i, out testDataPath)) return 2;
                     break;
-
                 case "--capture":
-                    if (i + 1 >= args.Length)
+                    if (!TryValue(args, ref i, out captureDirectory)) return 2;
+                    break;
+                case "--port":
+                    if (!TryValue(args, ref i, out string portText) || !int.TryParse(portText, out int port))
                     {
-                        Console.Error.WriteLine("--capture 需要一个目录");
+                        Console.Error.WriteLine("--port 需要一个整数");
                         return 2;
                     }
-                    captureDirectory = args[++i];
+                    cliPort = port;
                     break;
-
+                case "--msg3":
+                    if (!TryValue(args, ref i, out string msg3) || (msg3 != "flags" && msg3 != "slot"))
+                    {
+                        Console.Error.WriteLine("--msg3 只接受 flags 或 slot");
+                        return 2;
+                    }
+                    cliMsg3 = msg3;
+                    break;
                 case "--selftest":
                     selftest = true;
                     break;
-
+                case "--print-config":
+                    printConfig = true;
+                    break;
                 case "-h":
                 case "--help":
                     PrintHelp();
                     return 0;
-
                 default:
                     Console.Error.WriteLine($"未知参数: {args[i]}");
                     PrintHelp();
@@ -69,9 +72,16 @@ public static class Program
         }
 
         ServerConfig config;
+        bool configFound;
         try
         {
-            config = ServerConfig.Load(configPath);
+            config = ServerConfig.LoadOrDefault(configPath, out configFound);
+            config.ApplyEnvironment();
+            if (cliPort.HasValue)
+                config.Server.Port = cliPort.Value;
+            if (cliMsg3 is not null)
+                config.Handshake.ConnectionApproved = cliMsg3;
+            config.Validate();
         }
         catch (Exception e)
         {
@@ -81,13 +91,27 @@ public static class Program
 
         var log = new JsonLogger(config.Logging.Level);
 
-        if (selftest)
+        if (printConfig)
         {
-            log.Info("config.loaded",
-                ("path", Path.GetFullPath(configPath)),
+            log.Info("config.effective",
+                ("configFile", configFound ? Path.GetFullPath(configPath) : "(missing, using defaults)"),
                 ("host", config.Server.Host),
                 ("port", config.Server.Port),
                 ("name", config.Server.Name),
+                ("level", config.Logging.Level),
+                ("msg3", config.Handshake.ConnectionApproved),
+                ("world", config.World.Name),
+                ("mods", config.Mods.Count),
+                ("env", string.Join(",", config.EnvNotes)));
+            return 0;
+        }
+
+        if (selftest)
+        {
+            log.Info("config.loaded",
+                ("path", configFound ? Path.GetFullPath(configPath) : "(missing, using defaults)"),
+                ("host", config.Server.Host),
+                ("port", config.Server.Port),
                 ("mods", config.Mods.Count),
                 ("world", config.World.Name));
 
@@ -98,6 +122,10 @@ public static class Program
                 log.Error("selftest.fail");
             return ok ? 0 : 1;
         }
+
+        captureDirectory ??= Environment.GetEnvironmentVariable("CAPTURE_DIR");
+        if (!configFound)
+            log.Warn("config.missing", ("path", Path.GetFullPath(configPath)), ("note", "使用内置默认值；可用环境变量覆盖"));
 
         IPAddress bind;
         try
@@ -129,7 +157,10 @@ public static class Program
         }
         catch (SocketException e)
         {
-            log.Error("server.bind.failed", ("host", config.Server.Host), ("port", config.Server.Port), ("error", e.Message));
+            log.Error("server.bind.failed",
+                ("host", config.Server.Host),
+                ("port", config.Server.Port),
+                ("error", e.Message));
             return 1;
         }
 
@@ -138,8 +169,10 @@ public static class Program
             ("port", config.Server.Port),
             ("name", config.Server.Name),
             ("world", config.World.Name),
+            ("msg3", config.Handshake.ConnectionApproved),
             ("mods", config.Mods.Count),
             ("capture", captureDirectory ?? "(off)"),
+            ("env", string.Join(",", config.EnvNotes)),
             ("note", "R2：握手 + 世界头；方块数据在 R3"));
 
         int counter = 0;
@@ -163,7 +196,9 @@ public static class Program
                 }
 
                 string connectionId = "c" + Interlocked.Increment(ref counter);
-                CaptureWriter? capture = captureDirectory is null
+                log.Info("conn.accept", ("conn", connectionId), ("peer", client.Client.RemoteEndPoint?.ToString() ?? "?"));
+
+                CaptureWriter? capture = string.IsNullOrWhiteSpace(captureDirectory)
                     ? null
                     : new CaptureWriter(captureDirectory, connectionId, log);
 
@@ -190,6 +225,19 @@ public static class Program
         return 0;
     }
 
+    private static bool TryValue(string[] args, ref int index, out string value)
+    {
+        if (index + 1 >= args.Length)
+        {
+            Console.Error.WriteLine($"{args[index]} 缺少参数");
+            value = "";
+            return false;
+        }
+
+        value = args[++index];
+        return true;
+    }
+
     private static IPAddress ResolveBind(string host)
     {
         if (host is "0.0.0.0" or "*" or "")
@@ -204,13 +252,23 @@ public static class Program
     private static void PrintHelp()
     {
         Console.WriteLine("BunnyLoader.Server —— R2（握手 + 世界头）");
-        Console.WriteLine("用法:");
-        Console.WriteLine("  dotnet BunnyLoader.Server.dll [选项]");
         Console.WriteLine();
-        Console.WriteLine("  --config <path>    配置文件，默认 config/server.json");
-        Console.WriteLine("  --testdata <path>  golden vectors，默认 testdata/handshake-vectors.json");
-        Console.WriteLine("  --capture <dir>    把每个连接的双向原始字节写成 cN-c2s.bin / cN-s2c.bin");
-        Console.WriteLine("  --selftest         只跑配置加载 + 编解码向量自检，不监听");
-        Console.WriteLine("  --help             显示本帮助");
+        Console.WriteLine("命令行参数（优先级最高）:");
+        Console.WriteLine("  --config <path>      配置文件，默认 config/server.json（可缺失）");
+        Console.WriteLine("  --port <int>         监听端口");
+        Console.WriteLine("  --msg3 <flags|slot>  消息 3 是否带 bool");
+        Console.WriteLine("  --capture <dir>      双向原始字节落盘目录");
+        Console.WriteLine("  --testdata <path>    golden vectors 路径");
+        Console.WriteLine("  --print-config       打印生效配置后退出");
+        Console.WriteLine("  --selftest           配置 + 编解码自检后退出");
+        Console.WriteLine();
+        Console.WriteLine("环境变量（面板只能改启动命令时用这些）:");
+        Console.WriteLine("  SERVER_PORT / PORT   监听端口，默认 7777");
+        Console.WriteLine("  SERVER_HOST          监听地址，默认 0.0.0.0");
+        Console.WriteLine("  MSG3_SPECIAL_FLAG    true=槽位+bool（1.4.5.8 推测值，默认）；false=只有槽位");
+        Console.WriteLine("  LOG_LEVEL            debug / info / warn / error");
+        Console.WriteLine("  CAPTURE_DIR          抓包目录，默认关闭");
+        Console.WriteLine("  WORLD_NAME           世界名");
+        Console.WriteLine("  SERVER_NAME          服务器名");
     }
 }

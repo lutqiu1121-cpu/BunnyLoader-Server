@@ -58,7 +58,7 @@ def recv_frame(sock: socket.socket) -> tuple[int, bytes]:
     return body[0], body[1:]
 
 
-def main(host: str, port: int) -> int:
+def main(host: str, port: int, variant: str = "flags") -> int:
     print(f"连接 {host}:{port}")
     sock = socket.create_connection((host, port), timeout=10)
     sock.settimeout(10)
@@ -67,7 +67,8 @@ def main(host: str, port: int) -> int:
         sock.sendall(frame(1, string("Terraria326")))
         ident, payload = recv_frame(sock)
         check("回复 id = 3", ident == 3, ident)
-        check("消息 3 负载 = 槽位+boot(bool)= 01 00", payload == b"\x01\x00", payload.hex())
+        expected = b"\x01\x00" if variant == "flags" else b"\x01"
+        check(f"消息 3 负载（{variant}）", payload == expected, payload.hex())
 
         # 2. 模组介绍（BL 前缀），服务端应回欢迎包
         hello = HELLO_PREFIX + '{"mods":[],"textures":0}'
@@ -115,4 +116,8 @@ if __name__ == "__main__":
         sys.exit(2)
     host = sys.argv[1]
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 7777
-    sys.exit(main(host, port))
+    variant = sys.argv[3] if len(sys.argv) > 3 else "flags"
+    if variant not in ("flags", "slot"):
+        print("第三个参数只能是 flags 或 slot")
+        sys.exit(2)
+    sys.exit(main(host, port, variant))

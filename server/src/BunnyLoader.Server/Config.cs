@@ -63,6 +63,90 @@ public sealed class ServerConfig
         return cfg;
     }
 
+    /// <summary>
+    /// 面板部署时通常只上传一个二进制、不传配置文件。
+    /// 所以配置文件是可选的：不存在就用内置默认值（端口 7777、消息 3 带 bool）。
+    /// </summary>
+    public static ServerConfig LoadOrDefault(string path, out bool found)
+    {
+        found = File.Exists(Path.GetFullPath(path));
+        return found ? Load(path) : new ServerConfig();
+    }
+
+    /// <summary>
+    /// 环境变量覆盖（优先级：命令行 > 环境变量 > 配置文件 > 默认值）。
+    /// 面板用户改不了文件，只能改启动命令，所以决定性开关都放在这里。
+    /// </summary>
+    public void ApplyEnvironment()
+    {
+        string? port = FirstEnv("SERVER_PORT", "PORT");
+        if (!string.IsNullOrWhiteSpace(port))
+        {
+            if (!int.TryParse(port.Trim(), out int parsedPort))
+                throw new InvalidDataException($"SERVER_PORT 不是整数: {port}");
+            Server.Port = parsedPort;
+            EnvNotes.Add($"SERVER_PORT={parsedPort}");
+        }
+
+        string? host = FirstEnv("SERVER_HOST", "HOST");
+        if (!string.IsNullOrWhiteSpace(host))
+        {
+            Server.Host = host.Trim();
+            EnvNotes.Add($"SERVER_HOST={Server.Host}");
+        }
+
+        string? name = Env("SERVER_NAME");
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            Server.Name = name.Trim();
+            EnvNotes.Add("SERVER_NAME=<set>");
+        }
+
+        string? level = Env("LOG_LEVEL");
+        if (!string.IsNullOrWhiteSpace(level))
+        {
+            Logging.Level = level.Trim();
+            EnvNotes.Add($"LOG_LEVEL={Logging.Level}");
+        }
+
+        string? worldName = Env("WORLD_NAME");
+        if (!string.IsNullOrWhiteSpace(worldName))
+        {
+            World.Name = worldName.Trim();
+            EnvNotes.Add("WORLD_NAME=<set>");
+        }
+
+        string? specialFlag = Env("MSG3_SPECIAL_FLAG");
+        if (!string.IsNullOrWhiteSpace(specialFlag))
+        {
+            Handshake.ConnectionApproved = ParseBool(specialFlag, "MSG3_SPECIAL_FLAG") ? "flags" : "slot";
+            EnvNotes.Add($"MSG3_SPECIAL_FLAG={Handshake.ConnectionApproved}");
+        }
+    }
+
+    /// <summary>被环境变量覆盖过的项，只记名字与安全的值，便于在日志里自证。</summary>
+    public List<string> EnvNotes { get; } = new();
+
+    private static string? Env(string key) => Environment.GetEnvironmentVariable(key);
+
+    private static string? FirstEnv(params string[] keys)
+    {
+        foreach (string key in keys)
+        {
+            string? value = Environment.GetEnvironmentVariable(key);
+            if (!string.IsNullOrWhiteSpace(value))
+                return value;
+        }
+        return null;
+    }
+
+    private static bool ParseBool(string text, string name) => text.Trim().ToLowerInvariant() switch
+    {
+        "1" or "true" or "yes" or "on" => true,
+        "0" or "false" or "no" or "off" => false,
+        _ => throw new InvalidDataException($"{name} 只接受 true/false/1/0，当前: {text}"),
+    };
+
     public void Validate()
     {
         if (string.IsNullOrWhiteSpace(Server.Host))

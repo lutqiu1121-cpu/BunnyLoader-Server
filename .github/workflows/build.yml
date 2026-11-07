@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   docker:
     name: docker build + selftest
@@ -33,15 +36,11 @@ jobs:
         run: python3 tools/proto_ref.py selftest
 
       # 端到端：起真实容器，用假 BL 客户端走一遍 1→3→68→200→6→7。
-      # 这一步验证的是会话逻辑与真实 socket 上的字节，不只是编解码。
       - name: Start server
         run: |
           docker run -d --name bls --restart=no -p 17777:7777 \
             bunny-loader-server:ci --config config/server.json --capture captures
-          docker inspect -f 'state={{.State.Status}} exit={{.State.ExitCode}}' bls || true
 
-          # 就绪判定必须是确定性的：等应用自己打印 server.start，
-          # 而不是等端口能连——端口由 docker-proxy 提前占住，会产生竞态。
           ready=0
           for i in $(seq 1 30); do
             if docker logs bls 2>&1 | grep -q '"ev":"server.start"'; then
@@ -56,30 +55,107 @@ jobs:
             docker logs bls || true
             exit 1
           fi
-
-          sleep 1
-          echo "--- after readiness ---"
-          docker inspect -f 'state={{.State.Status}} exit={{.State.ExitCode}}' bls || true
           docker logs bls || true
-          echo "--- listeners inside the container (hex port 1E61 = 7777) ---"
-          docker exec bls sh -c 'cat /proc/net/tcp | head -20' || true
-          echo "--- host listeners ---"
-          (ss -lntp 2>/dev/null || netstat -lntp 2>/dev/null) | grep -E '17777|7777' || true
 
       - name: Handshake end-to-end (fake BL client)
-        run: python3 tools/fake_client.py 127.0.0.1 17777
+        run: python3 tools/fake_client.py 127.0.0.1 17777 flags
 
       - name: Server logs
         if: always()
         run: |
           docker ps -a --format 'NAME={{.Names}} STATUS={{.Status}}'
-          docker inspect -f 'state={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} error={{.State.Error}}' bls || true
           docker logs bls || true
 
       - name: Stop server
         if: always()
         run: docker rm -f bls
 
-      - name: Show image size
-        if: always()
-        run: docker images bunny-loader-server:ci
+  panel:
+    name: panel single-file build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 用 Docker 里的 SDK 发布，产物落到 server/dist/（自包含、单文件、不需要 .NET）。
+      - name: Publish self-contained single file
+        run: |
+          rm -rf server/dist && mkdir -p server/dist
+          docker run --rm -v "$PWD/server:/src" -w /src mcr.microsoft.com/dotnet/sdk:8.0 \
+            dotnet publish src/BunnyLoader.Server/BunnyLoader.Server.csproj \
+              -c Release -r linux-x64 --self-contained true \
+              -p:PublishSingleFile=true \
+              -p:TrimUnusedAssemblies=true \
+              -p:IncludeNativeLibrariesForSelfExtract=true \
+              -p:EnableCompressionInSingleFile=true \
+              -o /src/dist
+          chmod +x server/dist/BunnyLoader.Server
+          ls -lh server/dist/
+
+      - name: Print config from binary with env overrides
+        run: |
+          docker run --rm -v "$PWD/server/dist:/app" -w /app \
+            -e SERVER_PORT=18080 -e MSG3_SPECIAL_FLAG=false \
+            mcr.microsoft.com/dotnet/runtime-deps:8.0 ./BunnyLoader.Server --print-config
+
+      # 关键验证：镜像里**没有 .NET 运行时**，只有原生依赖。
+      - name: Run without .NET runtime (MSG3_SPECIAL_FLAG=true)
+        run: |
+          docker run -d --name panel-flags --restart=no \
+            -e SERVER_PORT=7777 -e MSG3_SPECIAL_FLAG=true -e LOG_LEVEL=info \
+            -p 17780:7777 \
+            -v "$PWD/server/dist:/app" -w /app \
+            mcr.microsoft.com/dotnet/runtime-deps:8.0 ./BunnyLoader.Server
+          for i in $(seq 1 30); do
+            if docker logs panel-flags 2>&1 | grep -q '"ev":"server.start"'; then break; fi
+            sleep 1
+          done
+          docker logs panel-flags || true
+          docker logs panel-flags 2>&1 | grep -q '"port":7777' || { echo "端口未从 SERVER_PORT 生效"; exit 1; }
+          python3 tools/fake_client.py 127.0.0.1 17780 flags
+          docker rm -f panel-flags
+
+      - name: Run without .NET runtime (MSG3_SPECIAL_FLAG=false)
+        run: |
+          docker run -d --name panel-slot --restart=no \
+            -e SERVER_PORT=7777 -e MSG3_SPECIAL_FLAG=false -e LOG_LEVEL=info \
+            -p 17781:7777 \
+            -v "$PWD/server/dist:/app" -w /app \
+            mcr.microsoft.com/dotnet/runtime-deps:8.0 ./BunnyLoader.Server
+          for i in $(seq 1 30); do
+            if docker logs panel-slot 2>&1 | grep -q '"ev":"server.start"'; then break; fi
+            sleep 1
+          done
+          docker logs panel-slot || true
+          python3 tools/fake_client.py 127.0.0.1 17781 slot
+          docker rm -f panel-slot
+
+      - name: Package
+        run: |
+          cd server/dist
+          zip -r ../bunny-loader-server-linux-x64.zip .
+          cd ../..
+          ls -lh server/bunny-loader-server-linux-x64.zip
+          sha256sum server/bunny-loader-server-linux-x64.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bunny-loader-server-linux-x64
+          path: server/bunny-loader-server-linux-x64.zip
+          if-no-files-found: error
+
+      # 面板用户没有 SSH、也没有 GitHub 之外的渠道，所以用 Release 资产交付。
+      - name: Publish release asset
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view panel-r2 >/dev/null 2>&1 || \
+            gh release create panel-r2 \
+              --title "Panel build (R2)" \
+              --notes "自包含单文件 linux-x64 服务端。不依赖 .NET 运行时；仅需 glibc。"
+          gh release upload panel-r2 server/bunny-loader-server-linux-x64.zip --clobber
+          gh release view panel-r2 --json assets --jq '.assets[].name'
