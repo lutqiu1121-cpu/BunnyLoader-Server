@@ -8,7 +8,7 @@
 
 ## 1. 上传与解压
 
-1. 打开仓库的 **Releases**，标签 **`panel-r2`**，下载 `bunny-loader-server-panel-r2.zip`
+1. 打开仓库的 **Releases**，标签 **`panel`**，下载 `bunny-loader-server-panel.zip`
    （也可以在仓库 `prebuilt/` 目录里直接下）。
 2. 面板「文件管理」→ 上传到**根目录** → **解压**。
 
