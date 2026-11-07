@@ -57,6 +57,12 @@ def recv_frame(sock: socket.socket) -> tuple[int, bytes]:
     body = recv_exact(sock, total - 2)
     return body[0], body[1:]
 
+def check_welcome(ident: int, payload: bytes, label: str) -> None:
+    check(f"{label}: id = 82 (NetModules)", ident == 82, ident)
+    check(f"{label}: 模块 0xB17F", payload[:2] == b"\x7f\xb1", payload[:2].hex())
+    check(f"{label}: kind = 200", len(payload) >= 3 and payload[2] == KIND_WELCOME, payload[:3].hex())
+    check(f"{label}: 长度 4（含 rules）", len(payload) == 4, len(payload))
+
 
 def main(host: str, port: int, variant: str = "flags") -> int:
     print(f"连接 {host}:{port}")
@@ -75,16 +81,17 @@ def main(host: str, port: int, variant: str = "flags") -> int:
         }[variant]
         check(f"消息 3 负载（{variant}）", payload == expected, payload.hex())
 
-        # 2. 模组介绍（BL 前缀），服务端应回欢迎包
+        # 2. 消息 3 之后服务端会立刻补发欢迎包
+        ident, payload = recv_frame(sock)
+        check_welcome(ident, payload, "消息3之后的欢迎包")
+
+        # 3. 模组介绍（BL 前缀）——服务端会再回一次欢迎包
         hello = HELLO_PREFIX + '{"mods":[],"textures":0}'
         sock.sendall(frame(68, string(hello)))
         ident, payload = recv_frame(sock)
-        check("回复 id = 82 (NetModules)", ident == 82, ident)
-        check("负载前两字节 = 模块 0xB17F", payload[:2] == b"\x7f\xb1", payload[:2].hex())
-        check("kind = 200", len(payload) >= 3 and payload[2] == KIND_WELCOME, payload[:3].hex())
-        check("welcome 总长 4（含 rules）", len(payload) == 4, len(payload))
+        check_welcome(ident, payload, "介绍之后的欢迎包")
 
-        # 3. 请求世界数据
+        # 4. 请求世界数据
         sock.sendall(frame(6, b""))
         ident, payload = recv_frame(sock)
         check("回复 id = 7 (WorldData)", ident == 7, ident)
