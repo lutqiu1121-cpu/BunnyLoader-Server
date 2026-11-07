@@ -1,61 +1,68 @@
 # BunnyLoader-Server
 
-让加载了相同 `.bl` 模组的 Bunny Loader 客户端，连上部署在自己服务器上的联机服务。
+目标：**用 Linux 原生进程替代房主手机，成为 Bunny Loader 模组世界的 Host**（形态 B）。
 
-> 当前状态：**阶段 0 完成**（只读协议分析 + 架构判断）。尚无服务端实现。
+> 当前状态：**阶段 0、阶段 1 完成**。已有协议分析、Host 逻辑边界分析、可运行的 .NET 空骨架。
+> 尚未实现任何协议：服务端不会把你送进世界。
 
 ---
 
-## 这是什么
+## 三条结论
 
-对 Bunny Loader 联机协议的**只读逆向分析**与阶段化实现计划。本仓库是独立文档与独立代码，**不包含上游项目的源码副本**。
+1. **BL 是 Host 模式**：房主客户端自己就是服务器，仓库里没有可复用为独立服务端的实现。
+2. **可复用的服务端协议代码约 200 行**（68 / 200 / 11 / 踢人）；需要重写的是「原版 Terraria 服务端」那一侧。
+3. **形态 B 的实质不是「搬家」，而是「用托管代码重写 Terraria 本体」**，再让 BL 的模组层跑在它上面。
 
-## 当前结论（TL;DR）
+完整论证与逐项出处（`文件:行号`）见：
 
-1. **BL 是 Host 模式**：房主客户端自己就是服务器，仓库里没有可复用为独立服务端的代码。
-2. **握手层可以外部实现**：`68`（模组介绍）→ `200`（欢迎）→ `11`（同步计划）→ `2`（踢人）。
-3. **世界与模组逻辑无法用协议重写替代**：模组是钩进游戏进程的 hook，没有游戏就没得钩。
-4. **唯一硬阻塞**：消息 `3`（ConnectionApproved）的字节布局未知，需要一次真实主机的实测捕获，不靠猜。
-
-完整论证、字段级出处（文件:行号）与风险清单见 [docs/stage0.md](docs/stage0.md)。
-
-## 快速开始：只读探针
-
-用来验证一个假设：**BL 客户端连上 TCP 后是否主动先发数据**。
-
-```bash
-python3 tools/probe.py --port 7777 --out captures/run1
-```
-
-手机端：`Multijogador` → `添加服务器` → `服务器IP:7777` → 连接。
-探针只记录、不应答，把原始字节按连接落盘并十六进制打印。`Ctrl-C` 结束。
-
-> 如果手机连不上，先确认服务器在监听（`ss -lntp | grep 7777`）并放行该 TCP 端口。
+- [docs/stage0.md](docs/stage0.md) —— 协议规格表、一致性规则、风险清单
+- [docs/stage1-host-boundary.md](docs/stage1-host-boundary.md) —— Host 逻辑边界表、最小进入世界模块清单、选型复核、里程碑与轮次
 
 ## 目录
 
-| 路径 | 内容 |
-|---|---|
-| `docs/stage0.md` | 阶段 0 交付物：协议规格表、架构判断、技术选型、风险清单、阶段计划 |
-| `tools/probe.py` | 只读握手探针（标准库，无依赖） |
+| 路径 | 内容 | 状态 |
+|---|---|---|
+| `docs/stage0.md` | 协议规格表（带文件行号）、架构判断、风险 | 有效 |
+| `docs/stage1-host-boundary.md` | Host 逻辑边界、最小可进入世界清单、里程碑 | 有效 |
+| `server/` | .NET 8 空骨架：监听 + 结构化日志 + 配置 | 阶段 1 |
+| `tools/probe.py` | 只读探针（形态 A 遗留，形态 B 下不使用） | 遗留 |
+
+## 快速开始（只需要 Docker）
+
+```bash
+cd server
+docker compose up -d --build
+docker compose logs -f
+```
+
+只验证配置、不监听端口：
+
+```bash
+docker compose run --rm bunny-server --selftest
+```
+
+> 骨架只监听与记日志，**不应答任何协议**。连上来不会进入游戏，这是预期行为。
 
 ## 路线图
 
-| 阶段 | 内容 | 状态 |
+| 里程碑 | 判定标准 | 估算 |
 |---|---|---|
-| 0 | 协议分析、架构判断、风险清单 | ✅ 完成 |
-| 1 | 帧解析、假 BL 客户端回归、Docker 骨架 | ⬜ 下一步 |
-| 2 | 握手网关（68 / 200 / 11 / 踢人） | ⬜ |
-| 3 | 世界同步与模组执行路径评估 | ⬜ |
+| **M1** | 客户端连上 → 完成握手 → 进入最小世界 → 站在出生平台 → 30 秒不崩 | 5～6 轮 |
+| **M2** | 一个纯逻辑 `.bl` 模组（无内容）能加载并挂 hook | +4～6 轮 |
+| **M3** | 内容类模组（物品 / 方块 / NPC） | +8 轮以上 |
+| **M4** | 存档（`.wld`/`.plr` + `.bl*`） | +3～4 轮 |
+
+M1 的前置：消息 3 与消息 7 的字节布局。仓库不含游戏二进制（`refs/README.md:3-5`），需要从
+`tools/dump.sh` 导出 `dump.cs` 或抓一次真实主机，否则会退化成逐字段试错。
 
 ## 上游与许可
 
 本仓库**不是** [JonataOliveiraa/Bunny-Loader](https://github.com/JonataOliveiraa/Bunny-Loader) 的 fork，不包含其源码。
 
-上游项目采用 [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0)：
+上游采用 [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0)：
 
 > Required Notice: Copyright (c) 2026 JonataOliveiraa (https://github.com/JonataOliveiraa/Bunny-Loader)
 
-本文档中出现的少量源码片段仅用于标注协议事实（附文件与行号），版权归原作者所有。若计划将本项目用于商业用途，请先自行评估上游许可的影响。
+文档中出现的少量源码片段仅用于标注协议事实（附文件与行号），版权归原作者所有。若计划将本项目用于商业用途，请先自行评估上游许可的影响。
 
 本仓库自身尚未声明开源许可证。

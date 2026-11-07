@@ -1,0 +1,14 @@
+services:
+  bunny-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bunny-loader-server:dev
+    container_name: bunny-server
+    restart: unless-stopped
+    ports:
+      - "7777:7777"
+    volumes:
+      # 配置外置：改了就重启容器生效
+      - ./config:/app/config:ro
+    command: ["--config", "config/server.json"]

@@ -1,0 +1,35 @@
+{
+  // 监听地址与端口。0.0.0.0 = 所有网卡。
+  "server": {
+    "host": "0.0.0.0",
+    "port": 7777,
+    "name": "Bunny Loader Server"
+  },
+
+  // 日志级别：debug / info / warn / error。
+  // dumpBytes=true 时，每次收到数据都记一条 conn.bytes（含首 8 字节十六进制）。
+  "logging": {
+    "level": "info",
+    "dumpBytes": true
+  },
+
+  // 这三项对应游戏里 Host 界面的开关。
+  // 本轮只加载打印，不参与任何判定（判定在 R2 实现）。
+  "rules": {
+    "syncMods": true,
+    "allowTextures": true,
+    "allowCheats": true,
+    "password": ""
+  },
+
+  // 服务端「认定」的模组集，顺序即契约（顺序决定物品/NPC/弹幕编号）。
+  // 比对键：uid + version，逐位保序；空版本视为不兼容。
+  "mods": [
+    // {
+    //   "uid": "examplemod",
+    //   "id": "ExampleMod",
+    //   "name": "Example Mod",
+    //   "version": "1.0.0"
+    // }
+  ]
+}

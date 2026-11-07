@@ -7,6 +7,11 @@ __pycache__/
 .venv/
 venv/
 
+# .NET
+bin/
+obj/
+*.user
+
 # 本地临时
 .gh-tmp/
 *.log
