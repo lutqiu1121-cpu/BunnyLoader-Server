@@ -34,7 +34,7 @@
 
 产物是**框架依赖版**（约 60 KB），不打包运行时。完整清单见 [docs/panel-deploy.md](docs/panel-deploy.md)：
 
-1. 从 Releases 下载 `bunny-loader-server-panel-r2.zip`，上传到面板根目录并解压；
+1. 从 Releases 下载 `bunny-loader-server-panel.zip`，上传到面板根目录并解压；
 2. 启动命令：`sh start.sh`（自带 dotnet 查找与端口透传）；
 3. 看到 `"ev":"server.start"` 就是在监听。
 

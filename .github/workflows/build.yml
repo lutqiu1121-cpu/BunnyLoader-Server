@@ -143,18 +143,18 @@ jobs:
           cp ../config/server.json config/
           cp ../testdata/handshake-vectors.json testdata/
           rm -f *.pdb
-          zip -r ../bunny-loader-server-panel-r2.zip .
+          zip -r ../bunny-loader-server-panel.zip .
           cd ../..
           echo "--- 包内容 ---"
-          unzip -l server/bunny-loader-server-panel-r2.zip
-          ls -lh server/bunny-loader-server-panel-r2.zip
-          sha256sum server/bunny-loader-server-panel-r2.zip
+          unzip -l server/bunny-loader-server-panel.zip
+          ls -lh server/bunny-loader-server-panel.zip
+          sha256sum server/bunny-loader-server-panel.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bunny-loader-server-panel-r2
-          path: server/bunny-loader-server-panel-r2.zip
+          name: bunny-loader-server-panel
+          path: server/bunny-loader-server-panel.zip
           if-no-files-found: error
 
       # 面板用户没有 SSH，所以用 Release 资产交付 zip。
@@ -163,9 +163,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release view panel-r2 >/dev/null 2>&1 || \
-            gh release create panel-r2 \
-              --title "Panel build (R2)" \
-              --notes "框架依赖版：面板自带 .NET 8 即可运行。解压后 dotnet BunnyLoader.Server.dll --port 端口"
-          gh release upload panel-r2 server/bunny-loader-server-panel-r2.zip --clobber
-          gh release view panel-r2 --json assets --jq '.assets[] | "\(.name)  \(.size) bytes"'
+          gh release view panel >/dev/null 2>&1 || \
+            gh release create panel \
+              --title "Panel build (latest)" \
+              --notes "框架依赖版：面板自带 .NET 8 即可运行。解压后 sh start.sh（或 dotnet BunnyLoader.Server.dll --port 端口）。每次推送 main 都会原地更新这一个文件。"
+          gh release upload panel server/bunny-loader-server-panel.zip --clobber
+          gh release view panel --json assets --jq '.assets[] | "\(.name)  \(.size) bytes"'

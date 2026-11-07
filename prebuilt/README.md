@@ -1,9 +1,9 @@
 # prebuilt/ —— 可直接上传到面板的包
 
-`bunny-loader-server-panel-r2.zip` 是 **R2 可运行产物**，由 CI 构建并放在这里便于直接下载。
+`bunny-loader-server-panel.zip` 是 **R2 可运行产物**，由 CI 构建并放在这里便于直接下载。
 
 > 若本目录暂时为空：说明代码刚更新、CI 尚未跑完。稍等几分钟，或直接从
-> Releases 标签 `panel-r2` 下载同名文件。
+> Releases 标签 `panel` 下载同名文件。
 
 - 构建方式：Docker 里 `dotnet publish -c Release`（框架依赖，面板自带 .NET 8 即可）
 - 重新构建：`./server/build-panel.sh`
