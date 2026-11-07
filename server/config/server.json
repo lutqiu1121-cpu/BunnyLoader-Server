@@ -31,5 +31,23 @@
     //   "name": "Example Mod",
     //   "version": "1.0.0"
     // }
-  ]
+  ],
+
+  // 消息 7 的世界头。R2 只发世界头，方块数据在 R3。
+  // spawnTile 必须落在 maxTiles 之内（加载配置时会校验）。
+  "world": {
+    "name": "Bunny World",
+    "maxTilesX": 4200,
+    "maxTilesY": 1200,
+    "spawnTileX": 2100,
+    "spawnTileY": 300,
+    "worldSurface": 350,
+    "rockLayer": 500,
+    "dungeonX": 0,
+    "dungeonY": 0,
+    "crimson": false,
+    "gameMode": 0,
+    "release326": true,
+    "seed": 1
+  }
 }

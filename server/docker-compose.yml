@@ -11,4 +11,6 @@ services:
     volumes:
       # 配置外置：改了就重启容器生效
       - ./config:/app/config:ro
-    command: ["--config", "config/server.json"]
+      # 抓包落盘：手机连一次，这里就会多出 cN-c2s.bin / cN-s2c.bin
+      - ./captures:/app/captures
+    command: ["--config", "config/server.json", "--capture", "captures"]

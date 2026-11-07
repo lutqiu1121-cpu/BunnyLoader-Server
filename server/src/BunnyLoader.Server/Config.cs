@@ -26,6 +26,9 @@ public sealed class ServerConfig
     [JsonPropertyName("mods")]
     public List<ModEntry> Mods { get; set; } = new();
 
+    [JsonPropertyName("world")]
+    public WorldSection World { get; set; } = new();
+
     private static readonly JsonSerializerOptions Options = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -79,6 +82,19 @@ public sealed class ServerConfig
             if (string.IsNullOrWhiteSpace(m.Version))
                 throw new InvalidDataException($"mods[{i}].version 不能为空（BL 判定不接受空版本）");
         }
+
+        if (string.IsNullOrWhiteSpace(World.Name))
+            throw new InvalidDataException("world.name 不能为空");
+        if (World.Name.Length > 64)
+            throw new InvalidDataException("world.name 过长（>64）");
+        if (World.MaxTilesX < 100 || World.MaxTilesX > 8400)
+            throw new InvalidDataException($"world.maxTilesX 应在 100..8400，当前 {World.MaxTilesX}");
+        if (World.MaxTilesY < 100 || World.MaxTilesY > 2400)
+            throw new InvalidDataException($"world.maxTilesY 应在 100..2400，当前 {World.MaxTilesY}");
+        if (World.SpawnTileX < 0 || World.SpawnTileX > World.MaxTilesX)
+            throw new InvalidDataException($"world.spawnTileX 越界，当前 {World.SpawnTileX}");
+        if (World.SpawnTileY < 0 || World.SpawnTileY > World.MaxTilesY)
+            throw new InvalidDataException($"world.spawnTileY 越界，当前 {World.SpawnTileY}");
     }
 }
 
@@ -135,4 +151,53 @@ public sealed class ModEntry
 
     [JsonPropertyName("version")]
     public string Version { get; set; } = "";
+}
+
+/// <summary>
+/// 消息 7 的世界头参数。R2 只发世界头，方块数据在 R3。
+/// 默认值刻意用 4200x1200（小世界）与 "ProbeTiny" 之外的稳定名字。
+/// </summary>
+public sealed class WorldSection
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "Bunny World";
+
+    [JsonPropertyName("maxTilesX")]
+    public short MaxTilesX { get; set; } = 4200;
+
+    [JsonPropertyName("maxTilesY")]
+    public short MaxTilesY { get; set; } = 1200;
+
+    [JsonPropertyName("spawnTileX")]
+    public short SpawnTileX { get; set; } = 2100;
+
+    [JsonPropertyName("spawnTileY")]
+    public short SpawnTileY { get; set; } = 300;
+
+    [JsonPropertyName("worldSurface")]
+    public short WorldSurface { get; set; } = 350;
+
+    [JsonPropertyName("rockLayer")]
+    public short RockLayer { get; set; } = 500;
+
+    [JsonPropertyName("dungeonX")]
+    public short DungeonX { get; set; }
+
+    [JsonPropertyName("dungeonY")]
+    public short DungeonY { get; set; }
+
+    /// <summary>true 时 worldFlags 第 2 个字节的 bit5 置位（腐蚀地）。</summary>
+    [JsonPropertyName("crimson")]
+    public bool Crimson { get; set; }
+
+    [JsonPropertyName("gameMode")]
+    public byte GameMode { get; set; }
+
+    /// <summary>release 326 的包 7 末尾多两个 i16（dungeonX/dungeonY）。</summary>
+    [JsonPropertyName("release326")]
+    public bool Release326 { get; set; } = true;
+
+    /// <summary>世界 ID 的来源，决定 worldId 与 GUID，保证重连是同一个世界。</summary>
+    [JsonPropertyName("seed")]
+    public int Seed { get; set; } = 1;
 }

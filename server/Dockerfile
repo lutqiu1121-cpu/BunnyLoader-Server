@@ -18,5 +18,6 @@ FROM mcr.microsoft.com/dotnet/runtime:8.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/ ./
 COPY config/ ./config/
+COPY testdata/ ./testdata/
 EXPOSE 7777
 ENTRYPOINT ["dotnet", "BunnyLoader.Server.dll"]

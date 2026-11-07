@@ -1,9 +1,9 @@
 # BunnyLoader-Server
 
-目标：**用 Linux 原生进程替代房主手机，成为 Bunny Loader 模组世界的 Host**（形态 B）。
+目标：**用 Linux 原生进程替代房主手机，成为 Bunny Loader 模组世界的 Host**。
 
-> 当前状态：**阶段 0、阶段 1 完成**。已有协议分析、Host 逻辑边界分析、可运行的 .NET 空骨架。
-> 尚未实现任何协议：服务端不会把你送进世界。
+> 当前状态：**R2 完成**。已有：协议分析、Host 边界分析、握手编解码（消息 1/3/7/68/82）、可运行的 .NET 服务端骨架。
+> 还缺：方块数据、玩家生成（R3）。所以连上来能握手、能拿到世界头，但**还进不了世界**。
 
 ---
 
@@ -13,19 +13,22 @@
 2. **可复用的服务端协议代码约 200 行**（68 / 200 / 11 / 踢人）；需要重写的是「原版 Terraria 服务端」那一侧。
 3. **形态 B 的实质不是「搬家」，而是「用托管代码重写 Terraria 本体」**，再让 BL 的模组层跑在它上面。
 
-完整论证与逐项出处（`文件:行号`）见：
+## 文档
 
-- [docs/stage0.md](docs/stage0.md) —— 协议规格表、一致性规则、风险清单
-- [docs/stage1-host-boundary.md](docs/stage1-host-boundary.md) —— Host 逻辑边界表、最小进入世界模块清单、选型复核、里程碑与轮次
+| 文档 | 内容 |
+|---|---|
+| [docs/stage0.md](docs/stage0.md) | 协议规格表、一致性规则、风险清单 |
+| [docs/stage1-host-boundary.md](docs/stage1-host-boundary.md) | Host 逻辑边界表（29 项）、最小进入世界清单、里程碑 |
+| [docs/stage2-handshake-codec.md](docs/stage2-handshake-codec.md) | **R2**：帧格式、消息 3/7 逐字段布局与出处、待验证清单 |
 
 ## 目录
 
-| 路径 | 内容 | 状态 |
-|---|---|---|
-| `docs/stage0.md` | 协议规格表（带文件行号）、架构判断、风险 | 有效 |
-| `docs/stage1-host-boundary.md` | Host 逻辑边界、最小可进入世界清单、里程碑 | 有效 |
-| `server/` | .NET 8 空骨架：监听 + 结构化日志 + 配置 | 阶段 1 |
-| `tools/probe.py` | 只读探针（形态 A 遗留，形态 B 下不使用） | 遗留 |
+| 路径 | 内容 |
+|---|---|
+| `server/` | .NET 8 服务端：帧解析、握手、世界头、结构化日志、抓包 |
+| `server/testdata/handshake-vectors.json` | golden vectors，C# 自检用 |
+| `tools/proto_ref.py` | Python 参考实现：自检、生成向量、解析抓包 |
+| `tools/probe.py` | 只读探针（形态 A 遗留，不再使用） |
 
 ## 快速开始（只需要 Docker）
 
@@ -35,25 +38,43 @@ docker compose up -d --build
 docker compose logs -f
 ```
 
-只验证配置、不监听端口：
+先只跑自检（不监听）：
 
 ```bash
 docker compose run --rm bunny-server --selftest
 ```
 
-> 骨架只监听与记日志，**不应答任何协议**。连上来不会进入游戏，这是预期行为。
+预期最后一行是 `{"lvl":"info","ev":"selftest.pass"}`。
+它会把消息 3、Hello、欢迎包、世界头逐字节与 golden vectors 比对。
+
+手机连上来之后，抓包会落在 `server/captures/cN-c2s.bin` / `cN-s2c.bin`，解析：
+
+```bash
+python3 tools/proto_ref.py decode server/captures/c1-c2s.bin
+```
+
+## 本地（已装 .NET 8 SDK 或 Python）
+
+```bash
+python3 tools/proto_ref.py selftest          # 只验证字节数学，不需要 .NET
+cd server
+dotnet run --project src/BunnyLoader.Server -- --selftest
+```
 
 ## 路线图
 
-| 里程碑 | 判定标准 | 估算 |
+| 里程碑 | 判定标准 | 状态 |
 |---|---|---|
-| **M1** | 客户端连上 → 完成握手 → 进入最小世界 → 站在出生平台 → 30 秒不崩 | 5～6 轮 |
-| **M2** | 一个纯逻辑 `.bl` 模组（无内容）能加载并挂 hook | +4～6 轮 |
+| **R2** | 帧解析 + 消息 3/7 编解码 + 握手应答 | ✅ 本轮 |
+| **R3** | 方块数据（消息 8→10）与玩家生成 → **进入世界** | 下一步（预估 3～4 轮） |
+| **M2** | 一个纯逻辑 `.bl` 模组能加载并挂 hook | +4～6 轮 |
 | **M3** | 内容类模组（物品 / 方块 / NPC） | +8 轮以上 |
-| **M4** | 存档（`.wld`/`.plr` + `.bl*`） | +3～4 轮 |
 
-M1 的前置：消息 3 与消息 7 的字节布局。仓库不含游戏二进制（`refs/README.md:3-5`），需要从
-`tools/dump.sh` 导出 `dump.cs` 或抓一次真实主机，否则会退化成逐字段试错。
+## 已知边界
+
+- 移动端与桌面端协议是否完全一致：**待验证**（见 stage2 文档 §9）。
+- 服务端代码**未在开发机构建**（容器内无 .NET SDK），首次编译在 Docker 里完成。
+- 不实现密码、TLS、鉴权。
 
 ## 上游与许可
 
