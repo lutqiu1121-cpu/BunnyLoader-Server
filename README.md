@@ -30,7 +30,30 @@
 | `tools/proto_ref.py` | Python 参考实现：自检、生成向量、解析抓包 |
 | `tools/probe.py` | 只读探针（形态 A 遗留，不再使用） |
 
-## 快速开始（只需要 Docker）
+## 构建与回归（CI，每次 push 自动跑）
+
+`.github/workflows/build.yml` 做四件事：
+
+1. `docker build` —— **构建必须通过**；
+2. 容器内 `--selftest` —— C# 真实编译 + golden vectors 逐字节比对；
+3. Python 参考自检；
+4. 起真实容器，用假 BL 客户端走完 `1 → 3 → 68 → 200 → 6 → 7`。
+
+所以「Python 自检过」不等于「C# 能编译」的问题已经被 CI 覆盖，不靠人工判断。
+
+## 手机测试只看两个信号
+
+| 信号 | 日志 | 含义 |
+|---|---|---|
+| ① | `frame.recv id=1` + `version` | 客户端先说话，并**告诉我们移动端真实握手串** |
+| ② | 发出 `frame.send id=3` 后出现 `frame.recv id=4` 或 `id=68` | **消息 3 的 bool 正确** |
+
+只有这两个算判定。`world.sent` 之后客户端卡住是**预期行为**（方块数据在 R3），不算失败。
+
+若 ①成立、②不成立：改 `config/server.json` 的 `handshake.connectionApproved` 为 `"slot"`（去掉那个 bool），
+重启容器再连一次——不用改代码、不用重新构建。
+
+
 
 ```bash
 cd server

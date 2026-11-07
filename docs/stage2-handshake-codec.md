@@ -176,7 +176,32 @@ u8  serverWantsToRunCheckBytesInClientLoopThread   // 1.4.5 起新增；1.4.4 �
 
 ---
 
-## 9. 待验证清单（R2 结束时仍未知）
+## 9. 验收（R2）
+
+| 验收条件 | 状态 | 证据 |
+|---|---|---|
+| Docker 构建通过 | ✅ | CI `docker build` 成功；镜像 194MB |
+| C# 真的能编译运行 | ✅ | CI 容器内 `--selftest`，10 项全绿 |
+| 编解码与参考实现一致 | ✅ | `vector hello / connection_approved / welcome / world_data` 逐字节相等 |
+| 世界头可达 | ✅ | 假客户端收到 id=7，payload 175（`Bunny World` 11 字符 → 163+12） |
+| 手机端握手串 | ⏳ 待手机测试 | 日志 `hello.version` |
+| 移动端消息 3 的 bool | ⏳ 待手机测试 | 日志 `frame.send id=3` 之后是否出现 `id=4/68` |
+
+CI 里假客户端跑出的真实日志（节选）：
+
+```
+frame.recv  id=1  len=12  hex="0b 54 65 72 72 61 72 69 61 33 32 36"
+hello       version="Terraria326" is326=true approvedVariant="flags"
+frame.send  id=3  len=5   hex="01 00"
+frame.recv  id=68 len=40  hex="27 62 75 6e 6e 79 6c 6f 61 64 65 72 2d 63 73 3a …"
+frame.send  id=82 len=7   hex="7f b1 c8 01"
+frame.recv  id=6  len=0
+frame.send  id=7  len=178 hex="00 00 00 00 01 00 68 10 b0 04 …"
+```
+
+> 这是**假客户端**的结果，不是手机。手机待验证的两项见上表。
+
+## 10. 待验证清单（R2 结束时仍未知）
 
 | # | 项 | 为什么未知 | 怎么确认 |
 |---|---|---|---|
