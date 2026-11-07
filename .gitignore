@@ -17,9 +17,8 @@ obj/
 *.log
 
 # CI 诊断临时文件
-_runs.json
-_logs.zip
-_jobs.json
+_*.json
+_*.zip
 
 # 面板发布产物（由 CI / build-panel.sh 生成，不入库）
 server/dist/
