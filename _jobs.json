@@ -1,0 +1,137 @@
+{
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 128452249635,
+      "run_id": 42388949142,
+      "workflow_name": "build",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/actions/runs/42388949142",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOVmVOdM8AAAAd6FnIIw",
+      "head_sha": "f7e7fd218cf45283f000549d1335baff05498841",
+      "url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/actions/jobs/128452249635",
+      "html_url": "https://github.com/lutqiu1121-cpu/BunnyLoader-Server/actions/runs/42388949142/job/128452249635",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-11-07T15:58:39Z",
+      "started_at": "2026-11-07T15:58:41Z",
+      "completed_at": "2026-11-07T15:59:11Z",
+      "name": "docker build + selftest",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-11-07T15:58:42Z",
+          "completed_at": "2026-11-07T15:58:43Z"
+        },
+        {
+          "name": "Checkout",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-11-07T15:58:43Z",
+          "completed_at": "2026-11-07T15:58:44Z"
+        },
+        {
+          "name": "Toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-11-07T15:58:44Z",
+          "completed_at": "2026-11-07T15:58:44Z"
+        },
+        {
+          "name": "Docker build",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-11-07T15:58:44Z",
+          "completed_at": "2026-11-07T15:59:05Z"
+        },
+        {
+          "name": "C# selftest (golden vectors)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-11-07T15:59:05Z",
+          "completed_at": "2026-11-07T15:59:05Z"
+        },
+        {
+          "name": "Python reference selftest",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-11-07T15:59:05Z",
+          "completed_at": "2026-11-07T15:59:06Z"
+        },
+        {
+          "name": "Start server",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-11-07T15:59:06Z",
+          "completed_at": "2026-11-07T15:59:06Z"
+        },
+        {
+          "name": "Handshake end-to-end (fake BL client)",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 8,
+          "started_at": "2026-11-07T15:59:06Z",
+          "completed_at": "2026-11-07T15:59:06Z"
+        },
+        {
+          "name": "Server logs",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-11-07T15:59:06Z",
+          "completed_at": "2026-11-07T15:59:06Z"
+        },
+        {
+          "name": "Stop server",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-11-07T15:59:06Z",
+          "completed_at": "2026-11-07T15:59:06Z"
+        },
+        {
+          "name": "Show image size",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-11-07T15:59:06Z",
+          "completed_at": "2026-11-07T15:59:06Z"
+        },
+        {
+          "name": "Post Checkout",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-11-07T15:59:06Z",
+          "completed_at": "2026-11-07T15:59:07Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-11-07T15:59:07Z",
+          "completed_at": "2026-11-07T15:59:07Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/check-runs/128452249635",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000000056,
+      "runner_name": "GitHub Actions 1000000056",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}

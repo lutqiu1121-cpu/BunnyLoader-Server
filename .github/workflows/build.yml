@@ -36,22 +36,34 @@ jobs:
       # 这一步验证的是会话逻辑与真实 socket 上的字节，不只是编解码。
       - name: Start server
         run: |
-          docker run -d --name bls -p 17777:7777 \
+          docker run -d --name bls --restart=no -p 17777:7777 \
             bunny-loader-server:ci --config config/server.json --capture captures
+          docker inspect -f 'state={{.State.Status}} exit={{.State.ExitCode}}' bls || true
           for i in $(seq 1 20); do
             if (echo > /dev/tcp/127.0.0.1/17777) 2>/dev/null; then
-              echo "server ready after ${i}s"; exit 0
+              echo "port open after ${i}s"
+              break
             fi
             sleep 1
           done
-          echo "server did not open the port"; docker logs bls; exit 1
+          sleep 2
+          echo "--- after readiness ---"
+          docker inspect -f 'state={{.State.Status}} exit={{.State.ExitCode}}' bls || true
+          docker logs bls || true
+          echo "--- listeners inside the container (hex port 1E59 = 7777) ---"
+          docker exec bls sh -c 'cat /proc/net/tcp | head -20' || true
+          echo "--- host listeners ---"
+          (ss -lntp 2>/dev/null || netstat -lntp 2>/dev/null) | grep -E '17777|7777' || true
 
       - name: Handshake end-to-end (fake BL client)
         run: python3 tools/fake_client.py 127.0.0.1 17777
 
       - name: Server logs
         if: always()
-        run: docker logs bls
+        run: |
+          docker ps -a --format 'NAME={{.Names}} STATUS={{.Status}}'
+          docker inspect -f 'state={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} error={{.State.Error}}' bls || true
+          docker logs bls || true
 
       - name: Stop server
         if: always()
