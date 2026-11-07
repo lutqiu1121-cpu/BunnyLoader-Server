@@ -1,0 +1,37 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  docker:
+    name: docker build + selftest
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          docker --version
+          python3 --version
+
+      # 验收条件 1：Docker 构建必须通过。失败就在这里红。
+      - name: Docker build
+        run: docker build -t bunny-loader-server:ci ./server
+
+      # 验收条件 5：C# 必须真的编译并跑起来。--selftest 会逐字节比对 golden vectors。
+      - name: C# selftest (golden vectors)
+        run: docker run --rm bunny-loader-server:ci --selftest
+
+      - name: Python reference selftest
+        run: python3 tools/proto_ref.py selftest
+
+      - name: Show image size
+        if: always()
+        run: docker images bunny-loader-server:ci

@@ -36,6 +36,10 @@ public static class Messages
     public static byte[] ConnectionApprovedPacket(byte slot, bool checkBytesInClientLoopThread) =>
         Codec.Frame(MessageId.ConnectionApproved, new[] { slot, checkBytesInClientLoopThread ? (byte)1 : (byte)0 });
 
+    /// <summary>消息 3 的 1.4.4 形态：只有一个槽位字节（移动端可能用这个）。</summary>
+    public static byte[] ConnectionApprovedSlotOnlyPacket(byte slot) =>
+        Codec.Frame(MessageId.ConnectionApproved, new[] { slot });
+
     /// <summary>消息 68：`string uuid`。带 BL 前缀时是模组介绍。</summary>
     public static byte[] ClientUuidPacket(string uuid) => Codec.Frame(MessageId.ClientUuid, Codec.String(uuid));
 

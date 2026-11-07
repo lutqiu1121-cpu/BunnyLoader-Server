@@ -49,5 +49,13 @@
     "gameMode": 0,
     "release326": true,
     "seed": 1
+  },
+
+  // 消息 3 的形态。
+  //   flags = u8 槽位 + u8 bool（桌面 1.4.5）
+  //   slot  = 只有 u8 槽位（1.4.4 / 可能的移动端）
+  // V1 失败（发了 3 之后客户端一个包都不回）时，把这里改成 "slot" 再连一次，不必重新构建。
+  "handshake": {
+    "connectionApproved": "flags"
   }
 }

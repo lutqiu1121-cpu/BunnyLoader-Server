@@ -29,6 +29,9 @@ public sealed class ServerConfig
     [JsonPropertyName("world")]
     public WorldSection World { get; set; } = new();
 
+    [JsonPropertyName("handshake")]
+    public HandshakeSection Handshake { get; set; } = new();
+
     private static readonly JsonSerializerOptions Options = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -95,6 +98,11 @@ public sealed class ServerConfig
             throw new InvalidDataException($"world.spawnTileX 越界，当前 {World.SpawnTileX}");
         if (World.SpawnTileY < 0 || World.SpawnTileY > World.MaxTilesY)
             throw new InvalidDataException($"world.spawnTileY 越界，当前 {World.SpawnTileY}");
+
+        string variant = Handshake.ConnectionApproved.Trim().ToLowerInvariant();
+        if (variant is not ("flags" or "slot"))
+            throw new InvalidDataException($"handshake.connectionApproved 只能是 flags / slot，当前: {Handshake.ConnectionApproved}");
+        Handshake.ConnectionApproved = variant;
     }
 }
 
@@ -200,4 +208,17 @@ public sealed class WorldSection
     /// <summary>世界 ID 的来源，决定 worldId 与 GUID，保证重连是同一个世界。</summary>
     [JsonPropertyName("seed")]
     public int Seed { get; set; } = 1;
+}
+
+/// <summary>
+/// 握手细节。消息 3 在 1.4.5 里是 `u8 槽位 + u8 bool`，1.4.4 只有一个槽位字节。
+/// 移动端到底用哪种尚未实测，所以做成配置项：V1 失败时改这里，不必改代码。
+/// </summary>
+public sealed class HandshakeSection
+{
+    /// <summary>
+    /// "flags" = 槽位 + bool（桌面 1.4.5）；"slot" = 只有槽位字节（1.4.4 / 可能的移动端）。
+    /// </summary>
+    [JsonPropertyName("connectionApproved")]
+    public string ConnectionApproved { get; set; } = "flags";
 }

@@ -112,8 +112,18 @@ internal sealed class Session
             case MessageId.Hello:
             {
                 string version = TryReadString(payload) ?? "";
-                _log.Info("hello", ("conn", _id), ("version", version), ("is326", version == "Terraria326"));
-                await SendAsync(stream, Messages.ConnectionApprovedPacket(PlayerSlot, false), cancellationToken);
+                bool slotOnly = _config.Handshake.ConnectionApproved == "slot";
+                _log.Info("hello",
+                    ("conn", _id),
+                    ("version", version),
+                    ("is326", version == "Terraria326"),
+                    ("approvedVariant", slotOnly ? "slot" : "flags"));
+
+                byte[] approved = slotOnly
+                    ? Messages.ConnectionApprovedSlotOnlyPacket(PlayerSlot)
+                    : Messages.ConnectionApprovedPacket(PlayerSlot, false);
+
+                await SendAsync(stream, approved, cancellationToken);
                 break;
             }
 
