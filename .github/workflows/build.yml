@@ -91,7 +91,10 @@ jobs:
               -p:IncludeNativeLibrariesForSelfExtract=true \
               -p:EnableCompressionInSingleFile=true \
               -o /src/dist
-          chmod +x server/dist/BunnyLoader.Server
+          chmod +x server/dist/BunnyLoader.Server 2>/dev/null || \
+            docker run --rm -v "$PWD/server/dist:/app" -w /app \
+              mcr.microsoft.com/dotnet/runtime-deps:8.0 \
+              sh -c 'chmod 0755 ./BunnyLoader.Server && ls -l ./BunnyLoader.Server'
           ls -lh server/dist/
 
       - name: Print config from binary with env overrides
