@@ -133,8 +133,16 @@ jobs:
       - name: Package
         run: |
           cd server/dist
+          # publish 只产出编译物，配置与自检向量要单独放进去，
+          # 否则文档里列出的 config/ 与 testdata/ 解压后不存在。
+          mkdir -p config testdata
+          cp ../config/server.json config/
+          cp ../testdata/handshake-vectors.json testdata/
+          rm -f *.pdb
           zip -r ../bunny-loader-server-panel-r2.zip .
           cd ../..
+          echo "--- 包内容 ---"
+          unzip -l server/bunny-loader-server-panel-r2.zip
           ls -lh server/bunny-loader-server-panel-r2.zip
           sha256sum server/bunny-loader-server-panel-r2.zip
 

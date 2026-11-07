@@ -32,7 +32,7 @@
 
 ## 面板服部署（简幻云 AIO v1，自带 .NET 8）
 
-产物是**框架依赖版**（约 200 KB），不打包运行时。完整清单见 [docs/panel-deploy.md](docs/panel-deploy.md)：
+产物是**框架依赖版**（约 70 KB），不打包运行时。完整清单见 [docs/panel-deploy.md](docs/panel-deploy.md)：
 
 1. 从 Releases 下载 `bunny-loader-server-panel-r2.zip`，上传到面板根目录并解压；
 2. 启动命令：`dotnet BunnyLoader.Server.dll --port 你的端口`；
