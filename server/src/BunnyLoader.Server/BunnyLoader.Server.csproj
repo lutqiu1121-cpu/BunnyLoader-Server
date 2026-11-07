@@ -10,6 +10,8 @@
     <RootNamespace>BunnyLoader.Server</RootNamespace>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- 面板自带 .NET 6/8/9：net8.0 产物在没有 8 只有 9 时也能跑 -->
+    <RollForward>LatestMajor</RollForward>
   </PropertyGroup>
 
 </Project>

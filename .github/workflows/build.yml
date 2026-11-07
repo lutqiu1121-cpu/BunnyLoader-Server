@@ -71,62 +71,57 @@ jobs:
         run: docker rm -f bls
 
   panel:
-    name: panel single-file build
+    name: panel package (framework-dependent)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 用 Docker 里的 SDK 发布，产物落到 server/dist/（自包含、单文件、不需要 .NET）。
-      - name: Publish self-contained single file
+      # 面板自带 .NET 8，所以做标准框架依赖发布：只有 dll + runtimeconfig，约 200 KB。
+      - name: Publish (framework-dependent)
         run: |
           rm -rf server/dist && mkdir -p server/dist
           docker run --rm -v "$PWD/server:/src" -w /src mcr.microsoft.com/dotnet/sdk:8.0 \
             dotnet publish src/BunnyLoader.Server/BunnyLoader.Server.csproj \
-              -c Release -r linux-x64 --self-contained true \
-              -p:PublishSingleFile=true \
-              -p:TrimUnusedAssemblies=true \
-              -p:IncludeNativeLibrariesForSelfExtract=true \
-              -p:EnableCompressionInSingleFile=true \
-              -o /src/dist
-          chmod +x server/dist/BunnyLoader.Server 2>/dev/null || \
-            docker run --rm -v "$PWD/server/dist:/app" -w /app \
-              mcr.microsoft.com/dotnet/runtime-deps:8.0 \
-              sh -c 'chmod 0755 ./BunnyLoader.Server && ls -l ./BunnyLoader.Server'
-          ls -lh server/dist/
+              -c Release -o /src/dist
+          ls -lh server/dist
 
-      - name: Print config from binary with env overrides
+      - name: Print effective config (--port wins over everything)
         run: |
           docker run --rm -v "$PWD/server/dist:/app" -w /app \
-            -e SERVER_PORT=18080 -e MSG3_SPECIAL_FLAG=false \
-            mcr.microsoft.com/dotnet/runtime-deps:8.0 ./BunnyLoader.Server --print-config
+            mcr.microsoft.com/dotnet/runtime:8.0 \
+            dotnet BunnyLoader.Server.dll --port 18080 --print-config
 
-      # 关键验证：镜像里**没有 .NET 运行时**，只有原生依赖。
-      - name: Run without .NET runtime (MSG3_SPECIAL_FLAG=true)
+      # 模拟面板：runtime 镜像里没有 SDK，只有运行时；启动方式与面板一致。
+      - name: Run on .NET runtime image — MSG3_SPECIAL_FLAG=true
         run: |
           docker run -d --name panel-flags --restart=no \
-            -e SERVER_PORT=7777 -e MSG3_SPECIAL_FLAG=true -e LOG_LEVEL=info \
+            -e MSG3_SPECIAL_FLAG=true \
             -p 17780:7777 \
             -v "$PWD/server/dist:/app" -w /app \
-            mcr.microsoft.com/dotnet/runtime-deps:8.0 ./BunnyLoader.Server
+            mcr.microsoft.com/dotnet/runtime:8.0 \
+            dotnet BunnyLoader.Server.dll --port 7777
+
           for i in $(seq 1 30); do
             if docker logs panel-flags 2>&1 | grep -q '"ev":"server.start"'; then break; fi
             sleep 1
           done
           docker logs panel-flags || true
-          docker logs panel-flags 2>&1 | grep -q '"port":7777' || { echo "端口未从 SERVER_PORT 生效"; exit 1; }
+          docker logs panel-flags 2>&1 | grep -q '"port":7777' || { echo "端口未生效"; exit 1; }
           python3 tools/fake_client.py 127.0.0.1 17780 flags
           docker rm -f panel-flags
 
-      - name: Run without .NET runtime (MSG3_SPECIAL_FLAG=false)
+      - name: Run on .NET runtime image — MSG3_SPECIAL_FLAG=false
         run: |
           docker run -d --name panel-slot --restart=no \
-            -e SERVER_PORT=7777 -e MSG3_SPECIAL_FLAG=false -e LOG_LEVEL=info \
+            -e MSG3_SPECIAL_FLAG=false \
             -p 17781:7777 \
             -v "$PWD/server/dist:/app" -w /app \
-            mcr.microsoft.com/dotnet/runtime-deps:8.0 ./BunnyLoader.Server
+            mcr.microsoft.com/dotnet/runtime:8.0 \
+            dotnet BunnyLoader.Server.dll --port 7777
+
           for i in $(seq 1 30); do
             if docker logs panel-slot 2>&1 | grep -q '"ev":"server.start"'; then break; fi
             sleep 1
@@ -138,19 +133,19 @@ jobs:
       - name: Package
         run: |
           cd server/dist
-          zip -r ../bunny-loader-server-linux-x64.zip .
+          zip -r ../bunny-loader-server-panel-r2.zip .
           cd ../..
-          ls -lh server/bunny-loader-server-linux-x64.zip
-          sha256sum server/bunny-loader-server-linux-x64.zip
+          ls -lh server/bunny-loader-server-panel-r2.zip
+          sha256sum server/bunny-loader-server-panel-r2.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bunny-loader-server-linux-x64
-          path: server/bunny-loader-server-linux-x64.zip
+          name: bunny-loader-server-panel-r2
+          path: server/bunny-loader-server-panel-r2.zip
           if-no-files-found: error
 
-      # 面板用户没有 SSH、也没有 GitHub 之外的渠道，所以用 Release 资产交付。
+      # 面板用户没有 SSH，所以用 Release 资产交付 zip。
       - name: Publish release asset
         if: github.ref == 'refs/heads/main'
         env:
@@ -159,6 +154,6 @@ jobs:
           gh release view panel-r2 >/dev/null 2>&1 || \
             gh release create panel-r2 \
               --title "Panel build (R2)" \
-              --notes "自包含单文件 linux-x64 服务端。不依赖 .NET 运行时；仅需 glibc。"
-          gh release upload panel-r2 server/bunny-loader-server-linux-x64.zip --clobber
-          gh release view panel-r2 --json assets --jq '.assets[].name'
+              --notes "框架依赖版：面板自带 .NET 8 即可运行。解压后 dotnet BunnyLoader.Server.dll --port 端口"
+          gh release upload panel-r2 server/bunny-loader-server-panel-r2.zip --clobber
+          gh release view panel-r2 --json assets --jq '.assets[] | "\(.name)  \(.size) bytes"'
