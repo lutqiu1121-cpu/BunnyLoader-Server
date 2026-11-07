@@ -15,3 +15,8 @@ obj/
 # 本地临时
 .gh-tmp/
 *.log
+
+# CI 诊断临时文件
+_runs.json
+_logs.zip
+_jobs.json

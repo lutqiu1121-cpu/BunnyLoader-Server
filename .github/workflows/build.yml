@@ -39,18 +39,29 @@ jobs:
           docker run -d --name bls --restart=no -p 17777:7777 \
             bunny-loader-server:ci --config config/server.json --capture captures
           docker inspect -f 'state={{.State.Status}} exit={{.State.ExitCode}}' bls || true
-          for i in $(seq 1 20); do
-            if (echo > /dev/tcp/127.0.0.1/17777) 2>/dev/null; then
-              echo "port open after ${i}s"
+
+          # 就绪判定必须是确定性的：等应用自己打印 server.start，
+          # 而不是等端口能连——端口由 docker-proxy 提前占住，会产生竞态。
+          ready=0
+          for i in $(seq 1 30); do
+            if docker logs bls 2>&1 | grep -q '"ev":"server.start"'; then
+              echo "app reported server.start after ${i}s"
+              ready=1
               break
             fi
             sleep 1
           done
-          sleep 2
+          if [ "$ready" -ne 1 ]; then
+            echo "app never reported server.start"
+            docker logs bls || true
+            exit 1
+          fi
+
+          sleep 1
           echo "--- after readiness ---"
           docker inspect -f 'state={{.State.Status}} exit={{.State.ExitCode}}' bls || true
           docker logs bls || true
-          echo "--- listeners inside the container (hex port 1E59 = 7777) ---"
+          echo "--- listeners inside the container (hex port 1E61 = 7777) ---"
           docker exec bls sh -c 'cat /proc/net/tcp | head -20' || true
           echo "--- host listeners ---"
           (ss -lntp 2>/dev/null || netstat -lntp 2>/dev/null) | grep -E '17777|7777' || true
