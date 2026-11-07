@@ -8,10 +8,13 @@
 
 ## 为什么这里放了一份
 
-方便在仓库里直接下载，不必去 Releases 页。两处内容相同：
+方便在仓库里直接下载，不必去 Releases 页。两处**内容相同**：
 
 - 本目录：`prebuilt/bunny-loader-server-panel-r2.zip`
 - Releases：标签 `panel-r2`
+
+> CI 每次重新打包会刷新 zip 内部时间戳，所以 Releases 里的包与本目录的包
+> 可能**哈希不同但内容一致**。以内容为准；上面那个 SHA-256 是本目录这一份的。
 
 ## 包内文件
 
