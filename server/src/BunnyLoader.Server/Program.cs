@@ -80,7 +80,10 @@ public static class Program
             if (cliPort.HasValue)
                 config.Server.Port = cliPort.Value;
             if (cliMsg3 is not null)
-                config.Handshake.ConnectionApproved = cliMsg3;
+            {
+                config.Handshake.Layout = cliMsg3;
+                config.Handshake.Auto = false;
+            }
             config.Validate();
         }
         catch (Exception e)
@@ -99,7 +102,9 @@ public static class Program
                 ("port", config.Server.Port),
                 ("name", config.Server.Name),
                 ("level", config.Logging.Level),
-                ("msg3", config.Handshake.ConnectionApproved),
+                ("msg3", config.Handshake.Auto
+                    ? "auto(flags+bool1 -> slot -> flags+bool0)"
+                    : $"{config.Handshake.Layout}+{config.Handshake.SpecialFlag}"),
                 ("world", config.World.Name),
                 ("mods", config.Mods.Count),
                 ("env", string.Join(",", config.EnvNotes)));
@@ -169,7 +174,9 @@ public static class Program
             ("port", config.Server.Port),
             ("name", config.Server.Name),
             ("world", config.World.Name),
-            ("msg3", config.Handshake.ConnectionApproved),
+            ("msg3", config.Handshake.Auto
+                ? "auto(flags+bool1 -> slot -> flags+bool0)"
+                : $"{config.Handshake.Layout}+{config.Handshake.SpecialFlag}"),
             ("mods", config.Mods.Count),
             ("capture", captureDirectory ?? "(off)"),
             ("env", string.Join(",", config.EnvNotes)),
@@ -202,7 +209,7 @@ public static class Program
                     ? null
                     : new CaptureWriter(captureDirectory, connectionId, log);
 
-                Session session = new(client, connectionId, config, log, capture);
+                Session session = new(client, connectionId, counter, config, log, capture);
                 _ = Task.Run(async () =>
                 {
                     try
@@ -256,7 +263,7 @@ public static class Program
         Console.WriteLine("命令行参数（优先级最高）:");
         Console.WriteLine("  --config <path>      配置文件，默认 config/server.json（可缺失）");
         Console.WriteLine("  --port <int>         监听端口");
-        Console.WriteLine("  --msg3 <flags|slot>  消息 3 是否带 bool");
+        Console.WriteLine("  --msg3 <flags|slot>  消息 3 的布局（flags=2 字节，slot=1 字节）");
         Console.WriteLine("  --capture <dir>      双向原始字节落盘目录");
         Console.WriteLine("  --testdata <path>    golden vectors 路径");
         Console.WriteLine("  --print-config       打印生效配置后退出");
@@ -265,7 +272,9 @@ public static class Program
         Console.WriteLine("环境变量（面板只能改启动命令时用这些）:");
         Console.WriteLine("  SERVER_PORT / PORT   监听端口，默认 7777");
         Console.WriteLine("  SERVER_HOST          监听地址，默认 0.0.0.0");
-        Console.WriteLine("  MSG3_SPECIAL_FLAG    true=槽位+bool（1.4.5.8 推测值，默认）；false=只有槽位");
+        Console.WriteLine("  MSG3_SPECIAL_FLAG    那个 bool 的值：true=0x01，false=0x00");
+        Console.WriteLine("  MSG3_LAYOUT          布局：flags（2 字节，默认）/ slot（1 字节）");
+        Console.WriteLine("  MSG3_VARIANT         便捷开关：auto（每次连接轮换，默认）/ flags1 / flags0 / slot");
         Console.WriteLine("  LOG_LEVEL            debug / info / warn / error");
         Console.WriteLine("  CAPTURE_DIR          抓包目录，默认关闭");
         Console.WriteLine("  WORLD_NAME           世界名");

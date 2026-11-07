@@ -67,7 +67,12 @@ def main(host: str, port: int, variant: str = "flags") -> int:
         sock.sendall(frame(1, string("Terraria326")))
         ident, payload = recv_frame(sock)
         check("回复 id = 3", ident == 3, ident)
-        expected = b"\x01\x00" if variant == "flags" else b"\x01"
+        expected = {
+            "flags1": b"\x01\x01",   # 2 字节，bool = 1
+            "flags0": b"\x01\x00",   # 2 字节，bool = 0
+            "flags": b"\x01\x00",    # 旧名，等价 flags0
+            "slot": b"\x01",          # 1 字节，只有槽位
+        }[variant]
         check(f"消息 3 负载（{variant}）", payload == expected, payload.hex())
 
         # 2. 模组介绍（BL 前缀），服务端应回欢迎包
@@ -116,8 +121,8 @@ if __name__ == "__main__":
         sys.exit(2)
     host = sys.argv[1]
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 7777
-    variant = sys.argv[3] if len(sys.argv) > 3 else "flags"
-    if variant not in ("flags", "slot"):
-        print("第三个参数只能是 flags 或 slot")
+    variant = sys.argv[3] if len(sys.argv) > 3 else "flags1"
+    if variant not in ("flags1", "flags0", "flags", "slot"):
+        print("第三个参数只能是 flags1 / flags0 / flags / slot")
         sys.exit(2)
     sys.exit(main(host, port, variant))

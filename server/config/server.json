@@ -51,11 +51,14 @@
     "seed": 1
   },
 
-  // 消息 3 的形态。
-  //   flags = u8 槽位 + u8 bool（桌面 1.4.5）
-  //   slot  = 只有 u8 槽位（1.4.4 / 可能的移动端）
-  // V1 失败（发了 3 之后客户端一个包都不回）时，把这里改成 "slot" 再连一次，不必重新构建。
+  // 消息 3 的形态。两个独立维度：
+  //   layout      flags = 槽位 + bool（2 字节，1.4.5）；slot = 只有槽位（1 字节，1.4.4）
+  //   specialFlag 那个 bool 的值：true 发 0x01，false 发 0x00
+  //   auto        true 时每次连接轮换：第 1 次 flags+true，第 2 次 slot，第 3 次 flags+false
+  // 现场测试建议保持 auto，连三次就知道哪种能进。
   "handshake": {
-    "connectionApproved": "flags"
+    "layout": "flags",
+    "specialFlag": true,
+    "auto": true
   }
 }

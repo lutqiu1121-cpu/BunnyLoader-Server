@@ -116,11 +116,49 @@ public sealed class ServerConfig
             EnvNotes.Add("WORLD_NAME=<set>");
         }
 
+        // 消息 3：布局与 bool 的值是两个独立维度，分别覆盖。
+        string? layout = Env("MSG3_LAYOUT");
+        if (!string.IsNullOrWhiteSpace(layout))
+        {
+            Handshake.Layout = layout.Trim().ToLowerInvariant();
+            EnvNotes.Add($"MSG3_LAYOUT={Handshake.Layout}");
+        }
+
         string? specialFlag = Env("MSG3_SPECIAL_FLAG");
         if (!string.IsNullOrWhiteSpace(specialFlag))
         {
-            Handshake.ConnectionApproved = ParseBool(specialFlag, "MSG3_SPECIAL_FLAG") ? "flags" : "slot";
-            EnvNotes.Add($"MSG3_SPECIAL_FLAG={Handshake.ConnectionApproved}");
+            Handshake.SpecialFlag = ParseBool(specialFlag, "MSG3_SPECIAL_FLAG");
+            Handshake.Auto = false;
+            EnvNotes.Add($"MSG3_SPECIAL_FLAG={Handshake.SpecialFlag}");
+        }
+
+        // 便捷开关：一个变量直接选形态。
+        string? variant = Env("MSG3_VARIANT");
+        if (!string.IsNullOrWhiteSpace(variant))
+        {
+            switch (variant.Trim().ToLowerInvariant())
+            {
+                case "auto":
+                    Handshake.Auto = true;
+                    break;
+                case "flags1":
+                    Handshake.Auto = false;
+                    Handshake.Layout = "flags";
+                    Handshake.SpecialFlag = true;
+                    break;
+                case "flags0":
+                    Handshake.Auto = false;
+                    Handshake.Layout = "flags";
+                    Handshake.SpecialFlag = false;
+                    break;
+                case "slot":
+                    Handshake.Auto = false;
+                    Handshake.Layout = "slot";
+                    break;
+                default:
+                    throw new InvalidDataException($"MSG3_VARIANT 只接受 auto/flags1/flags0/slot，当前: {variant}");
+            }
+            EnvNotes.Add($"MSG3_VARIANT={variant.Trim().ToLowerInvariant()}");
         }
     }
 
@@ -183,10 +221,10 @@ public sealed class ServerConfig
         if (World.SpawnTileY < 0 || World.SpawnTileY > World.MaxTilesY)
             throw new InvalidDataException($"world.spawnTileY 越界，当前 {World.SpawnTileY}");
 
-        string variant = Handshake.ConnectionApproved.Trim().ToLowerInvariant();
+        string variant = Handshake.Layout.Trim().ToLowerInvariant();
         if (variant is not ("flags" or "slot"))
-            throw new InvalidDataException($"handshake.connectionApproved 只能是 flags / slot，当前: {Handshake.ConnectionApproved}");
-        Handshake.ConnectionApproved = variant;
+            throw new InvalidDataException($"handshake.layout 只能是 flags / slot，当前: {Handshake.Layout}");
+        Handshake.Layout = variant;
     }
 }
 
@@ -298,11 +336,26 @@ public sealed class WorldSection
 /// 握手细节。消息 3 在 1.4.5 里是 `u8 槽位 + u8 bool`，1.4.4 只有一个槽位字节。
 /// 移动端到底用哪种尚未实测，所以做成配置项：V1 失败时改这里，不必改代码。
 /// </summary>
+/// <summary>
+/// 消息 3 的形态。两个独立维度——之前被错并成一个开关，导致 bool 永远是 0：
+///   layout      —— 负载 2 字节（槽位 + bool）还是 1 字节（只有槽位）
+///   specialFlag —— 那个 bool 的**值**（true 写 0x01，false 写 0x00）
+/// </summary>
 public sealed class HandshakeSection
 {
+    /// <summary>"flags" = 2 字节（1.4.5）；"slot" = 1 字节（1.4.4 / 可能的移动端）。</summary>
+    [JsonPropertyName("layout")]
+    public string Layout { get; set; } = "flags";
+
+    /// <summary>bool 的值。true 发 0x01，false 发 0x00。</summary>
+    [JsonPropertyName("specialFlag")]
+    public bool SpecialFlag { get; set; } = true;
+
     /// <summary>
-    /// "flags" = 槽位 + bool（桌面 1.4.5）；"slot" = 只有槽位字节（1.4.4 / 可能的移动端）。
+    /// true 时每次连接轮换一种形态，一次现场测试就能把三种组合试完：
+    /// 第 1 次 flags+true，第 2 次 slot，第 3 次 flags+false，之后循环。
+    /// 日志里的 msg3 字段会写明本次用的是哪种。
     /// </summary>
-    [JsonPropertyName("connectionApproved")]
-    public string ConnectionApproved { get; set; } = "flags";
+    [JsonPropertyName("auto")]
+    public bool Auto { get; set; } = true;
 }

@@ -13,14 +13,16 @@ internal sealed class Session
 
     private readonly TcpClient _client;
     private readonly string _id;
+    private readonly int _sequence;
     private readonly ServerConfig _config;
     private readonly JsonLogger _log;
     private readonly CaptureWriter? _capture;
 
-    public Session(TcpClient client, string id, ServerConfig config, JsonLogger log, CaptureWriter? capture)
+    public Session(TcpClient client, string id, int sequence, ServerConfig config, JsonLogger log, CaptureWriter? capture)
     {
         _client = client;
         _id = id;
+        _sequence = sequence;
         _config = config;
         _log = log;
         _capture = capture;
@@ -112,18 +114,26 @@ internal sealed class Session
             case MessageId.Hello:
             {
                 string version = TryReadString(payload) ?? "";
-                bool slotOnly = _config.Handshake.ConnectionApproved == "slot";
+                (string layout, bool specialFlag) = PickMsg3Variant();
+                string label = layout == "slot" ? "slot" : (specialFlag ? "flags+bool1" : "flags+bool0");
+
                 _log.Info("hello",
                     ("conn", _id),
                     ("version", version),
                     ("is326", version == "Terraria326"),
-                    ("approvedVariant", slotOnly ? "slot" : "flags"));
+                    ("msg3", label),
+                    ("connection", _sequence));
 
-                byte[] approved = slotOnly
+                byte[] approved = layout == "slot"
                     ? Messages.ConnectionApprovedSlotOnlyPacket(PlayerSlot)
-                    : Messages.ConnectionApprovedPacket(PlayerSlot, false);
+                    : Messages.ConnectionApprovedPacket(PlayerSlot, specialFlag);
 
                 await SendAsync(stream, approved, cancellationToken);
+
+                // BL 客户端在等待「欢迎包」；发完消息 3 立刻补一条。
+                // 注意：客户端发送消息 6 时会把 welcomed 复位（ModNet.cpp:179），
+                // 所以 68 分支里还会再发一次——少了那次，7 到达时会被自踢。
+                await SendWelcomeAsync(stream, cancellationToken);
                 break;
             }
 
@@ -134,9 +144,7 @@ internal sealed class Session
                 {
                     string json = text[Codec.HelloPrefix.Length..];
                     _log.Info("bl.hello", ("conn", _id), ("json", json));
-                    byte rules = (byte)(_config.Rules.AllowCheats ? 1 : 0);
-                    await SendAsync(stream, Messages.WelcomePacket(rules), cancellationToken);
-                    _log.Info("welcome.sent", ("conn", _id), ("rules", rules));
+                    await SendWelcomeAsync(stream, cancellationToken);
                 }
                 else
                 {
@@ -210,6 +218,32 @@ internal sealed class Session
             ("name", Messages.Name(frame[2])),
             ("len", frame.Length),
             ("hex", Codec.Hex(frame.AsSpan(3), 24)));
+    }
+
+    /// <summary>
+    /// 选本次连接用哪种消息 3。
+    /// Auto 时按连接序号轮换，一次现场测试就能把三种组合试完。
+    /// </summary>
+    private (string Layout, bool SpecialFlag) PickMsg3Variant()
+    {
+        HandshakeSection handshake = _config.Handshake;
+        if (!handshake.Auto)
+            return (handshake.Layout, handshake.SpecialFlag);
+
+        int index = (_sequence - 1) % 3;
+        return index switch
+        {
+            1 => ("slot", false),
+            2 => ("flags", false),
+            _ => ("flags", true),
+        };
+    }
+
+    private async Task SendWelcomeAsync(NetworkStream stream, CancellationToken cancellationToken)
+    {
+        byte rules = (byte)(_config.Rules.AllowCheats ? 1 : 0);
+        await SendAsync(stream, Messages.WelcomePacket(rules), cancellationToken);
+        _log.Info("welcome.sent", ("conn", _id), ("rules", rules));
     }
 
     private WorldData BuildWorld()

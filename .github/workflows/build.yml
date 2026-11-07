@@ -58,7 +58,7 @@ jobs:
           docker logs bls || true
 
       - name: Handshake end-to-end (fake BL client)
-        run: python3 tools/fake_client.py 127.0.0.1 17777 flags
+        run: python3 tools/fake_client.py 127.0.0.1 17777 flags1
 
       - name: Server logs
         if: always()
@@ -95,46 +95,50 @@ jobs:
             dotnet BunnyLoader.Server.dll --port 18080 --print-config
 
       # 模拟面板：runtime 镜像里没有 SDK，只有运行时；启动方式与面板一致。
-      - name: Run on .NET runtime image — MSG3_SPECIAL_FLAG=true
+      - name: Variant flags+bool1
         run: |
-          docker run -d --name panel-flags --restart=no \
-            -e MSG3_SPECIAL_FLAG=true \
-            -p 17780:7777 \
-            -v "$PWD/server/dist:/app" -w /app \
+          docker run -d --name panel-v1 --restart=no -e MSG3_VARIANT=flags1 \
+            -p 17780:7777 -v "$PWD/server/dist:/app" -w /app \
             mcr.microsoft.com/dotnet/runtime:8.0 \
             dotnet BunnyLoader.Server.dll --port 7777
-
           for i in $(seq 1 30); do
-            if docker logs panel-flags 2>&1 | grep -q '"ev":"server.start"'; then break; fi
-            sleep 1
+            docker logs panel-v1 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
           done
-          docker logs panel-flags || true
-          docker logs panel-flags 2>&1 | grep -q '"port":7777' || { echo "端口未生效"; exit 1; }
-          python3 tools/fake_client.py 127.0.0.1 17780 flags
-          docker rm -f panel-flags
+          docker logs panel-v1 || true
+          python3 tools/fake_client.py 127.0.0.1 17780 flags1
+          docker rm -f panel-v1
 
-      - name: Run on .NET runtime image — MSG3_SPECIAL_FLAG=false
+      - name: Variant slot (1 byte)
         run: |
-          docker run -d --name panel-slot --restart=no \
-            -e MSG3_SPECIAL_FLAG=false \
-            -p 17781:7777 \
-            -v "$PWD/server/dist:/app" -w /app \
+          docker run -d --name panel-v2 --restart=no -e MSG3_VARIANT=slot \
+            -p 17781:7777 -v "$PWD/server/dist:/app" -w /app \
             mcr.microsoft.com/dotnet/runtime:8.0 \
             dotnet BunnyLoader.Server.dll --port 7777
-
           for i in $(seq 1 30); do
-            if docker logs panel-slot 2>&1 | grep -q '"ev":"server.start"'; then break; fi
-            sleep 1
+            docker logs panel-v2 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
           done
-          docker logs panel-slot || true
           python3 tools/fake_client.py 127.0.0.1 17781 slot
-          docker rm -f panel-slot
+          docker rm -f panel-v2
+
+      - name: Variant flags+bool0
+        run: |
+          docker run -d --name panel-v3 --restart=no -e MSG3_VARIANT=flags0 \
+            -p 17782:7777 -v "$PWD/server/dist:/app" -w /app \
+            mcr.microsoft.com/dotnet/runtime:8.0 \
+            dotnet BunnyLoader.Server.dll --port 7777
+          for i in $(seq 1 30); do
+            docker logs panel-v3 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
+          done
+          python3 tools/fake_client.py 127.0.0.1 17782 flags0
+          docker rm -f panel-v3
 
       - name: Package
         run: |
           cd server/dist
           # publish 只产出编译物，配置与自检向量要单独放进去，
           # 否则文档里列出的 config/ 与 testdata/ 解压后不存在。
+          cp ../start.sh start.sh
+          chmod +x start.sh
           mkdir -p config testdata
           cp ../config/server.json config/
           cp ../testdata/handshake-vectors.json testdata/

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# 构建面板服用的标准产物（框架依赖，面板自带 .NET 8 即可运行）。
+# 构建面板服包（框架依赖，面板自带 .NET 8 即可运行）。
 #
 #   ./server/build-panel.sh
 #   ls -lh server/dist/
 #
-# 只需要 Docker。产物是一组 .dll + runtimeconfig，约 200 KB。
+# 只需要 Docker。产物约 60 KB。
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -19,6 +19,15 @@ docker run --rm \
   dotnet publish src/BunnyLoader.Server/BunnyLoader.Server.csproj \
     -c Release \
     -o /src/dist
+
+# publish 只产出编译物；启动脚本、配置、自检向量要单独放进去
+echo "==> 补齐包内容"
+cp start.sh dist/
+mkdir -p dist/config dist/testdata
+cp config/server.json dist/config/
+cp testdata/handshake-vectors.json dist/testdata/
+rm -f dist/*.pdb
+chmod +x dist/start.sh
 
 echo
 echo "==> 产物"

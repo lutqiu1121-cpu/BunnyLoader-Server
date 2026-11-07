@@ -35,11 +35,12 @@
 产物是**框架依赖版**（约 60 KB），不打包运行时。完整清单见 [docs/panel-deploy.md](docs/panel-deploy.md)：
 
 1. 从 Releases 下载 `bunny-loader-server-panel-r2.zip`，上传到面板根目录并解压；
-2. 启动命令：`dotnet BunnyLoader.Server.dll --port 你的端口`；
+2. 启动命令：`sh start.sh`（自带 dotnet 查找与端口透传）；
 3. 看到 `"ev":"server.start"` 就是在监听。
 
-找不到 `dotnet` 时用 `docs/panel-deploy.md` 里的方案 B（自动找绝对路径）或方案 C（`mise exec dotnet@8.0`）。
-要切换消息 3 的 bool，只改 `MSG3_SPECIAL_FLAG=false` 重启，**不用重传文件**。
+服务端会在消息 3 之后立刻补发 BL 欢迎包（82 / kind 200），并且**每次连接轮换一种消息 3 形态**
+（`flags+bool1` → `slot` → `flags+bool0`），连三次就能确定移动端用哪种。
+也可用 `MSG3_VARIANT=flags1|slot|flags0` 固定。详见 [docs/panel-deploy.md](docs/panel-deploy.md)。
 
 ## 构建与回归（CI，每次 push 自动跑）
 
