@@ -251,15 +251,14 @@ def drain_world(sock: socket.socket, label: str, expect_start: bool = True, expe
 
 
 def pcap_flow(sock: socket.socket) -> int:
-    """抓包形式：27 字节 proof → 客户端直接发 id:1（不发回执）→ 3 + 欢迎 + 世界。"""
+    """抓包形式：proof(27) → 立刻 id:3 → 客户端 Hello → 68 → 欢迎 → 6 → 世界。"""
     sock.settimeout(6)
 
     data = recv_exact(sock, len(PCAP_PROOF))
     check("proof = 1b 00 52 7f b1 01 + 文本（27 字节）", data == PCAP_PROOF, data.hex())
 
-    sock.sendall(frame(1, string("Terraria326")))
     ident, payload = recv_frame(sock)
-    check("发 id:1 后立刻收到 id=3", ident == 3, ident)
+    check("proof 之后立刻收到 id=3（不等 id:1）", ident == 3, ident)
 
     sock.settimeout(0.4)
     try:
@@ -269,6 +268,7 @@ def pcap_flow(sock: socket.socket) -> int:
     check("id:3 之后静默（不发欢迎包/世界）", early is None, early[:16].hex() if early else None)
     sock.settimeout(10)
 
+    sock.sendall(frame(1, string("Terraria326")))
     sock.sendall(frame(68, string(HELLO_PREFIX + '{"mods":[],"textures":0}')))
     ident, payload = recv_frame(sock)
     check_welcome(ident, payload, "68 之后的欢迎包")
@@ -284,15 +284,14 @@ def pcap_flow(sock: socket.socket) -> int:
 
 
 def proof_doc_flow(sock: socket.socket) -> int:
-    """文档形式：26 字节 proof → 客户端发 id:1 → 3 → 68 → 欢迎 → 6 → 世界。"""
+    """文档形式：proof(26) → 立刻 id:3 → 客户端 Hello → 68 → 欢迎 → 6 → 世界。"""
     sock.settimeout(6)
 
     data = recv_exact(sock, len(DOC_PROOF))
     check("proof = 18 00 52 47 4e + 文本（26 字节）", data == DOC_PROOF, data.hex())
 
-    sock.sendall(frame(1, string("Terraria326")))
     ident, payload = recv_frame(sock)
-    check("发 id:1 后收到 id=3", ident == 3, ident)
+    check("proof 之后立刻收到 id=3", ident == 3, ident)
 
     sock.settimeout(0.4)
     try:
@@ -302,6 +301,7 @@ def proof_doc_flow(sock: socket.socket) -> int:
     check("id:3 之后静默", early is None, early[:16].hex() if early else None)
     sock.settimeout(10)
 
+    sock.sendall(frame(1, string("Terraria326")))
     sock.sendall(frame(68, string(HELLO_PREFIX + '{"mods":[],"textures":0}')))
     ident, payload = recv_frame(sock)
     check_welcome(ident, payload, "68 之后的欢迎包")

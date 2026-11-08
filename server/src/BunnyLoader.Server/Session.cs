@@ -47,6 +47,7 @@ internal sealed class Session
     private bool _spawnCorrected;
     private bool _proofDone;
     private bool _startPlayingSent;
+    private bool _approvedEarly;
     private bool _finishedSent;
     private int _lastSectionX = int.MinValue;
     private int _lastSectionY = int.MinValue;
@@ -211,96 +212,29 @@ internal sealed class Session
             ("hex", Codec.Hex(bytes, 32)),
             ("format", proof.LegacyCapture ? "capture" : "doc"));
 
-        // 发完证明后绝对静默；但客户端可能根本不发文本回执，
-        // 而是直接进游戏层发 id:1。两种情况都算通过。
-        bool verified = await AwaitVerifyAsync(stream, inbox, cancellationToken);
-        if (!verified)
+        // 关键：客户端验完证明后**等服务器发 id:3** 才发 id:1。
+        // 所以紧接着把 3 发出去，然后闭嘴（不发任何地图数据）。
+        if (_config.Handshake.SkipApproved)
         {
-            _log.Warn("proof.timeout", ("conn", _id), ("note", "没等到回执，继续走正常协议"));
+            _log.Info("approved.early-skipped", ("conn", _id), ("reason", "SKIP_APPROVED"));
             return;
         }
 
-        _proofDone = true;
-        _log.Info("proof.verified", ("conn", _id), ("note", "证明阶段结束，进入正常协议"));
-    }
+        (string layout, bool specialFlag) = PickMsg3Variant();
+        string label = layout == "slot" ? "slot" : (specialFlag ? "flags+bool1" : "flags+bool0");
 
-    private async Task<bool> AwaitVerifyAsync(NetworkStream stream, List<byte> inbox, CancellationToken cancellationToken)
-    {
-        ProofSection proof = _config.Proof;
-        DateTime end = DateTime.UtcNow.AddSeconds(proof.TimeoutSeconds);
+        var frames = new List<byte[]> { BuildMsg3(layout, specialFlag) };
+        if (_config.Handshake.WelcomeAfter3 && !_config.Handshake.SkipWelcomePack)
+            frames.Add(BuildWelcomeFrame());
 
-        while (DateTime.UtcNow < end)
-        {
-            ProofVerdict verdict = CheckProofReply(inbox, proof.ClientLine);
-            if (verdict == ProofVerdict.Accepted)
-                return true;
-            if (verdict == ProofVerdict.PassThrough)
-            {
-                _log.Info("proof.no-receipt", ("conn", _id), ("note", "客户端没发文本回执，直接进游戏层，放行"));
-                return true;
-            }
+        await SendBundleAsync(stream, frames, cancellationToken);
+        _approvedEarly = true;
 
-            await ReadIntoAsync(stream, inbox, cancellationToken, 200);
-        }
-
-        return false;
-    }
-
-    private enum ProofVerdict { Pending, Accepted, PassThrough }
-
-    /// <summary>
-    /// 判定证明阶段收到的东西：
-    ///   - 流里出现 52 47 4e + "NingLauncher/1/client" → 通过（消费掉）；
-    ///   - 出现任何别的游戏帧（比如 id:1）→ 也算通过，**但不消费**，交给正常流程；
-    ///   - 一个字都没收到 → 继续等，超时后照样往下走。
-    /// </summary>
-    private ProofVerdict CheckProofReply(List<byte> inbox, string clientLine)
-    {
-        if (inbox.Count < 3)
-            return ProofVerdict.Pending;
-
-        byte[] needle = Encoding.ASCII.GetBytes(clientLine.Trim('\r', '\n', '\0'));
-
-        int idx = -1;
-        for (int i = 0; i + needle.Length <= inbox.Count; i++)
-        {
-            bool match = true;
-            for (int j = 0; j < needle.Length; j++)
-            {
-                if (inbox[i + j] != needle[j]) { match = false; break; }
-            }
-            if (match) { idx = i; break; }
-        }
-
-        if (idx >= 3 && inbox[idx - 1] == 0x4E && inbox[idx - 2] == 0x47 && inbox[idx - 3] == MessageId.NetModules)
-        {
-            string got = Encoding.ASCII.GetString(inbox.GetRange(idx, needle.Length).ToArray());
-            _log.Info("proof.received", ("conn", _id), ("text", got));
-            inbox.RemoveRange(0, idx + needle.Length);
-            return ProofVerdict.Accepted;
-        }
-
-        // 可能是回执还没收全
-        if (idx >= 0 && idx < 3)
-            return ProofVerdict.Pending;
-
-        // 是不是一个 82 号帧的开头（回执还没到全）
-        int frameLength = inbox[0] | (inbox[1] << 8);
-        bool looksProofFrame = inbox[2] == MessageId.NetModules
-                               && inbox.Count >= 5
-                               && inbox[3] == 0x47
-                               && inbox[4] == 0x4E;
-
-        if (looksProofFrame && inbox.Count < frameLength + 2 && frameLength >= 5 && frameLength <= 512)
-            return ProofVerdict.Pending;
-
-        _log.Info("proof.first-frame",
+        _log.Info("approved.early",
             ("conn", _id),
-            ("id", inbox[2]),
-            ("name", Messages.Name(inbox[2])),
-            ("head", Codec.Hex(inbox.GetRange(0, Math.Min(6, inbox.Count)).ToArray(), 6)));
-
-        return ProofVerdict.PassThrough;
+            ("msg3", label),
+            ("welcome", frames.Count > 1),
+            ("note", "证明之后立刻发 3，然后闭嘴"));
     }
 
     private async Task ReadIntoAsync(NetworkStream stream, List<byte> inbox, CancellationToken outer, int milliseconds)
@@ -344,6 +278,15 @@ internal sealed class Session
             case MessageId.Hello:
             {
                 string version = TryReadString(payload) ?? "";
+
+                if (_approvedEarly)
+                {
+                    _log.Info("hello.after-approval",
+                        ("conn", _id),
+                        ("version", version),
+                        ("note", "3 已在证明之后发过，继续等 68/6"));
+                    break;
+                }
 
                 (string layout, bool specialFlag) = PickMsg3Variant();
                 string label = layout == "slot" ? "slot" : (specialFlag ? "flags+bool1" : "flags+bool0");

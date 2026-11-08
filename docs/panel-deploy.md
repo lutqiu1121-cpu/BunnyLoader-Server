@@ -624,6 +624,35 @@ PROOF_LEGACY_CAPTURE=false
 - `PROOF_MODE` 默认 `on`；写 `auto` 也等同 `on`（保留只是为了不报错）。
 - 只有明确写 `PROOF_MODE=off` 才跳过证明（给老无锁版用）。
 
+### 6.10.9 证明之后立刻发 id:3（当前实现）
+
+真机：客户端验完证明后会**等服务器发 `id:3`** 才发 `id:1`。
+上一版"证明 → 等 id:1 → 再发 3"两边互相等，3 秒后死锁断开。
+
+现在：
+
+```
+conn.open
+ → 发证明（27 字节）
+ → 紧接着发 id:3（同一次处理，不等任何输入）
+ → 闭嘴：不发欢迎包、不发地图
+ → 客户端发 id:1（只记日志，不再发 3）
+ → 客户端发 id:68 → 欢迎包
+ → 客户端发 id:6  → 7 + 9 + 分块
+```
+
+日志：
+
+```json
+{"ev":"proof.sent","bytes":27,"format":"capture"}
+{"ev":"approved.early","msg3":"flags+bool1","welcome":false,"note":"证明之后立刻发 3，然后闭嘴"}
+{"ev":"hello.after-approval"}
+{"ev":"bl.hello"}
+{"ev":"welcome.sent"}
+{"ev":"world.request"}
+{"ev":"world.sections","sections":42}
+```
+
 ## 7. 回传什么
 
 1. **控制台日志全文**（从 `server.start` 到最后一行）。
