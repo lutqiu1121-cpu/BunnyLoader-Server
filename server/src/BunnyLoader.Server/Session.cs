@@ -46,6 +46,7 @@ internal sealed class Session
     private bool _suppressOutbound;
     private bool _spawnCorrected;
     private bool _proofDone;
+    private bool _approvedEarly;
     private bool _finishedSent;
     private int _lastSectionX = int.MinValue;
     private int _lastSectionY = int.MinValue;
@@ -184,7 +185,43 @@ internal sealed class Session
         }
 
         await SendProofAsync(stream, cancellationToken);
-        await AwaitProofAsync(stream, inbox, cancellationToken);
+
+        if (proof.WaitReply)
+        {
+            await AwaitProofAsync(stream, inbox, cancellationToken);
+            return;
+        }
+
+        // 抓包证明客户端不会在明文层回执：发完 proof 立刻发 3 + 欢迎包，
+        // 然后进入正常接收循环。死等回执会把自己锁死。
+        await SendApprovalAsync(stream, cancellationToken);
+    }
+
+    /// <summary>不等 id:1，直接发消息 3 与欢迎包（proof 之后用）。</summary>
+    private async Task SendApprovalAsync(NetworkStream stream, CancellationToken cancellationToken)
+    {
+        if (_config.Handshake.SkipApproved || _config.Handshake.SkipWelcomePack)
+        {
+            _log.Info("approved.early-skipped", ("conn", _id), ("reason", "SKIP_APPROVED / SKIP_WELCOME_PACK"));
+            return;
+        }
+
+        (string layout, bool specialFlag) = PickMsg3Variant();
+        string label = layout == "slot" ? "slot" : (specialFlag ? "flags+bool1" : "flags+bool0");
+
+        var bundle = new List<byte[]>
+        {
+            BuildMsg3(layout, specialFlag),
+            BuildWelcomeFrame(),
+        };
+
+        await SendBundleAsync(stream, bundle, cancellationToken);
+        _approvedEarly = true;
+
+        _log.Info("approved.early",
+            ("conn", _id),
+            ("msg3", label),
+            ("note", "proof 之后立刻发 3 + 欢迎，不等 id:1"));
     }
 
 
@@ -370,6 +407,15 @@ internal sealed class Session
             case MessageId.Hello:
             {
                 string version = TryReadString(payload) ?? "";
+
+                if (_approvedEarly)
+                {
+                    _log.Info("hello.after-early-approval",
+                        ("conn", _id),
+                        ("version", version),
+                        ("note", "3 已在 proof 之后发过，不重复"));
+                    break;
+                }
                 (string layout, bool specialFlag) = PickMsg3Variant();
                 string label = layout == "slot" ? "slot" : (specialFlag ? "flags+bool1" : "flags+bool0");
 
@@ -385,6 +431,13 @@ internal sealed class Session
                 {
                     _log.Info("proof.now", ("conn", _id), ("note", "收到 id:1 之后再握手"));
                     await SendProofAsync(stream, cancellationToken);
+
+                    if (!_config.Proof.WaitReply)
+                    {
+                        await SendApprovalAsync(stream, cancellationToken);
+                        break;
+                    }
+
                     await AwaitProofAsync(stream, inbox, cancellationToken);
                 }
 

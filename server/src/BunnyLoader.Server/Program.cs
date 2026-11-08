@@ -196,6 +196,7 @@ public static class Program
                 ("proofNetModuleId", config.Proof.NetModuleId),
                 ("proofMessageId", config.Proof.MessageId),
                 ("proofSweep", config.Proof.Sweep),
+                ("proofWaitReply", config.Proof.WaitReply),
                 ("proofServerLine", config.Proof.ServerLine),
                 ("skipApproved", config.Handshake.SkipApproved),
                 ("sendMsg7After3", config.Handshake.SendMsg7After3),
@@ -408,5 +409,6 @@ public static class Program
         Console.WriteLine("  PROOF_AS_TEXT        true=预设：82 + 模块 0 + kind 1 + 文本");
         Console.WriteLine("  PROOF_MESSAGE_ID     把文本当某个顶层消息的负载：[u16][id][文本]");
         Console.WriteLine("  PROOF_SWEEP          true=每次连接自动换一种 proof 组合（日志 proof.variant）");
+        Console.WriteLine("  PROOF_WAIT_REPLY     true=发完 proof 等回执（默认 false：立刻发 id:3）");
     }
 }

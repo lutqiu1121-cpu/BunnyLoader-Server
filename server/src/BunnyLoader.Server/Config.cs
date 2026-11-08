@@ -156,6 +156,13 @@ public sealed class ServerConfig
             EnvNotes.Add($"PROOF_NETMODULE_KIND={kind}");
         }
 
+        string? proofWaitReply = Env("PROOF_WAIT_REPLY");
+        if (!string.IsNullOrWhiteSpace(proofWaitReply))
+        {
+            Proof.WaitReply = ParseBool(proofWaitReply, "PROOF_WAIT_REPLY");
+            EnvNotes.Add($"PROOF_WAIT_REPLY={Proof.WaitReply}");
+        }
+
         string? proofSweep = Env("PROOF_SWEEP");
         if (!string.IsNullOrWhiteSpace(proofSweep))
         {
@@ -661,6 +668,13 @@ public sealed class ProofSection
     /// <summary>"plain" = 直接发文本（默认）；"netmodule" = 封进 id:82 的 NetModule。</summary>
     [JsonPropertyName("wrapper")]
     public string Wrapper { get; set; } = "netmodule";
+
+    /// <summary>
+    /// true 时发完 proof 会等客户端回执（默认 false）。
+    /// 抓包证明客户端不会在明文层回执，所以默认不等：发完立刻发 id:3。
+    /// </summary>
+    [JsonPropertyName("waitReply")]
+    public bool WaitReply { get; set; }
 
     /// <summary>
     /// true 时忽略上面各项，按连接序号轮换内置的 10 种组合，一次现场测试扫完。

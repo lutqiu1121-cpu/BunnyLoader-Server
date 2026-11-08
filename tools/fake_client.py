@@ -170,21 +170,51 @@ def world_flow(sock: socket.socket, req_x: int = 2100, req_y: int = 349, min_x: 
     return 0 if FAILED == 0 else 1
 
 
+def pcap_flow(sock: socket.socket) -> int:
+    """复刻抓包时的顺序：proof → 立刻 3 + 欢迎 → 客户端再发 Hello → 68 → 6 → 8。"""
+    sock.settimeout(6)
+
+    data = recv_exact(sock, len(PCAP_PROOF))
+    check("proof 与 PCAP 样本逐字节一致", data == PCAP_PROOF, data.hex())
+
+    ident, payload = recv_frame(sock)
+    check("proof 之后立刻收到 id=3", ident == 3, ident)
+
+    ident, payload = recv_frame(sock)
+    check_welcome(ident, payload, "proof 之后的欢迎包")
+
+    sock.sendall(frame(1, string("Terraria326")))
+    # 服务端已早发过 3，这里不应再有 3
+
+    sock.sendall(frame(68, string(HELLO_PREFIX + '{"mods":[],"textures":0}')))
+    ident, payload = recv_frame(sock)
+    check_welcome(ident, payload, "介绍之后的欢迎包")
+
+    sock.sendall(frame(6, b""))
+    ident, payload = recv_frame(sock)
+    check("回复 id = 7 (WorldData)", ident == 7, ident)
+    if ident == 7:
+        world = decode_world_data(payload)
+        check("世界名可解析", bool(world["worldName"]), world["worldName"])
+        check("负载被完整消费", world["_consumed"] == len(payload),
+              f"{world['_consumed']}/{len(payload)}")
+
+    print()
+    return world_flow(sock)
+
+
 def main(host: str, port: int, variant: str = "flags1") -> int:
     print(f"连接 {host}:{port}  变体={variant}")
     sock = socket.create_connection((host, port), timeout=10)
     sock.settimeout(10)
 
     try:
-        # ---------- proof：连上就做 ----------
+        # ---------- 抓包复刻流程单独走 ----------
         if variant == "proofpcap":
-            sock.settimeout(5)
-            data = recv_exact(sock, len(PCAP_PROOF))
-            check("proof 与 PCAP 样本逐字节一致", data == PCAP_PROOF, data.hex())
-            sock.sendall(bytes.fromhex("1b00527fb101") + b"NingLauncher/1/client")
-            sock.settimeout(10)
+            return pcap_flow(sock)
 
-        elif variant == "proofraw21":
+        # ---------- 其它 proof 变体：连上就做 ----------
+        if variant == "proofraw21":
             sock.settimeout(5)
             data = recv_exact(sock, 21)
             check("收到 21 字节 proof（无换行）", data == b"NingLauncher/1/server", data)

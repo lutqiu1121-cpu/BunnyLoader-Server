@@ -462,6 +462,31 @@ sh -c 'WORLD_FILE=块状的小屋.wld sh start.sh'
 
 （默认 `PROOF_MODE=auto`：先等 200ms 看老客户端是否直接发帧；等不到就发上面这个 27 字节包。）
 
+### 6.10.4 不再等回执（重要）
+
+真机反馈：服务端发完 27 字节 proof 后，客户端**连 `id:1` 都不发**，静默到超时。
+
+结合抓包里根本没有客户端回执这一点：客户端的 **C++ 层验证完 proof 后不会在明文层回任何东西**，
+它在等游戏层的 `id:3`。
+
+所以现在流程改成：
+
+```
+TCP 建立 → 发 27 字节 proof → 立刻发 id:3 + 欢迎包(82/200) → 进入正常接收循环
+```
+
+日志：
+
+```json
+{"ev":"proof.sent","bytes":27,"hex":"1b 00 52 7f b1 01 …"}
+{"ev":"proof.matches-capture"}
+{"ev":"approved.early","msg3":"flags+bool1","note":"proof 之后立刻发 3 + 欢迎，不等 id:1"}
+```
+
+之后客户端发 `id:1` 时只记 `hello.after-early-approval`，**不会重复发 3**。
+
+如果某天需要恢复"等回执"，加 `PROOF_WAIT_REPLY=true`。
+
 ## 7. 回传什么
 
 1. **控制台日志全文**（从 `server.start` 到最后一行）。
