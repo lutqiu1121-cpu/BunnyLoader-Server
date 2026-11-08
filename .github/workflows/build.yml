@@ -133,10 +133,10 @@ jobs:
           python3 tools/fake_client.py 127.0.0.1 17782 flags0
           docker rm -f panel-v3
 
-      - name: Proof — 官方文档格式 + 回执校验 + 进世界
+      - name: Proof — 官方文档格式（PROOF_LEGACY_CAPTURE=false）
         run: |
           docker run -d --name panel-doc --restart=no \
-            -e PROOF_MODE=on -e MSG3_VARIANT=flags1 \
+            -e PROOF_MODE=on -e PROOF_LEGACY_CAPTURE=false -e MSG3_VARIANT=flags1 \
             -p 17790:7777 -v "$PWD/server/dist:/app" -w /app \
             mcr.microsoft.com/dotnet/runtime:8.0 \
             dotnet BunnyLoader.Server.dll --port 7777
