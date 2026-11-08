@@ -569,6 +569,44 @@ PROOF_LEGACY_CAPTURE=true
 sh -c 'WORLD_FILE=块状的小屋.wld sh start.sh'
 ```
 
+### 6.10.7 客户端不回回执（当前实现）
+
+真机：发完证明后客户端**不发** `NingLauncher/1/client`，而是直接进游戏层发 `id:1`。
+上一版把它当成非法帧断开，属于误杀。
+
+现在的判定：
+
+| 证明阶段收到的第一个东西 | 处理 |
+|---|---|
+| `52 47 4e` + `NingLauncher/1/client` | 通过，消费掉这段字节 |
+| 任何游戏帧（典型是 `id:1`） | **也通过**，不消费，交给正常流程处理 |
+| 什么都没收到 | 超时后照样往下走 |
+
+默认证明形式已切回**抓包那种 27 字节**（`1b 00 52 7f b1 01 + 文本`），
+因为真机证明它有效。要使用文档的 24 字节形式：
+
+```bash
+PROOF_LEGACY_CAPTURE=false
+```
+
+流程：
+
+```
+连接 → 发 27 字节证明 → 静默
+     → 客户端发 id:1 → 立刻回 id:3 + 欢迎
+     → 紧接着推世界数据（7 + 9 + 分块 + 49）
+```
+
+日志：
+
+```json
+{"ev":"proof.sent","bytes":27,"format":"capture"}
+{"ev":"proof.first-frame","id":1,"name":"Hello"}
+{"ev":"proof.no-receipt","note":"客户端没发文本回执，直接进游戏层，放行"}
+{"ev":"frame.send","id":"3"}
+{"ev":"world.on-hello","mode":"full"}
+```
+
 ## 7. 回传什么
 
 1. **控制台日志全文**（从 `server.start` 到最后一行）。

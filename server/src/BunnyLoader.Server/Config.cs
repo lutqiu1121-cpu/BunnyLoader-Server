@@ -711,7 +711,7 @@ public sealed class ProofSection
     /// false（默认）= 按官方文档的 24 字节形式（82 + "RGN" + 文本）。
     /// </summary>
     [JsonPropertyName("legacyCapture")]
-    public bool LegacyCapture { get; set; }
+    public bool LegacyCapture { get; set; } = true;
 
     /// <summary>
     /// true 时发完 proof 会等客户端回执（默认 false）。

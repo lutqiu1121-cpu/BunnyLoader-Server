@@ -259,19 +259,37 @@ def proof_doc_flow(sock: socket.socket) -> int:
 
 
 def pcap_flow(sock: socket.socket) -> int:
-    """复刻抓包顺序：proof → 3 + 欢迎 → 客户端 Hello → 服务端立刻推世界数据。"""
+    """抓包形式：27 字节 proof → 客户端直接发 id:1（不发回执）→ 3 + 欢迎 + 世界。"""
     sock.settimeout(6)
 
     data = recv_exact(sock, len(PCAP_PROOF))
-    check("proof 与 PCAP 样本逐字节一致", data == PCAP_PROOF, data.hex())
-
-    ident, payload = recv_frame(sock)
-    check("proof 之后立刻收到 id=3", ident == 3, ident)
-
-    ident, payload = recv_frame(sock)
-    check_welcome(ident, payload, "proof 之后的欢迎包")
+    check("proof = 1b 00 52 7f b1 01 + 文本（27 字节）", data == PCAP_PROOF, data.hex())
 
     sock.sendall(frame(1, string("Terraria326")))
+    ident, payload = recv_frame(sock)
+    check("发 id:1 后立刻收到 id=3", ident == 3, ident)
+    ident, payload = recv_frame(sock)
+    check_welcome(ident, payload, "id:3 之后的欢迎包")
+
+    drain_world(sock, "Hello 之后主动推世界")
+
+    print()
+    return 0 if FAILED == 0 else 1
+
+
+def proof_doc_flow(sock: socket.socket) -> int:
+    """文档形式：26 字节 proof → 客户端直接发 id:1 → 3 + 欢迎 + 世界。"""
+    sock.settimeout(6)
+
+    data = recv_exact(sock, len(DOC_PROOF))
+    check("proof = 18 00 52 47 4e + 文本（26 字节）", data == DOC_PROOF, data.hex())
+
+    sock.sendall(frame(1, string("Terraria326")))
+    ident, payload = recv_frame(sock)
+    check("发 id:1 后立刻收到 id=3", ident == 3, ident)
+    ident, payload = recv_frame(sock)
+    check_welcome(ident, payload, "id:3 之后的欢迎包")
+
     drain_world(sock, "Hello 之后主动推世界")
 
     print()

@@ -105,10 +105,6 @@ internal sealed class Session
 
             _log.Info("conn.close", ("conn", _id), ("bytes", total), ("reason", "shutdown"));
         }
-        catch (ProofFailedException)
-        {
-            _log.Info("conn.close", ("conn", _id), ("bytes", total), ("reason", "proof-failed"));
-        }
         catch (OperationCanceledException)
         {
             _log.Info("conn.close", ("conn", _id), ("bytes", total), ("reason", "shutdown"));
@@ -231,21 +227,19 @@ internal sealed class Session
             ("hex", Codec.Hex(bytes, 32)),
             ("format", proof.LegacyCapture ? "capture" : "doc"));
 
-        // 文档：发完证明后绝对不能发任何东西，直到收到回执
+        // 发完证明后绝对静默；但客户端可能根本不发文本回执，
+        // 而是直接进游戏层发 id:1。两种情况都算通过。
         bool verified = await AwaitVerifyAsync(stream, inbox, cancellationToken);
         if (!verified)
         {
-            _log.Warn("proof.rejected", ("conn", _id));
-            throw new ProofFailedException();
+            _log.Warn("proof.timeout", ("conn", _id), ("note", "没等到回执，继续走正常协议"));
+            return;
         }
 
         _proofDone = true;
-        _log.Info("proof.verified", ("conn", _id), ("note", "回执校验通过，进入正常协议"));
+        _log.Info("proof.verified", ("conn", _id), ("note", "证明阶段结束，进入正常协议"));
     }
 
-    private sealed class ProofFailedException : Exception { }
-
-    /// <summary>等客户端回执并校验；收到其它游戏帧直接判失败。</summary>
     private async Task<bool> AwaitVerifyAsync(NetworkStream stream, List<byte> inbox, CancellationToken cancellationToken)
     {
         ProofSection proof = _config.Proof;
@@ -256,22 +250,25 @@ internal sealed class Session
             ProofVerdict verdict = CheckProofReply(inbox, proof.ClientLine);
             if (verdict == ProofVerdict.Accepted)
                 return true;
-            if (verdict == ProofVerdict.Rejected)
-                return false;
+            if (verdict == ProofVerdict.PassThrough)
+            {
+                _log.Info("proof.no-receipt", ("conn", _id), ("note", "客户端没发文本回执，直接进游戏层，放行"));
+                return true;
+            }
 
             await ReadIntoAsync(stream, inbox, cancellationToken, 200);
         }
 
-        _log.Warn("proof.timeout", ("conn", _id), ("seconds", proof.TimeoutSeconds));
         return false;
     }
 
-    private enum ProofVerdict { Pending, Accepted, Rejected }
+    private enum ProofVerdict { Pending, Accepted, PassThrough }
 
     /// <summary>
-    /// 判定 inbox 开头是不是合法回执。
-    /// 文档形式：18 00 52 47 4e + "NingLauncher/1/client"
-    /// 也容忍不带长度头的 52 47 4e + 文本。
+    /// 判定证明阶段收到的东西：
+    ///   - 流里出现 52 47 4e + "NingLauncher/1/client" → 通过（消费掉）；
+    ///   - 出现任何别的游戏帧（比如 id:1）→ 也算通过，**但不消费**，交给正常流程；
+    ///   - 一个字都没收到 → 继续等，超时后照样往下走。
     /// </summary>
     private ProofVerdict CheckProofReply(List<byte> inbox, string clientLine)
     {
@@ -294,30 +291,32 @@ internal sealed class Session
         if (idx >= 3 && inbox[idx - 1] == 0x4E && inbox[idx - 2] == 0x47 && inbox[idx - 3] == MessageId.NetModules)
         {
             string got = Encoding.ASCII.GetString(inbox.GetRange(idx, needle.Length).ToArray());
-            _log.Info("proof.received", ("conn", _id), ("text", got), ("bytes", idx + needle.Length));
+            _log.Info("proof.received", ("conn", _id), ("text", got));
             inbox.RemoveRange(0, idx + needle.Length);
             return ProofVerdict.Accepted;
         }
 
-        // 还没凑齐
+        // 可能是回执还没收全
         if (idx >= 0 && idx < 3)
             return ProofVerdict.Pending;
 
-        // 判断开头是不是证明帧：52 开头，或长度之后是 52
-        bool looksProof = inbox[0] == MessageId.NetModules
-                          || inbox[2] == MessageId.NetModules;
+        // 是不是一个 82 号帧的开头（回执还没到全）
+        int frameLength = inbox[0] | (inbox[1] << 8);
+        bool looksProofFrame = inbox[2] == MessageId.NetModules
+                               && inbox.Count >= 5
+                               && inbox[3] == 0x47
+                               && inbox[4] == 0x4E;
 
-        if (!looksProof)
-        {
-            _log.Warn("proof.bad-frame", ("conn", _id), ("head", Codec.Hex(inbox.GetRange(0, Math.Min(6, inbox.Count)).ToArray(), 6)));
-            return ProofVerdict.Rejected;
-        }
+        if (looksProofFrame && inbox.Count < frameLength + 2 && frameLength >= 5 && frameLength <= 512)
+            return ProofVerdict.Pending;
 
-        // 是证明帧但内容不对（凑齐一段后仍不匹配）
-        if (inbox.Count > 96)
-            return ProofVerdict.Rejected;
+        _log.Info("proof.first-frame",
+            ("conn", _id),
+            ("id", inbox[2]),
+            ("name", Messages.Name(inbox[2])),
+            ("head", Codec.Hex(inbox.GetRange(0, Math.Min(6, inbox.Count)).ToArray(), 6)));
 
-        return ProofVerdict.Pending;
+        return ProofVerdict.PassThrough;
     }
 
     private async Task ReadIntoAsync(NetworkStream stream, List<byte> inbox, CancellationToken outer, int milliseconds)

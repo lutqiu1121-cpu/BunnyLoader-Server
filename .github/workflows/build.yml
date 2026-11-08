@@ -147,39 +147,19 @@ jobs:
           docker logs panel-doc | grep -E 'proof\.(sent|received|verified)' | head -3
           docker rm -f panel-doc
 
-      - name: Proof 拒绝 — 验证前发游戏帧必须断开
+      - name: Proof — 抓包形式（默认）+ 进世界
         run: |
-          docker run -d --name panel-rej --restart=no \
+          docker run -d --name panel-cap --restart=no \
             -e PROOF_MODE=on -e MSG3_VARIANT=flags1 \
             -p 17798:7777 -v "$PWD/server/dist:/app" -w /app \
             mcr.microsoft.com/dotnet/runtime:8.0 \
             dotnet BunnyLoader.Server.dll --port 7777
           for i in $(seq 1 30); do
-            docker logs panel-rej 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
+            docker logs panel-cap 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
           done
-          python3 - <<'PYCLIENT'
-          import socket, sys
-          sys.path.insert(0, "tools")
-          s = socket.create_connection(("127.0.0.1", 17798), timeout=6)
-          s.settimeout(6)
-          want = bytes.fromhex("180052474e") + b"NingLauncher/1/server"
-          proof = b""
-          while len(proof) < len(want):
-              chunk = s.recv(len(want) - len(proof))
-              if not chunk:
-                  break
-              proof += chunk
-          assert proof == want, proof.hex()
-          # 不发回执，直接发 Hello：服务端必须断开
-          s.sendall(b"\x0f\x00\x01\x0bTerraria326")
-          try:
-              data = s.recv(16)
-          except socket.timeout:
-              data = None
-          assert data == b"", f"服务端没有断开: {data!r}"
-          print("PASS 验证前发游戏帧被断开")
-          PYCLIENT
-          docker rm -f panel-rej
+          python3 tools/fake_client.py 127.0.0.1 17798 proofpcap
+          docker logs panel-cap | grep -E 'proof\.(sent|no-receipt|verified|first-frame)' | head -3
+          docker rm -f panel-cap
 
       - name: Proof auto — 老客户端直接发帧，不应收到文本
         run: |
