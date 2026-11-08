@@ -35,6 +35,9 @@ public sealed class ServerConfig
     [JsonPropertyName("proof")]
     public ProofSection Proof { get; set; } = new();
 
+    [JsonPropertyName("r5")]
+    public R5Section R5 { get; set; } = new();
+
     private static readonly JsonSerializerOptions Options = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -154,6 +157,27 @@ public sealed class ServerConfig
                 throw new InvalidDataException($"PROOF_NETMODULE_KIND 不是整数: {proofKind}");
             Proof.NetModuleKind = kind;
             EnvNotes.Add($"PROOF_NETMODULE_KIND={kind}");
+        }
+
+        string? echoControls = Env("ECHO_CONTROLS");
+        if (!string.IsNullOrWhiteSpace(echoControls))
+        {
+            R5.EchoControls = ParseBool(echoControls, "ECHO_CONTROLS");
+            EnvNotes.Add($"ECHO_CONTROLS={R5.EchoControls}");
+        }
+
+        string? echoActive = Env("ECHO_ACTIVE");
+        if (!string.IsNullOrWhiteSpace(echoActive))
+        {
+            R5.EchoActive = ParseBool(echoActive, "ECHO_ACTIVE");
+            EnvNotes.Add($"ECHO_ACTIVE={R5.EchoActive}");
+        }
+
+        string? sendHealth = Env("SEND_HEALTH");
+        if (!string.IsNullOrWhiteSpace(sendHealth))
+        {
+            R5.SendHealth = ParseBool(sendHealth, "SEND_HEALTH");
+            EnvNotes.Add($"SEND_HEALTH={R5.SendHealth}");
         }
 
         string? disable163 = Env("DISABLE_163");
@@ -823,4 +847,21 @@ public sealed class ProofSection
     /// </summary>
     [JsonPropertyName("messageId")]
     public int? MessageId { get; set; }
+}
+
+
+/// <summary>进世界之后的保活/同步行为（R5）。</summary>
+public sealed class R5Section
+{
+    /// <summary>收到 id:13（PlayerControls）时原样回显。</summary>
+    [JsonPropertyName("echoControls")]
+    public bool EchoControls { get; set; } = true;
+
+    /// <summary>收到 id:14（PlayerActive）时原样回显。</summary>
+    [JsonPropertyName("echoActive")]
+    public bool EchoActive { get; set; } = true;
+
+    /// <summary>进入世界后发 100/100 血、20/20 蓝（消息 16）。</summary>
+    [JsonPropertyName("sendHealth")]
+    public bool SendHealth { get; set; } = true;
 }

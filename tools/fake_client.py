@@ -305,6 +305,29 @@ def pcap_flow(sock: socket.socket) -> int:
 
     drain_world(sock, "6 之后推分块", expect_start=False, expect_header=False)
 
+    # R5：移动与活动状态必须有来有回
+    sock.settimeout(6)
+    controls = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+    sock.sendall(frame(13, controls))
+    ident, payload = recv_frame(sock)
+    check("id:13 被原样回显", ident == 13 and payload == controls, f"{ident} {payload.hex()}")
+
+    sock.sendall(frame(14, b"\x00\x01"))
+    ident, payload = recv_frame(sock)
+    check("id:14 被原样回显", ident == 14 and payload == b"\x00\x01", f"{ident} {payload.hex()}")
+
+    # 12 触发 129 + 血量
+    sock.sendall(frame(12, b"\x00" + (2105).to_bytes(2, "little", signed=True) + (312).to_bytes(2, "little", signed=True) + b"\x00"))
+    seen = []
+    for _ in range(8):
+        ident, payload = recv_frame(sock)
+        seen.append(ident)
+        if ident == 16:
+            check("血量 100/100", len(payload) == 9 and payload[1:3] == (100).to_bytes(2, "little"), payload.hex())
+        if ident == 129:
+            break
+    check("收到 129 或 16", 129 in seen or 16 in seen, seen)
+
     print()
     return 0 if FAILED == 0 else 1
 

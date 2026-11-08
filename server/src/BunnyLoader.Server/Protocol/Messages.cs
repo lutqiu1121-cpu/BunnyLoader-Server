@@ -86,6 +86,18 @@ public static class Messages
     public static byte[] StartPlayingPacket() => Codec.Frame(MessageId.StartPlaying, Array.Empty<byte>());
 
     /// <summary>消息 12：玩家出生（u8 player, i16 x, i16 y, i32 respawn, i16 pve, i16 pvp, u8 team, u8 ctx）。</summary>
+    /// <summary>消息 16（PlayerHealth）：u8 槽位 + i16 血 + i16 最大血 + i16 蓝 + i16 最大蓝。</summary>
+    public static byte[] PlayerHealthPacket(byte player, short hp, short maxHp, short mana, short maxMana)
+    {
+        byte[] payload = new byte[9];
+        payload[0] = player;
+        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(1, 2), hp);
+        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(3, 2), maxHp);
+        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(5, 2), mana);
+        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(7, 2), maxMana);
+        return Frame(MessageId.PlayerHealth, payload);
+    }
+
     public static byte[] PlayerSpawnPacket(byte player, short spawnX, short spawnY)
     {
         byte[] payload = new byte[15];

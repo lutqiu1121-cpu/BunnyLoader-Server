@@ -502,7 +502,7 @@ internal sealed class Session
 
                 DateTime now = DateTime.UtcNow;
                 if (reqX == _lastSectionX && reqY == _lastSectionY
-                    && (now - _lastSectionAt).TotalMilliseconds < 1500)
+                    && (now - _lastSectionAt).TotalMilliseconds < 200)
                 {
                     _log.Info("sections.skipped", ("conn", _id), ("x", reqX), ("y", reqY));
                     break;
@@ -547,12 +547,38 @@ internal sealed class Session
                 {
                     _finishedSent = true;
                     await SendAsync(stream, Messages.FinishedConnectingPacket(), cancellationToken);
+
+                    if (_config.R5.SendHealth)
+                    {
+                        await SendAsync(stream,
+                            Messages.PlayerHealthPacket(PlayerSlot, 100, 100, 20, 20),
+                            cancellationToken);
+                        _log.Info("health.sent", ("conn", _id), ("hp", 100), ("maxHp", 100), ("mana", 20));
+                    }
+
                     _log.Info("world.entered", ("conn", _id), ("x", px), ("y", py));
                 }
                 else
                 {
                     _log.Info("player.spawn.ignored", ("conn", _id));
                 }
+                break;
+            }
+
+            case MessageId.PlayerControls:
+            {
+                // 单人：原样回显，让客户端收到自己的位置确认，避免判定网络阻塞。
+                if (_config.R5.EchoControls)
+                    await SendAsync(stream, Codec.Frame(MessageId.PlayerControls, payload), cancellationToken);
+                else
+                    _log.Info("controls.ignored", ("conn", _id));
+                break;
+            }
+
+            case MessageId.PlayerActive:
+            {
+                if (_config.R5.EchoActive)
+                    await SendAsync(stream, Codec.Frame(MessageId.PlayerActive, payload), cancellationToken);
                 break;
             }
 
