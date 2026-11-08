@@ -200,12 +200,15 @@ internal sealed class Session
 
         byte[] text = Encoding.ASCII.GetBytes(proof.ServerLine + suffix);
 
+        // 直接把文本当某个顶层消息的负载：[u16][id][text]
+        if (proof.MessageId.HasValue)
+            return Codec.Frame((byte)proof.MessageId.Value, text);
+
         if (proof.Wrapper == "netmodule")
         {
             int head = 2 + (proof.NetModuleKind.HasValue ? 1 : 0);
             byte[] payload = new byte[head + text.Length];
-            payload[0] = 0x7F;
-            payload[1] = 0xB1;
+            BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(0, 2), (ushort)proof.NetModuleId);
             if (proof.NetModuleKind.HasValue)
                 payload[2] = (byte)proof.NetModuleKind.Value;
             text.CopyTo(payload, head);

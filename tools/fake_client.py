@@ -117,6 +117,13 @@ def read_proof(sock: socket.socket, kind: str) -> bytes:
         check("proof 模块号 0xB17F", payload[:2] == b"\x7f\xb1", payload[:2].hex())
         return payload[2:]
 
+    if kind == "module0":
+        ident, payload = recv_frame(sock)
+        check("proof 封在 id=82", ident == 82, ident)
+        check("proof 模块号 0（NetTextModule）", payload[:2] == b"\x00\x00", payload[:2].hex())
+        check("proof kind = 1", payload[2:3] == b"\x01", payload[2:3].hex())
+        return payload[3:]
+
     line = b""
     while not line.endswith(b"\n") and len(line) < 256:
         chunk = sock.recv(1)
@@ -132,7 +139,8 @@ def main(host: str, port: int, variant: str = "flags") -> int:
     sock.settimeout(10)
     try:
         proof_kind = {"proof": "raw", "proofworld": "raw",
-                      "proofframe": "frame", "proofmodule": "module"}.get(variant)
+                      "proofframe": "frame", "proofmodule": "module",
+                      "prooftext": "module0"}.get(variant)
 
         # 0a. 连上就做的 proof（before-hello）
         if proof_kind and variant != "proofafter":
@@ -168,6 +176,7 @@ def main(host: str, port: int, variant: str = "flags") -> int:
             "proofafter": b"\x01\x01", # 先发 Hello，再做 proof
             "proofframe": b"\x01\x01", # proof 带 2 字节长度头
             "proofmodule": b"\x01\x01",# proof 封在 82 里
+            "prooftext": b"\x01\x01",  # proof 封在 82 的模块 0 + kind 1
             "proofworld": b"\x01\x01", # proof + 完整进世界
         }.get(variant) or (
             bytes.fromhex(variant[4:].replace(" ", "")) if variant.startswith("hex:") else None
@@ -264,7 +273,7 @@ if __name__ == "__main__":
     host = sys.argv[1]
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 7777
     variant = sys.argv[3] if len(sys.argv) > 3 else "flags1"
-    allowed = ("flags1", "flags0", "flags", "slot", "silent", "msg7", "msg7only", "world", "worldneg", "proof", "proofworld", "proofafter", "proofframe", "proofmodule")
+    allowed = ("flags1", "flags0", "flags", "slot", "silent", "msg7", "msg7only", "world", "worldneg", "proof", "proofworld", "proofafter", "proofframe", "proofmodule", "prooftext")
     if variant not in allowed and not variant.startswith("hex:"):
         print("第三个参数只能是 " + " / ".join(allowed) + " / hex:XXXX")
         sys.exit(2)

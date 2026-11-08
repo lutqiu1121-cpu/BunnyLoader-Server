@@ -364,6 +364,39 @@ sh -c 'WORLD_FILE=块状的小屋.wld PROOF_MODE=on sh start.sh'
 | 有 `proof.accepted` 但随后断开 | 握手通过，问题在后面的协议 |
 | 老客户端反而连不上 | 说明 auto 没识别出来，先用 `PROOF_MODE=off` |
 
+### 6.10.1 真机三种形态的结果与新增开关
+
+真机结果：
+
+| 形态 | 结果 | 解释 |
+|---|---|---|
+| 裸文本 | 3 秒超时，之后客户端正常发 `id:1` | 客户端把 `Ni`（0x4E69）读成帧长 26958，卡在等数据 |
+| 带 2 字节长度头 | **秒断**，手机弹"只能互通" | 帧被解开了，但内容不被接受 |
+| 82 + 模块 0xB17F | **秒断**，同样报错 | 同上 |
+
+结论：客户端**从第一字节起就在跑帧解析**，所以 proof 必须是合法帧，且内容/容器要对。
+
+新增开关（都可直接改启动命令）：
+
+| 变量 | 作用 |
+|---|---|
+| `PROOF_AS_TEXT=true` | 预设：`[u16][82][00 00][01][文本]`（82 + 模块 0 + kind 1） |
+| `PROOF_NETMODULE_ID=<n>` | 封进 82 时用的模块号，默认 45439（0xB17F）；填 0 = NetTextModule |
+| `PROOF_MESSAGE_ID=<n>` | 把文本当**任意顶层消息**的负载：`[u16][id][文本]` |
+
+组合示例：
+
+```bash
+# 你的方案 4：模块 0 + kind 1
+sh -c 'WORLD_FILE=块状的小屋.wld PROOF_MODE=on PROOF_AS_TEXT=true sh start.sh'
+
+# 模块 0，但不带 kind
+sh -c 'WORLD_FILE=块状的小屋.wld PROOF_MODE=on PROOF_IN_NETMODULE=true PROOF_NETMODULE_ID=0 sh start.sh'
+
+# 当成某个顶层消息（例如 9 = StatusText）
+sh -c 'WORLD_FILE=块状的小屋.wld PROOF_MODE=on PROOF_MESSAGE_ID=9 sh start.sh'
+```
+
 ## 7. 回传什么
 
 1. **控制台日志全文**（从 `server.start` 到最后一行）。

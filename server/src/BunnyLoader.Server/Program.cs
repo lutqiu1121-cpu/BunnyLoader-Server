@@ -193,6 +193,8 @@ public static class Program
                 ("proofTiming", config.Proof.Timing),
                 ("proofFraming", config.Proof.Framing),
                 ("proofWrapper", config.Proof.Wrapper),
+                ("proofNetModuleId", config.Proof.NetModuleId),
+                ("proofMessageId", config.Proof.MessageId),
                 ("proofServerLine", config.Proof.ServerLine),
                 ("skipApproved", config.Handshake.SkipApproved),
                 ("sendMsg7After3", config.Handshake.SendMsg7After3),
@@ -401,5 +403,8 @@ public static class Program
         Console.WriteLine("  PROOF_AFTER_HELLO    true=收到 id:1 之后再做 proof");
         Console.WriteLine("  PROOF_WITH_LENGTH    true=proof 带 2 字节长度头");
         Console.WriteLine("  PROOF_IN_NETMODULE   true=proof 封进 id:82（模块 0xB17F）");
+        Console.WriteLine("  PROOF_NETMODULE_ID   封进 82 时用的模块号，默认 45439（0xB17F）");
+        Console.WriteLine("  PROOF_AS_TEXT        true=预设：82 + 模块 0 + kind 1 + 文本");
+        Console.WriteLine("  PROOF_MESSAGE_ID     把文本当某个顶层消息的负载：[u16][id][文本]");
     }
 }

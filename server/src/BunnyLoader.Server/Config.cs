@@ -156,6 +156,34 @@ public sealed class ServerConfig
             EnvNotes.Add($"PROOF_NETMODULE_KIND={kind}");
         }
 
+        string? proofNetModuleId = Env("PROOF_NETMODULE_ID");
+        if (!string.IsNullOrWhiteSpace(proofNetModuleId))
+        {
+            if (!int.TryParse(proofNetModuleId.Trim(), out int nmId))
+                throw new InvalidDataException($"PROOF_NETMODULE_ID 不是整数: {proofNetModuleId}");
+            Proof.NetModuleId = nmId;
+            EnvNotes.Add($"PROOF_NETMODULE_ID={nmId}");
+        }
+
+        string? proofAsText = Env("PROOF_AS_TEXT");
+        if (!string.IsNullOrWhiteSpace(proofAsText) && ParseBool(proofAsText, "PROOF_AS_TEXT"))
+        {
+            // 预设：封进 id:82、模块 0（NetTextModule）、kind=1
+            Proof.Wrapper = "netmodule";
+            Proof.NetModuleId = 0;
+            Proof.NetModuleKind = 1;
+            EnvNotes.Add("PROOF_AS_TEXT=netmodule(0,kind=1)");
+        }
+
+        string? proofMessageId = Env("PROOF_MESSAGE_ID");
+        if (!string.IsNullOrWhiteSpace(proofMessageId))
+        {
+            if (!int.TryParse(proofMessageId.Trim(), out int mid))
+                throw new InvalidDataException($"PROOF_MESSAGE_ID 不是整数: {proofMessageId}");
+            Proof.MessageId = mid;
+            EnvNotes.Add($"PROOF_MESSAGE_ID={mid}");
+        }
+
         string? proofTimeout = Env("PROOF_TIMEOUT");
         if (!string.IsNullOrWhiteSpace(proofTimeout))
         {
@@ -379,6 +407,12 @@ public sealed class ServerConfig
 
         if (Proof.NetModuleKind is < 0 or > 255)
             throw new InvalidDataException($"proof.netModuleKind 应在 0..255，当前 {Proof.NetModuleKind}");
+
+        if (Proof.NetModuleId is < 0 or > 65535)
+            throw new InvalidDataException($"proof.netModuleId 应在 0..65535，当前 {Proof.NetModuleId}");
+
+        if (Proof.MessageId is < 0 or > 255)
+            throw new InvalidDataException($"proof.messageId 应在 0..255，当前 {Proof.MessageId}");
 
         if (Proof.TimeoutSeconds < 1 || Proof.TimeoutSeconds > 60)
             throw new InvalidDataException($"proof.timeoutSeconds 应在 1..60，当前 {Proof.TimeoutSeconds}");
@@ -623,4 +657,15 @@ public sealed class ProofSection
     /// <summary>wrapper=netmodule 时，模块号后是否再插一个 kind 字节；null = 不插。</summary>
     [JsonPropertyName("netModuleKind")]
     public int? NetModuleKind { get; set; }
+
+    /// <summary>wrapper=netmodule 时使用的模块号，默认 0xB17F（BL 的 C# 模块）。</summary>
+    [JsonPropertyName("netModuleId")]
+    public int NetModuleId { get; set; } = 0xB17F;
+
+    /// <summary>
+    /// 直接把文本当作某个顶层消息的负载发出去（[u16][id][text]）。
+    /// null = 不启用。
+    /// </summary>
+    [JsonPropertyName("messageId")]
+    public int? MessageId { get; set; }
 }
