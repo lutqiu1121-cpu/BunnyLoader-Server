@@ -228,36 +228,6 @@ def drain_world(sock: socket.socket, label: str) -> int:
     return sections
 
 
-def proof_doc_flow(sock: socket.socket) -> int:
-    """官方文档流程：发 24 字节证明 → 静默 → 客户端回执 → 正常协议。"""
-    sock.settimeout(6)
-
-    data = recv_exact(sock, len(DOC_PROOF))
-    check("证明包 = 18 00 52 47 4e + 文本（24 字节）", data == DOC_PROOF, data.hex())
-
-    # 文档要求：发完证明后绝对静默，不能有 3 或 82
-    sock.settimeout(0.5)
-    try:
-        extra = sock.recv(64)
-    except socket.timeout:
-        extra = None
-    check("证明之后严格静默（无 id:3 / id:82）", extra is None, extra[:16].hex() if extra else None)
-
-    sock.settimeout(6)
-    sock.sendall(DOC_REPLY)
-
-    sock.sendall(frame(1, string("Terraria326")))
-    ident, payload = recv_frame(sock)
-    check("回执通过后回复 id=3", ident == 3, ident)
-    ident, payload = recv_frame(sock)
-    check_welcome(ident, payload, "id:3 之后的欢迎包")
-
-    drain_world(sock, "Hello 之后主动推世界")
-
-    print()
-    return 0 if FAILED == 0 else 1
-
-
 def pcap_flow(sock: socket.socket) -> int:
     """抓包形式：27 字节 proof → 客户端直接发 id:1（不发回执）→ 3 + 欢迎 + 世界。"""
     sock.settimeout(6)
@@ -268,10 +238,24 @@ def pcap_flow(sock: socket.socket) -> int:
     sock.sendall(frame(1, string("Terraria326")))
     ident, payload = recv_frame(sock)
     check("发 id:1 后立刻收到 id=3", ident == 3, ident)
-    ident, payload = recv_frame(sock)
-    check_welcome(ident, payload, "id:3 之后的欢迎包")
 
-    drain_world(sock, "Hello 之后主动推世界")
+    sock.settimeout(0.4)
+    try:
+        early = sock.recv(64)
+    except socket.timeout:
+        early = None
+    check("id:3 之后静默（不发欢迎包/世界）", early is None, early[:16].hex() if early else None)
+    sock.settimeout(10)
+
+    sock.sendall(frame(68, string(HELLO_PREFIX + '{"mods":[],"textures":0}')))
+    ident, payload = recv_frame(sock)
+    check_welcome(ident, payload, "68 之后的欢迎包")
+
+    sock.sendall(frame(6, b""))
+    ident, payload = recv_frame(sock)
+    check("6 之后收到 id=7", ident == 7, ident)
+
+    drain_world(sock, "6 之后推分块")
 
     print()
     return 0 if FAILED == 0 else 1
@@ -287,10 +271,24 @@ def proof_doc_flow(sock: socket.socket) -> int:
     sock.sendall(frame(1, string("Terraria326")))
     ident, payload = recv_frame(sock)
     check("发 id:1 后立刻收到 id=3", ident == 3, ident)
-    ident, payload = recv_frame(sock)
-    check_welcome(ident, payload, "id:3 之后的欢迎包")
 
-    drain_world(sock, "Hello 之后主动推世界")
+    sock.settimeout(0.4)
+    try:
+        early = sock.recv(64)
+    except socket.timeout:
+        early = None
+    check("id:3 之后静默（不发欢迎包/世界）", early is None, early[:16].hex() if early else None)
+    sock.settimeout(10)
+
+    sock.sendall(frame(68, string(HELLO_PREFIX + '{"mods":[],"textures":0}')))
+    ident, payload = recv_frame(sock)
+    check_welcome(ident, payload, "68 之后的欢迎包")
+
+    sock.sendall(frame(6, b""))
+    ident, payload = recv_frame(sock)
+    check("6 之后收到 id=7", ident == 7, ident)
+
+    drain_world(sock, "6 之后推分块")
 
     print()
     return 0 if FAILED == 0 else 1
@@ -393,14 +391,19 @@ def main(host: str, port: int, variant: str = "flags1") -> int:
             print()
             return 0 if FAILED == 0 else 1
 
-        # ---------- 正常握手：欢迎包 → 介绍 → 世界头 ----------
-        ident, payload = recv_frame(sock)
-        check_welcome(ident, payload, "消息3之后的欢迎包")
+        # ---------- 正常握手：3 之后静默 → 68 → 欢迎 → 6 → 世界 ----------
+        sock.settimeout(0.4)
+        try:
+            early = sock.recv(64)
+        except socket.timeout:
+            early = None
+        check("消息3之后静默（等客户端发 68）", early is None, early[:16].hex() if early else None)
+        sock.settimeout(10)
 
         hello = HELLO_PREFIX + '{"mods":[],"textures":0}'
         sock.sendall(frame(68, string(hello)))
         ident, payload = recv_frame(sock)
-        check_welcome(ident, payload, "介绍之后的欢迎包")
+        check_welcome(ident, payload, "68 之后的欢迎包")
 
         sock.sendall(frame(6, b""))
         ident, payload = recv_frame(sock)

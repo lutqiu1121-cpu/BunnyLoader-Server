@@ -411,9 +411,17 @@ internal sealed class Session
                         ("withWelcome", _config.Handshake.Msg7IncludeWelcome),
                         ("note", "消息 3 与 7 在同一次 write 里发出"));
                 }
-                else
+                else if (_config.Handshake.WelcomeAfter3)
                 {
                     bundle.Add(BuildWelcomeFrame());
+                }
+                else
+                {
+                    // 默认：3 之后严格静默，等客户端发 68 再补欢迎包。
+                    // 否则 welcomed=false 时收到 7 会自踢（ModNet.cpp:249-253）。
+                    _log.Info("approved.silent",
+                        ("conn", _id),
+                        ("note", "3 之后静默，等 68 再发欢迎包"));
                 }
 
                 await SendBundleAsync(stream, bundle, cancellationToken);
@@ -783,7 +791,8 @@ internal sealed class Session
     }
 
     private async Task SendWorldBundleAsync(NetworkStream stream, int centerX, int centerY,
-                                            CancellationToken cancellationToken, bool headerOnly = false)
+                                            CancellationToken cancellationToken,
+                                            bool headerOnly = false, bool includeStart = true)
     {
         var frames = new List<byte[]> { Messages.WorldDataPacket(BuildWorld()) };
 
@@ -798,7 +807,7 @@ internal sealed class Session
                 sections++;
             }
 
-            if (!_startPlayingSent)
+            if (includeStart && !_startPlayingSent)
             {
                 frames.Add(Messages.StartPlayingPacket());
                 _startPlayingSent = true;

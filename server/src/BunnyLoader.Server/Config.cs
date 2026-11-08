@@ -163,6 +163,13 @@ public sealed class ServerConfig
             EnvNotes.Add($"PROOF_LEGACY_CAPTURE={Proof.LegacyCapture}");
         }
 
+        string? welcomeAfter3 = Env("WELCOME_AFTER_3");
+        if (!string.IsNullOrWhiteSpace(welcomeAfter3))
+        {
+            Handshake.WelcomeAfter3 = ParseBool(welcomeAfter3, "WELCOME_AFTER_3");
+            EnvNotes.Add($"WELCOME_AFTER_3={Handshake.WelcomeAfter3}");
+        }
+
         string? worldOnHello = Env("WORLD_ON_HELLO");
         if (!string.IsNullOrWhiteSpace(worldOnHello))
         {
@@ -636,7 +643,14 @@ public sealed class HandshakeSection
     ///   "off"         = 等客户端发 6/8 再发。
     /// </summary>
     [JsonPropertyName("worldOnHello")]
-    public string WorldOnHello { get; set; } = "full";
+    public string WorldOnHello { get; set; } = "off";
+
+    /// <summary>
+    /// true 时消息 3 之后紧跟欢迎包。默认 false：3 之后必须静默，
+    /// 等客户端发 68（模组列表）再发欢迎包，否则客户端 welcomed=false 收到 7 会自踢。
+    /// </summary>
+    [JsonPropertyName("welcomeAfter3")]
+    public bool WelcomeAfter3 { get; set; }
 
     /// <summary>
     /// true 时**完全不发欢迎包**（82/200）。用于隔离测试：确认是不是它把客户端撞掉的。
