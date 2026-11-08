@@ -173,7 +173,10 @@ internal sealed class Session
 
             if (inbox.Count >= 3 && LooksLikeFrame(inbox))
             {
-                _log.Info("proof.skipped", ("conn", _id), ("reason", "legacy-frame", "note", "老客户端直接发帧，不发文本"));
+                _log.Info("proof.skipped",
+                    ("conn", _id),
+                    ("reason", "legacy-frame"),
+                    ("note", "老客户端直接发帧，不发文本"));
                 return;
             }
         }
