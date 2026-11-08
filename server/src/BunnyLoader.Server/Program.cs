@@ -106,6 +106,9 @@ public static class Program
                     ? "auto(flags+bool1 -> slot -> flags+bool0)"
                     : $"{config.Handshake.Layout}+{config.Handshake.SpecialFlag}"),
                 ("world", config.World.Name),
+                ("skipWelcomePack", config.Handshake.SkipWelcomePack),
+                ("msg3Hex", config.Handshake.Msg3Hex),
+                ("welcomeHex", config.Handshake.WelcomeHex),
                 ("mods", config.Mods.Count),
                 ("env", string.Join(",", config.EnvNotes)));
             return 0;
@@ -177,6 +180,7 @@ public static class Program
             ("msg3", config.Handshake.Auto
                 ? "auto(flags+bool1 -> slot -> flags+bool0)"
                 : $"{config.Handshake.Layout}+{config.Handshake.SpecialFlag}"),
+            ("skipWelcomePack", config.Handshake.SkipWelcomePack),
             ("mods", config.Mods.Count),
             ("capture", captureDirectory ?? "(off)"),
             ("env", string.Join(",", config.EnvNotes)),
@@ -275,6 +279,9 @@ public static class Program
         Console.WriteLine("  MSG3_SPECIAL_FLAG    那个 bool 的值：true=0x01，false=0x00");
         Console.WriteLine("  MSG3_LAYOUT          布局：flags（2 字节，默认）/ slot（1 字节）");
         Console.WriteLine("  MSG3_VARIANT         便捷开关：auto（每次连接轮换，默认）/ flags1 / flags0 / slot");
+        Console.WriteLine("  MSG3_HEX             直接指定消息 3 的负载十六进制，如 0100（覆盖前面的设置）");
+        Console.WriteLine("  WELCOME_HEX          直接指定 82 负载十六进制，默认 7fb1c801");
+        Console.WriteLine("  SKIP_WELCOME_PACK    true=消息 3 之后不再发送任何包（隔离测试用）");
         Console.WriteLine("  LOG_LEVEL            debug / info / warn / error");
         Console.WriteLine("  CAPTURE_DIR          抓包目录，默认关闭");
         Console.WriteLine("  WORLD_NAME           世界名");

@@ -17,6 +17,7 @@ internal sealed class Session
     private readonly ServerConfig _config;
     private readonly JsonLogger _log;
     private readonly CaptureWriter? _capture;
+    private bool _suppressOutbound;
 
     public Session(TcpClient client, string id, int sequence, ServerConfig config, JsonLogger log, CaptureWriter? capture)
     {
@@ -124,11 +125,17 @@ internal sealed class Session
                     ("msg3", label),
                     ("connection", _sequence));
 
-                byte[] approved = layout == "slot"
-                    ? Messages.ConnectionApprovedSlotOnlyPacket(PlayerSlot)
-                    : Messages.ConnectionApprovedPacket(PlayerSlot, specialFlag);
-
+                byte[] approved = BuildMsg3(layout, specialFlag);
                 await SendAsync(stream, approved, cancellationToken);
+
+                if (_config.Handshake.SkipWelcomePack)
+                {
+                    _suppressOutbound = true;
+                    _log.Warn("outbound.suppressed",
+                        ("conn", _id),
+                        ("note", "SKIP_WELCOME_PACK=true：消息 3 之后不再发送任何包（含 82 与 7）"));
+                    break;
+                }
 
                 // BL 客户端在等待「欢迎包」；发完消息 3 立刻补一条。
                 // 注意：客户端发送消息 6 时会把 welcomed 复位（ModNet.cpp:179），
@@ -210,6 +217,16 @@ internal sealed class Session
 
     private async Task SendAsync(NetworkStream stream, byte[] frame, CancellationToken cancellationToken)
     {
+        if (_suppressOutbound)
+        {
+            _log.Warn("frame.send.suppressed",
+                ("conn", _id),
+                ("id", frame[2]),
+                ("name", Messages.Name(frame[2])),
+                ("len", frame.Length));
+            return;
+        }
+
         await stream.WriteAsync(frame.AsMemory(), cancellationToken);
         _capture?.ToClient(frame);
         _log.Info("frame.send",
@@ -242,9 +259,37 @@ internal sealed class Session
     private async Task SendWelcomeAsync(NetworkStream stream, CancellationToken cancellationToken)
     {
         byte rules = (byte)(_config.Rules.AllowCheats ? 1 : 0);
-        await SendAsync(stream, Messages.WelcomePacket(rules), cancellationToken);
-        _log.Info("welcome.sent", ("conn", _id), ("rules", rules));
+        string hex = _config.Handshake.WelcomeHex;
+
+        byte[] frame = string.IsNullOrWhiteSpace(hex)
+            ? Messages.WelcomePacket(rules)
+            : Codec.Frame(MessageId.NetModules, ParseHex(hex));
+
+        await SendAsync(stream, frame, cancellationToken);
+        _log.Info("welcome.sent",
+            ("conn", _id),
+            ("rules", rules),
+            ("payload", Codec.Hex(frame.AsSpan(3), 16)));
     }
+
+    /// <summary>消息 3 的负载：MSG3_HEX 优先，否则按 layout/specialFlag 生成。</summary>
+    private byte[] BuildMsg3(string layout, bool specialFlag)
+    {
+        string hex = _config.Handshake.Msg3Hex;
+        if (!string.IsNullOrWhiteSpace(hex))
+        {
+            byte[] raw = ParseHex(hex);
+            _log.Info("msg3.custom", ("conn", _id), ("payload", Codec.Hex(raw, 16)));
+            return Codec.Frame(MessageId.ConnectionApproved, raw);
+        }
+
+        return layout == "slot"
+            ? Messages.ConnectionApprovedSlotOnlyPacket(PlayerSlot)
+            : Messages.ConnectionApprovedPacket(PlayerSlot, specialFlag);
+    }
+
+    private static byte[] ParseHex(string text) =>
+        Convert.FromHexString(text.Replace(" ", "").Replace("-", ""));
 
     private WorldData BuildWorld()
     {

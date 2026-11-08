@@ -132,6 +132,27 @@ public sealed class ServerConfig
             EnvNotes.Add($"MSG3_SPECIAL_FLAG={Handshake.SpecialFlag}");
         }
 
+        string? skipWelcome = Env("SKIP_WELCOME_PACK");
+        if (!string.IsNullOrWhiteSpace(skipWelcome))
+        {
+            Handshake.SkipWelcomePack = ParseBool(skipWelcome, "SKIP_WELCOME_PACK");
+            EnvNotes.Add($"SKIP_WELCOME_PACK={Handshake.SkipWelcomePack}");
+        }
+
+        string? msg3Hex = Env("MSG3_HEX");
+        if (!string.IsNullOrWhiteSpace(msg3Hex))
+        {
+            Handshake.Msg3Hex = msg3Hex.Trim();
+            EnvNotes.Add($"MSG3_HEX={Handshake.Msg3Hex}");
+        }
+
+        string? welcomeHex = Env("WELCOME_HEX");
+        if (!string.IsNullOrWhiteSpace(welcomeHex))
+        {
+            Handshake.WelcomeHex = welcomeHex.Trim();
+            EnvNotes.Add($"WELCOME_HEX={Handshake.WelcomeHex}");
+        }
+
         // 便捷开关：一个变量直接选形态。
         string? variant = Env("MSG3_VARIANT");
         if (!string.IsNullOrWhiteSpace(variant))
@@ -176,6 +197,15 @@ public sealed class ServerConfig
                 return value;
         }
         return null;
+    }
+
+    private static void ValidateHex(string text, string name)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return;
+        string clean = text.Replace(" ", "").Replace("-", "");
+        if (clean.Length % 2 != 0 || !clean.All(Uri.IsHexDigit))
+            throw new InvalidDataException($"{name} 必须是偶数长度的十六进制，当前: {text}");
     }
 
     private static bool ParseBool(string text, string name) => text.Trim().ToLowerInvariant() switch
@@ -225,6 +255,9 @@ public sealed class ServerConfig
         if (variant is not ("flags" or "slot"))
             throw new InvalidDataException($"handshake.layout 只能是 flags / slot，当前: {Handshake.Layout}");
         Handshake.Layout = variant;
+
+        ValidateHex(Handshake.Msg3Hex, "handshake.msg3Hex");
+        ValidateHex(Handshake.WelcomeHex, "handshake.welcomeHex");
     }
 }
 
@@ -358,4 +391,25 @@ public sealed class HandshakeSection
     /// </summary>
     [JsonPropertyName("auto")]
     public bool Auto { get; set; } = true;
+
+    /// <summary>
+    /// 隔离测试用：为 true 时，发出消息 3 之后**不再发送任何包**（含欢迎包和世界头），保持静默。
+    /// 用来单独判断「客户端是否只凭消息 3 就继续」。
+    /// </summary>
+    [JsonPropertyName("skipWelcomePack")]
+    public bool SkipWelcomePack { get; set; }
+
+    /// <summary>
+    /// 覆盖消息 3 的负载（十六进制，不含帧头）。留空则按 layout/specialFlag 生成。
+    /// 例如 "0100" 或 "01000000"。
+    /// </summary>
+    [JsonPropertyName("msg3Hex")]
+    public string Msg3Hex { get; set; } = "";
+
+    /// <summary>
+    /// 覆盖欢迎包的整个 82 负载（十六进制，含模块号）。留空则用 7fb1c801。
+    /// 例如 "7fb1c801"。
+    /// </summary>
+    [JsonPropertyName("welcomeHex")]
+    public string WelcomeHex { get; set; } = "";
 }

@@ -78,8 +78,25 @@ def main(host: str, port: int, variant: str = "flags") -> int:
             "flags0": b"\x01\x00",   # 2 字节，bool = 0
             "flags": b"\x01\x00",    # 旧名，等价 flags0
             "slot": b"\x01",          # 1 字节，只有槽位
+            "silent": b"\x01\x01",   # 隔离测试：消息 3 用 flags+bool1
         }[variant]
         check(f"消息 3 负载（{variant}）", payload == expected, payload.hex())
+
+        # 隔离测试：SKIP_WELCOME_PACK=true 时，消息 3 之后必须一个字节都不发
+        if variant == "silent":
+            sock.settimeout(2.0)
+            try:
+                data = sock.recv(256)
+            except socket.timeout:
+                data = None
+            if data is None:
+                check("消息3之后静默：2 秒内零字节", True)
+            elif data == b"":
+                check("消息3之后静默：2 秒内零字节", False, "服务端关闭了连接")
+            else:
+                check("消息3之后静默：2 秒内零字节", False, data[:16].hex())
+            print()
+            return 0 if FAILED == 0 else 1
 
         # 2. 消息 3 之后服务端会立刻补发欢迎包
         ident, payload = recv_frame(sock)
@@ -129,7 +146,7 @@ if __name__ == "__main__":
     host = sys.argv[1]
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 7777
     variant = sys.argv[3] if len(sys.argv) > 3 else "flags1"
-    if variant not in ("flags1", "flags0", "flags", "slot"):
-        print("第三个参数只能是 flags1 / flags0 / flags / slot")
+    if variant not in ("flags1", "flags0", "flags", "slot", "silent"):
+        print("第三个参数只能是 flags1 / flags0 / flags / slot / silent")
         sys.exit(2)
     sys.exit(main(host, port, variant))
