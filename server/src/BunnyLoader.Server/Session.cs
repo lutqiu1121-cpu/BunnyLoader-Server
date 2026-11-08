@@ -569,7 +569,7 @@ internal sealed class Session
     {
         if (_wld is not null)
         {
-            return new WorldData
+            var loaded = new WorldData
             {
                 Release326 = true,
                 WorldName = _wld.Name,
@@ -583,9 +583,13 @@ internal sealed class Session
                 WorldId = _config.World.Seed,
                 Time = 0,
                 DayTime = _wld.DayTime,
-                Crimson = _wld.Crimson,
                 Guid = DeterministicGuid(_config.World.Seed),
             };
+
+            if (_wld.Crimson)
+                loaded.WorldFlags[1] |= 0x20;   // byte1 bit5 = crimson
+
+            return loaded;
         }
 
         WorldSection settings = _config.World;
