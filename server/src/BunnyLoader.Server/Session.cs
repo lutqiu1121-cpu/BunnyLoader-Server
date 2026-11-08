@@ -107,10 +107,6 @@ internal sealed class Session
         }
         catch (ProofFailedException)
         {
-            _log.Info("conn.close", ("conn", _id), ("reason", "proof-failed"));
-        }
-        catch (ProofFailedException)
-        {
             _log.Info("conn.close", ("conn", _id), ("bytes", total), ("reason", "proof-failed"));
         }
         catch (OperationCanceledException)
