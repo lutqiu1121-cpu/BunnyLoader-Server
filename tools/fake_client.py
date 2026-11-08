@@ -81,10 +81,44 @@ def main(host: str, port: int, variant: str = "flags") -> int:
             "silent": b"\x01\x01",   # 隔离测试：消息 3 用 flags+bool1
             "msg7": b"\x01\x01",     # 3 之后跟 欢迎包 + 7
             "msg7only": b"\x01\x01", # 3 之后直接跟 7
+            "world": b"\x01\x01",     # 完整进世界流程
         }.get(variant) or (
             bytes.fromhex(variant[4:].replace(" ", "")) if variant.startswith("hex:") else None
         )
         check(f"消息 3 负载（{variant}）", payload == expected, payload.hex())
+
+        # R3：发 8（SpawnTileData）请求分块，服务端应回 7/9/10×N/49
+        if variant == "world":
+            import struct as _struct
+
+            sock.sendall(frame(8, _struct.pack("<iiB", 2100, 349, 0)))
+            got7 = got9 = sections = 0
+            started = False
+            first = None
+            for _ in range(400):
+                ident, payload = recv_frame(sock)
+                if ident == 7:
+                    got7 += 1
+                elif ident == 9:
+                    got9 += 1
+                elif ident == 10:
+                    info = decode_tile_section(payload)
+                    if first is None:
+                        first = info
+                    sections += 1
+                elif ident == 49:
+                    started = True
+                    break
+            check("收到再次的 id=7", got7 >= 1, got7)
+            check("收到 id=9 状态文本", got9 >= 1, got9)
+            check("收到至少 1 个 id=10 分块", sections > 0, sections)
+            check("首个分块头 = 200x150", bool(first) and first["width"] == 200 and first["height"] == 150, first)
+            check("收到 id=49 开始游戏", started, started)
+            if first:
+                print(f"        首个分块 xStart={first['xStart']} yStart={first['yStart']} "
+                      f"raw={first['rawLen']} bytes, 共 {sections} 块")
+            print()
+            return 0 if FAILED == 0 else 1
 
         # SEND_MSG7_AFTER_3：消息 3 之后同一个 write 里跟欢迎包和/或消息 7
         if variant in ("msg7", "msg7only"):
@@ -165,7 +199,7 @@ if __name__ == "__main__":
     host = sys.argv[1]
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 7777
     variant = sys.argv[3] if len(sys.argv) > 3 else "flags1"
-    allowed = ("flags1", "flags0", "flags", "slot", "silent", "msg7", "msg7only")
+    allowed = ("flags1", "flags0", "flags", "slot", "silent", "msg7", "msg7only", "world")
     if variant not in allowed and not variant.startswith("hex:"):
         print("第三个参数只能是 " + " / ".join(allowed) + " / hex:XXXX")
         sys.exit(2)

@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Net.Sockets;
 using BunnyLoader.Server.Protocol;
 
@@ -225,9 +226,52 @@ internal sealed class Session
             }
 
             case MessageId.SpawnTileData:
-                // R3 才发 tile section；这里只记录客户端请求的坐标
-                _log.Info("spawn.request", ("conn", _id), ("len", payload.Length), ("hex", Codec.Hex(payload, 16)));
+            {
+                int reqX = 0, reqY = 0;
+                if (payload.Length >= 8)
+                {
+                    reqX = BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(0, 4));
+                    reqY = BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(4, 4));
+                }
+
+                _log.Info("spawn.request", ("conn", _id), ("x", reqX), ("y", reqY));
+
+                var frames = new List<byte[]>
+                {
+                    Messages.WorldDataPacket(BuildWorld()),          // 7：按规范再发一次
+                    Messages.StatusTextPacket(0, "Bunny Loader", 0), // 9：加载界面状态文本
+                };
+
+                int sections = 0;
+                foreach ((int sx, int sy) in SectionBlock(reqX, reqY))
+                {
+                    byte[] compressed = TileSection.Encode(sx, sy, GetTile);
+                    frames.Add(Messages.TileSectionPacket(compressed));
+                    sections++;
+                }
+
+                frames.Add(Messages.StartPlayingPacket());            // 49：可以开始了
+                await SendBundleAsync(stream, frames, cancellationToken);
+
+                _log.Info("world.sections",
+                    ("conn", _id),
+                    ("sections", sections),
+                    ("frames", frames.Count),
+                    ("bytes", frames.Sum(f => f.Length)));
                 break;
+            }
+
+            case MessageId.PlayerSpawn:
+            {
+                _log.Info("player.spawn", ("conn", _id), ("len", payload.Length));
+                await SendBundleAsync(stream, new List<byte[]>
+                {
+                    Messages.PlayerSpawnPacket(PlayerSlot, _config.World.SpawnTileX, _config.World.SpawnTileY),
+                    Messages.FinishedConnectingPacket(),
+                }, cancellationToken);
+                _log.Info("world.entered", ("conn", _id));
+                break;
+            }
 
             case MessageId.NetModules:
                 ParseNetModule(payload);
@@ -400,6 +444,54 @@ internal sealed class Session
 
     private static byte[] ParseHex(string text) =>
         Convert.FromHexString(text.Replace(" ", "").Replace("-", ""));
+
+    /// <summary>
+    /// 平坦世界：地表以上空气，地表那一层草地，往下泥土，岩层以下石头。
+    /// 只够给客户端画图与站人，不做地形生成。
+    /// </summary>
+    private Tile GetTile(int x, int y)
+    {
+        if (x < 0 || y < 0 || x >= _config.World.MaxTilesX || y >= _config.World.MaxTilesY)
+            return default;
+
+        short surface = _config.World.WorldSurface;
+        short rock = _config.World.RockLayer;
+
+        if (y < surface)
+            return default;                                        // 空气
+
+        if (y == surface)
+            return new Tile(true, TileSection.TypeGrass, 0);
+
+        if (y < rock)
+            return new Tile(true, TileSection.TypeDirt, 0);
+
+        return new Tile(true, TileSection.TypeStone, 0);
+    }
+
+    /// <summary>
+    /// 请求坐标周围的 8×5 分块（规范：sectionX-2..+5，sectionY-1..+3），裁到世界边界。
+    /// 这是客户端画地图与落地要用的那一块。
+    /// </summary>
+    private IEnumerable<(int X, int Y)> SectionBlock(int tileX, int tileY)
+    {
+        int sectionsX = (int)Math.Ceiling(_config.World.MaxTilesX / (double)TileSection.SectionWidth);
+        int sectionsY = (int)Math.Ceiling(_config.World.MaxTilesY / (double)TileSection.SectionHeight);
+
+        int cx = Math.Clamp(tileX / TileSection.SectionWidth, 0, sectionsX - 1);
+        int cy = Math.Clamp(tileY / TileSection.SectionHeight, 0, sectionsY - 1);
+
+        for (int sy = cy - 1; sy <= cy + 3; sy++)
+        {
+            for (int sx = cx - 2; sx <= cx + 5; sx++)
+            {
+                if (sx < 0 || sy < 0 || sx >= sectionsX || sy >= sectionsY)
+                    continue;
+
+                yield return (sx, sy);
+            }
+        }
+    }
 
     private WorldData BuildWorld()
     {

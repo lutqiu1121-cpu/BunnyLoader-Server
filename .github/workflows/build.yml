@@ -133,6 +133,21 @@ jobs:
           python3 tools/fake_client.py 127.0.0.1 17782 flags0
           docker rm -f panel-v3
 
+      - name: World — 平坦世界分块（8 -> 7/9/10×N/49）
+        run: |
+          docker run -d --name panel-world --restart=no \
+            -e MSG3_VARIANT=flags1 \
+            -p 17787:7777 -v "$PWD/server/dist:/app" -w /app \
+            mcr.microsoft.com/dotnet/runtime:8.0 \
+            dotnet BunnyLoader.Server.dll --port 7777
+          for i in $(seq 1 30); do
+            docker logs panel-world 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
+          done
+          docker logs panel-world || true
+          python3 tools/fake_client.py 127.0.0.1 17787 world
+          docker logs panel-world | tail -5
+          docker rm -f panel-world
+
       - name: Bundle — 消息3 + 欢迎 + 7（同一次 write）
         run: |
           docker run -d --name panel-b7 --restart=no \

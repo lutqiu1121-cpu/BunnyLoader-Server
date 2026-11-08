@@ -271,6 +271,15 @@ def decode_world_data(payload: bytes) -> dict:
     return w
 
 
+def decode_tile_section(payload: bytes) -> dict:
+    """消息 10 的负载是 raw DEFLATE；解出头部四个字段。"""
+    import zlib
+
+    raw = zlib.decompress(payload, -15)
+    x, y, w, h = struct.unpack_from("<iihh", raw, 0)
+    return {"xStart": x, "yStart": y, "width": w, "height": h, "rawLen": len(raw)}
+
+
 # ------------------------------------------------- BL 私有层（82 + 0xB17F）
 
 MODULE_ID = 0xB17F
