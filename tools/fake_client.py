@@ -263,8 +263,18 @@ def main(host: str, port: int, variant: str = "flags1") -> int:
             sock.settimeout(5)
             data = recv_exact(sock, 21)
             check("收到 21 字节 proof（无换行）", data == b"NingLauncher/1/server", data)
-            # 服务端不再等回执，客户端也不回（与真实抓包一致）
-            sock.settimeout(10)
+
+            ident, payload = recv_frame(sock)
+            check("proof 之后立刻收到 id=3", ident == 3, ident)
+            ident, payload = recv_frame(sock)
+            check_welcome(ident, payload, "proof 之后的欢迎包")
+
+            sock.settimeout(6)
+            sock.sendall(frame(1, string("Terraria326")))
+            drain_world(sock, "Hello 之后主动推世界")
+
+            print()
+            return 0 if FAILED == 0 else 1
 
         elif variant in ("proof", "proofworld", "proofframe", "proofmodule", "prooftext"):
             kind = {
