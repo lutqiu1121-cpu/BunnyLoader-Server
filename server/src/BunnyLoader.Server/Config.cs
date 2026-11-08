@@ -146,6 +146,20 @@ public sealed class ServerConfig
             EnvNotes.Add($"MSG3_HEX={Handshake.Msg3Hex}");
         }
 
+        string? candidates = Env("MSG3_CANDIDATES");
+        if (!string.IsNullOrWhiteSpace(candidates))
+        {
+            Handshake.Candidates = candidates.Trim().ToLowerInvariant();
+            EnvNotes.Add($"MSG3_CANDIDATES={Handshake.Candidates}");
+        }
+
+        string? skipApproved = Env("SKIP_APPROVED");
+        if (!string.IsNullOrWhiteSpace(skipApproved))
+        {
+            Handshake.SkipApproved = ParseBool(skipApproved, "SKIP_APPROVED");
+            EnvNotes.Add($"SKIP_APPROVED={Handshake.SkipApproved}");
+        }
+
         string? welcomeHex = Env("WELCOME_HEX");
         if (!string.IsNullOrWhiteSpace(welcomeHex))
         {
@@ -258,6 +272,12 @@ public sealed class ServerConfig
 
         ValidateHex(Handshake.Msg3Hex, "handshake.msg3Hex");
         ValidateHex(Handshake.WelcomeHex, "handshake.welcomeHex");
+
+        if (!string.IsNullOrWhiteSpace(Handshake.Candidates) && Handshake.Candidates != "auto")
+        {
+            foreach (string part in Handshake.Candidates.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                ValidateHex(part, "handshake.candidates");
+        }
     }
 }
 
@@ -412,4 +432,15 @@ public sealed class HandshakeSection
     /// </summary>
     [JsonPropertyName("welcomeHex")]
     public string WelcomeHex { get; set; } = "";
+
+    /// <summary>
+    /// 候选负载列表（逗号分隔的十六进制，不含帧头）。非空时按连接序号轮换，
+    /// 每次连接试一个，免去反复重启面板。特殊值 "auto" 展开为内置候选表。
+    /// </summary>
+    [JsonPropertyName("candidates")]
+    public string Candidates { get; set; } = "";
+
+    /// <summary>控制组：为 true 时连接建立后什么都不发（连消息 3 也不发）。</summary>
+    [JsonPropertyName("skipApproved")]
+    public bool SkipApproved { get; set; }
 }

@@ -79,7 +79,9 @@ def main(host: str, port: int, variant: str = "flags") -> int:
             "flags": b"\x01\x00",    # 旧名，等价 flags0
             "slot": b"\x01",          # 1 字节，只有槽位
             "silent": b"\x01\x01",   # 隔离测试：消息 3 用 flags+bool1
-        }[variant]
+        }.get(variant) or (
+            bytes.fromhex(variant[4:].replace(" ", "")) if variant.startswith("hex:") else None
+        )
         check(f"消息 3 负载（{variant}）", payload == expected, payload.hex())
 
         # 隔离测试：SKIP_WELCOME_PACK=true 时，消息 3 之后必须一个字节都不发
@@ -146,7 +148,7 @@ if __name__ == "__main__":
     host = sys.argv[1]
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 7777
     variant = sys.argv[3] if len(sys.argv) > 3 else "flags1"
-    if variant not in ("flags1", "flags0", "flags", "slot", "silent"):
-        print("第三个参数只能是 flags1 / flags0 / flags / slot / silent")
+    if variant not in ("flags1", "flags0", "flags", "slot", "silent") and not variant.startswith("hex:"):
+        print("第三个参数只能是 flags1 / flags0 / flags / slot / silent / hex:XXXX")
         sys.exit(2)
     sys.exit(main(host, port, variant))

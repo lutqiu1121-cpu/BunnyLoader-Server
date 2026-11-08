@@ -133,6 +133,20 @@ jobs:
           python3 tools/fake_client.py 127.0.0.1 17782 flags0
           docker rm -f panel-v3
 
+      - name: Candidates rotation — MSG3_CANDIDATES=auto（第1次应为槽位 0）
+        run: |
+          docker run -d --name panel-cand --restart=no \
+            -e MSG3_CANDIDATES=auto \
+            -p 17784:7777 -v "$PWD/server/dist:/app" -w /app \
+            mcr.microsoft.com/dotnet/runtime:8.0 \
+            dotnet BunnyLoader.Server.dll --port 7777
+          for i in $(seq 1 30); do
+            docker logs panel-cand 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
+          done
+          docker logs panel-cand || true
+          python3 tools/fake_client.py 127.0.0.1 17784 hex:00
+          docker rm -f panel-cand
+
       - name: Isolation — SKIP_WELCOME_PACK=true（消息3后必须零字节）
         run: |
           docker run -d --name panel-silent --restart=no \

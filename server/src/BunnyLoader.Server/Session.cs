@@ -11,6 +11,21 @@ internal sealed class Session
 {
     private const byte PlayerSlot = 1;
 
+    /// <summary>
+    /// MSG3_CANDIDATES=auto 时按连接轮换的内置候选。
+    /// 先试「槽位 0」（三次自动轮换都用了槽位 1，从未测过 0），
+    /// 再试更长的负载（假设移动端消息 3 不止 1~2 字节）。
+    /// </summary>
+    private static readonly string[] DefaultCandidates =
+    {
+        "00",                  // 槽位 0，无 flag
+        "0000",                // 槽位 0 + bool 0
+        "0001",                // 槽位 0 + bool 1
+        "00000000",            // 槽位 0 + 3 个零字节（假设 int32 标志）
+        "01000000",            // 槽位 1 + 3 个零字节（长度假设的对照）
+        "0000000000000000",    // 槽位 0 + 7 个零字节（假设 u64）
+    };
+
     private readonly TcpClient _client;
     private readonly string _id;
     private readonly int _sequence;
@@ -124,6 +139,15 @@ internal sealed class Session
                     ("is326", version == "Terraria326"),
                     ("msg3", label),
                     ("connection", _sequence));
+
+                if (_config.Handshake.SkipApproved)
+                {
+                    _suppressOutbound = true;
+                    _log.Warn("approved.suppressed",
+                        ("conn", _id),
+                        ("note", "SKIP_APPROVED=true：连消息 3 都不发（控制组）"));
+                    break;
+                }
 
                 byte[] approved = BuildMsg3(layout, specialFlag);
                 await SendAsync(stream, approved, cancellationToken);
@@ -275,6 +299,26 @@ internal sealed class Session
     /// <summary>消息 3 的负载：MSG3_HEX 优先，否则按 layout/specialFlag 生成。</summary>
     private byte[] BuildMsg3(string layout, bool specialFlag)
     {
+        string candidates = _config.Handshake.Candidates;
+        if (!string.IsNullOrWhiteSpace(candidates))
+        {
+            string[] list = candidates == "auto"
+                ? DefaultCandidates
+                : candidates.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            if (list.Length > 0)
+            {
+                int index = (_sequence - 1) % list.Length;
+                byte[] raw = ParseHex(list[index]);
+                _log.Info("msg3.candidate",
+                    ("conn", _id),
+                    ("index", index + 1),
+                    ("of", list.Length),
+                    ("payload", Codec.Hex(raw, 16)));
+                return Codec.Frame(MessageId.ConnectionApproved, raw);
+            }
+        }
+
         string hex = _config.Handshake.Msg3Hex;
         if (!string.IsNullOrWhiteSpace(hex))
         {
