@@ -437,6 +437,31 @@ sh -c 'WORLD_FILE=块状的小屋.wld PROOF_MODE=on PROOF_SWEEP=true sh start.sh
 
 **连 10 次**，哪一次出现 `proof.received` 或不再秒断，就是它。
 
+### 6.10.3 抓包确证：proof 的真实格式
+
+用 PCAPdroid 在真实联机上抓到的服务端首个包（27 字节）：
+
+```
+1b 00                          u16 帧长 = 27
+52                             消息 ID = 82（NetModules）
+7f b1                          模块号 = 0xB17F
+01                             kind = 1
+4e 69 6e 67 4c 61 75 6e 63 68 65 72 2f 31 2f 73 65 72 76 65 72
+                               "NingLauncher/1/server"（21 字节，无换行）
+```
+
+**没有换行**。之前失败的原因就是：少了 `kind=01` 这个字节，或者多了 `\n`。
+
+服务端现在的默认行为就是这个包，日志会写 `proof.matches-capture` 与 `proof.sent` 的 `hex`。
+
+启动命令回到最干净的形式：
+
+```bash
+sh -c 'WORLD_FILE=块状的小屋.wld sh start.sh'
+```
+
+（默认 `PROOF_MODE=auto`：先等 200ms 看老客户端是否直接发帧；等不到就发上面这个 27 字节包。）
+
 ## 7. 回传什么
 
 1. **控制台日志全文**（从 `server.start` 到最后一行）。

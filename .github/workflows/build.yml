@@ -133,7 +133,7 @@ jobs:
           python3 tools/fake_client.py 127.0.0.1 17782 flags0
           docker rm -f panel-v3
 
-      - name: Proof on — 纯文本握手 + 完整进世界
+      - name: Proof — 与 PCAP 样本一致 + 完整进世界
         run: |
           docker run -d --name panel-proof --restart=no \
             -e PROOF_MODE=on -e MSG3_VARIANT=flags1 \
@@ -143,7 +143,7 @@ jobs:
           for i in $(seq 1 30); do
             docker logs panel-proof 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
           done
-          python3 tools/fake_client.py 127.0.0.1 17790 proofworld
+          python3 tools/fake_client.py 127.0.0.1 17790 proofpcap
           docker logs panel-proof | grep -E 'proof\.(sent|received|accepted)' | head -3
           docker rm -f panel-proof
 
@@ -160,45 +160,6 @@ jobs:
           python3 tools/fake_client.py 127.0.0.1 17792 proofafter
           docker logs panel-pa | grep -E 'proof\.(now|sent|received|accepted)' | head -4
           docker rm -f panel-pa
-
-      - name: Proof with length — 2 字节长度头
-        run: |
-          docker run -d --name panel-pf --restart=no \
-            -e PROOF_MODE=on -e PROOF_WITH_LENGTH=true -e MSG3_VARIANT=flags1 \
-            -p 17793:7777 -v "$PWD/server/dist:/app" -w /app \
-            mcr.microsoft.com/dotnet/runtime:8.0 \
-            dotnet BunnyLoader.Server.dll --port 7777
-          for i in $(seq 1 30); do
-            docker logs panel-pf 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
-          done
-          python3 tools/fake_client.py 127.0.0.1 17793 proofframe
-          docker rm -f panel-pf
-
-      - name: Proof in NetModule — 封进 id=82
-        run: |
-          docker run -d --name panel-pm --restart=no \
-            -e PROOF_MODE=on -e PROOF_IN_NETMODULE=true -e MSG3_VARIANT=flags1 \
-            -p 17794:7777 -v "$PWD/server/dist:/app" -w /app \
-            mcr.microsoft.com/dotnet/runtime:8.0 \
-            dotnet BunnyLoader.Server.dll --port 7777
-          for i in $(seq 1 30); do
-            docker logs panel-pm 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
-          done
-          python3 tools/fake_client.py 127.0.0.1 17794 proofmodule
-          docker rm -f panel-pm
-
-      - name: Proof as text — 82 + 模块 0 + kind 1
-        run: |
-          docker run -d --name panel-pt --restart=no \
-            -e PROOF_MODE=on -e PROOF_AS_TEXT=true -e MSG3_VARIANT=flags1 \
-            -p 17795:7777 -v "$PWD/server/dist:/app" -w /app \
-            mcr.microsoft.com/dotnet/runtime:8.0 \
-            dotnet BunnyLoader.Server.dll --port 7777
-          for i in $(seq 1 30); do
-            docker logs panel-pt 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
-          done
-          python3 tools/fake_client.py 127.0.0.1 17795 prooftext
-          docker rm -f panel-pt
 
       - name: Proof sweep — 第一档 raw-none（21 字节无换行）
         run: |

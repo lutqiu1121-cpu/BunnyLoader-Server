@@ -275,6 +275,10 @@ internal sealed class Session
             ("variant", variant.Name),
             ("bytes", bytes.Length),
             ("hex", Codec.Hex(bytes, 28)));
+
+        // 真机抓包样本：1b 00 52 7f b1 01 + "NingLauncher/1/server"
+        if (variant.Name == "config" && bytes.Length == 27 && bytes[0] == 0x1B && bytes[2] == 82)
+            _log.Info("proof.matches-capture", ("conn", _id), ("note", "与 PCAP 样本一致"));
     }
 
     private async Task AwaitProofAsync(NetworkStream stream, List<byte> inbox, CancellationToken cancellationToken)

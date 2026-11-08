@@ -643,8 +643,9 @@ public sealed class ProofSection
     public string ClientLine { get; set; } = "NingLauncher/1/client";
 
     /// <summary>行尾：lf = \n，crlf = \r\n，none = 不加。</summary>
+    // 真机抓包确证：21 字节，不带换行
     [JsonPropertyName("suffix")]
-    public string Suffix { get; set; } = "lf";
+    public string Suffix { get; set; } = "none";
 
     [JsonPropertyName("timeoutSeconds")]
     public int TimeoutSeconds { get; set; } = 3;
@@ -659,7 +660,7 @@ public sealed class ProofSection
 
     /// <summary>"plain" = 直接发文本（默认）；"netmodule" = 封进 id:82 的 NetModule。</summary>
     [JsonPropertyName("wrapper")]
-    public string Wrapper { get; set; } = "plain";
+    public string Wrapper { get; set; } = "netmodule";
 
     /// <summary>
     /// true 时忽略上面各项，按连接序号轮换内置的 10 种组合，一次现场测试扫完。
@@ -670,7 +671,7 @@ public sealed class ProofSection
 
     /// <summary>wrapper=netmodule 时，模块号后是否再插一个 kind 字节；null = 不插。</summary>
     [JsonPropertyName("netModuleKind")]
-    public int? NetModuleKind { get; set; }
+    public int? NetModuleKind { get; set; } = 1;
 
     /// <summary>wrapper=netmodule 时使用的模块号，默认 0xB17F（BL 的 C# 模块）。</summary>
     [JsonPropertyName("netModuleId")]
