@@ -184,17 +184,49 @@ internal sealed class Session
             }
         }
 
-        await SendProofAsync(stream, cancellationToken);
+        await SendProofAndApprovalAsync(stream, cancellationToken);
+    }
 
-        if (proof.WaitReply)
+    /// <summary>
+    /// 把 proof 和消息 3（以及可选的欢迎包）拼进**同一次 write** 发出。
+    /// 抓包证明客户端不会在明文层回执，所以不等；分开两次 write 在慢网络上可能被拆包。
+    /// </summary>
+    private async Task SendProofAndApprovalAsync(NetworkStream stream, CancellationToken cancellationToken)
+    {
+        ProofSection proof = _config.Proof;
+        ProofVariant variant = PickVariant();
+        byte[] proofBytes = BuildProofBytes(variant);
+
+        var frames = new List<byte[]> { proofBytes };
+
+        if (!_config.Handshake.SkipApproved)
         {
-            await AwaitProofAsync(stream, inbox, cancellationToken);
-            return;
+            (string layout, bool specialFlag) = PickMsg3Variant();
+            frames.Add(BuildMsg3(layout, specialFlag));
         }
 
-        // 抓包证明客户端不会在明文层回执：发完 proof 立刻发 3 + 欢迎包，
-        // 然后进入正常接收循环。死等回执会把自己锁死。
-        await SendApprovalAsync(stream, cancellationToken);
+        if (!_config.Handshake.NoWelcome && !_config.Handshake.SkipWelcomePack)
+            frames.Add(BuildWelcomeFrame());
+
+        await SendBundleAsync(stream, frames, cancellationToken);
+
+        _approvedEarly = !_config.Handshake.SkipApproved;
+
+        _log.Info("proof.sent",
+            ("conn", _id),
+            ("text", proof.ServerLine),
+            ("variant", variant.Name),
+            ("bytes", proofBytes.Length),
+            ("hex", Codec.Hex(proofBytes, 28)),
+            ("mergedFrames", frames.Count));
+
+        if (proofBytes.Length == 27 && proofBytes[2] == 82)
+            _log.Info("proof.matches-capture", ("conn", _id), ("note", "与 PCAP 样本一致"));
+
+        _log.Info("approved.early",
+            ("conn", _id),
+            ("welcome", !_config.Handshake.NoWelcome),
+            ("note", "proof + 3 同一次 write，不等 id:1"));
     }
 
     /// <summary>不等 id:1，直接发消息 3 与欢迎包（proof 之后用）。</summary>
@@ -430,15 +462,16 @@ internal sealed class Session
                 if (!_proofDone && _config.Proof.Mode != "off" && _config.Proof.Timing == "after-hello")
                 {
                     _log.Info("proof.now", ("conn", _id), ("note", "收到 id:1 之后再握手"));
-                    await SendProofAsync(stream, cancellationToken);
 
-                    if (!_config.Proof.WaitReply)
+                    if (_config.Proof.WaitReply)
                     {
-                        await SendApprovalAsync(stream, cancellationToken);
+                        await SendProofAsync(stream, cancellationToken);
+                        await AwaitProofAsync(stream, inbox, cancellationToken);
                         break;
                     }
 
-                    await AwaitProofAsync(stream, inbox, cancellationToken);
+                    await SendProofAndApprovalAsync(stream, cancellationToken);
+                    break;
                 }
 
                 if (_config.Handshake.SkipApproved)
@@ -712,6 +745,12 @@ internal sealed class Session
 
     private async Task SendWelcomeAsync(NetworkStream stream, CancellationToken cancellationToken)
     {
+        if (_config.Handshake.NoWelcome)
+        {
+            _log.Info("welcome.disabled", ("conn", _id), ("reason", "NO_WELCOME"));
+            return;
+        }
+
         byte[] frame = BuildWelcomeFrame();
         await SendAsync(stream, frame, cancellationToken);
         _log.Info("welcome.sent", ("conn", _id), ("payload", Codec.Hex(frame.AsSpan(3), 16)));

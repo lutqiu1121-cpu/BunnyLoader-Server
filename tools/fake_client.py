@@ -57,6 +57,7 @@ EXPECTED_MSG3 = {
     "prooftext": b"\x01\x01",
     "proofraw21": b"\x01\x01",
     "proofpcap": b"\x01\x01",
+    "proofsilent": b"\x01\x01",
 }
 
 ALLOWED = tuple(EXPECTED_MSG3)
@@ -170,6 +171,42 @@ def world_flow(sock: socket.socket, req_x: int = 2100, req_y: int = 349, min_x: 
     return 0 if FAILED == 0 else 1
 
 
+def proof_only_flow(sock: socket.socket) -> int:
+    """NO_WELCOME：proof(27) + id:3 之后必须保持静默。"""
+    sock.settimeout(6)
+
+    data = recv_exact(sock, len(PCAP_PROOF))
+    check("proof 与 PCAP 样本逐字节一致", data == PCAP_PROOF, data.hex())
+
+    ident, payload = recv_frame(sock)
+    check("紧接着收到 id=3", ident == 3, ident)
+
+    # 之后不能再有任何字节
+    sock.settimeout(1.5)
+    try:
+        extra = sock.recv(64)
+    except socket.timeout:
+        extra = None
+    if extra is None:
+        check("id:3 之后静默（没有 82/7）", True)
+    elif extra == b"":
+        check("id:3 之后静默（没有 82/7）", False, "服务端关闭了连接")
+    else:
+        check("id:3 之后静默（没有 82/7）", False, extra[:24].hex())
+
+    # 客户端发 Hello，服务端不应回 3（已早发）
+    sock.settimeout(2.0)
+    sock.sendall(frame(1, string("Terraria326")))
+    try:
+        reply = sock.recv(64)
+    except socket.timeout:
+        reply = None
+    check("发 Hello 后服务端不再回包", reply is None or reply == b"", reply[:24].hex() if reply else None)
+
+    print()
+    return 0 if FAILED == 0 else 1
+
+
 def pcap_flow(sock: socket.socket) -> int:
     """复刻抓包时的顺序：proof → 立刻 3 + 欢迎 → 客户端再发 Hello → 68 → 6 → 8。"""
     sock.settimeout(6)
@@ -212,6 +249,9 @@ def main(host: str, port: int, variant: str = "flags1") -> int:
         # ---------- 抓包复刻流程单独走 ----------
         if variant == "proofpcap":
             return pcap_flow(sock)
+
+        if variant == "proofsilent":
+            return proof_only_flow(sock)
 
         # ---------- 其它 proof 变体：连上就做 ----------
         if variant == "proofraw21":

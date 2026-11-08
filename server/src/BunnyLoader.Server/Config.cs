@@ -156,6 +156,13 @@ public sealed class ServerConfig
             EnvNotes.Add($"PROOF_NETMODULE_KIND={kind}");
         }
 
+        string? noWelcome = Env("NO_WELCOME");
+        if (!string.IsNullOrWhiteSpace(noWelcome))
+        {
+            Handshake.NoWelcome = ParseBool(noWelcome, "NO_WELCOME");
+            EnvNotes.Add($"NO_WELCOME={Handshake.NoWelcome}");
+        }
+
         string? proofWaitReply = Env("PROOF_WAIT_REPLY");
         if (!string.IsNullOrWhiteSpace(proofWaitReply))
         {
@@ -607,6 +614,13 @@ public sealed class HandshakeSection
     /// </summary>
     [JsonPropertyName("candidates")]
     public string Candidates { get; set; } = "";
+
+    /// <summary>
+    /// true 时**完全不发欢迎包**（82/200）。用于隔离测试：确认是不是它把客户端撞掉的。
+    /// 注意：关掉之后，客户端收到世界数据(7)时会自踢（ModNet.cpp:249-253）。
+    /// </summary>
+    [JsonPropertyName("noWelcome")]
+    public bool NoWelcome { get; set; }
 
     /// <summary>控制组：为 true 时连接建立后什么都不发（连消息 3 也不发）。</summary>
     [JsonPropertyName("skipApproved")]

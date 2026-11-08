@@ -147,6 +147,20 @@ jobs:
           docker logs panel-proof | grep -E 'proof\.(sent|received|accepted)' | head -3
           docker rm -f panel-proof
 
+      - name: Proof + 3 合并、完全不发 82
+        run: |
+          docker run -d --name panel-nw --restart=no \
+            -e PROOF_MODE=on -e NO_WELCOME=true -e MSG3_VARIANT=flags1 \
+            -p 17797:7777 -v "$PWD/server/dist:/app" -w /app \
+            mcr.microsoft.com/dotnet/runtime:8.0 \
+            dotnet BunnyLoader.Server.dll --port 7777
+          for i in $(seq 1 30); do
+            docker logs panel-nw 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
+          done
+          python3 tools/fake_client.py 127.0.0.1 17797 proofsilent
+          docker logs panel-nw | grep -E 'proof\.sent|approved\.early' | head -2
+          docker rm -f panel-nw
+
       - name: Proof after-hello — Hello 之后才握手
         run: |
           docker run -d --name panel-pa --restart=no \

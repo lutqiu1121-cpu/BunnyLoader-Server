@@ -487,6 +487,41 @@ TCP 建立 → 发 27 字节 proof → 立刻发 id:3 + 欢迎包(82/200) → �
 
 如果某天需要恢复"等回执"，加 `PROOF_WAIT_REPLY=true`。
 
+### 6.10.5 只发 proof + id:3（不发 82）
+
+真机：发完 proof + 3 + `82(c8 01)` 后客户端**活了 300ms** 才断——隔离层已经放行，
+是后面的包把它撞下来的。而 `82/200` 的模块号也是 `0xB17F`，很可能被客户端当成
+同一个隔离通道去解析，爆炸。
+
+所以本轮改成：
+
+```
+一次 write：[27 字节 proof][id:3]
+之后：完全静默，不发 82、不发 7
+```
+
+启动命令：
+
+```bash
+sh -c 'WORLD_FILE=块状的小屋.wld NO_WELCOME=true sh start.sh'
+```
+
+日志：
+
+```json
+{"ev":"proof.sent","bytes":27,"mergedFrames":2,"hex":"1b 00 52 7f b1 01 …"}
+{"ev":"proof.matches-capture"}
+{"ev":"approved.early","welcome":false,"note":"proof + 3 同一次 write，不等 id:1"}
+```
+
+| 真机现象 | 含义 |
+|---|---|
+| 不再 300ms 断，并发出 `id:1` 或 `id:4` | ✅ 就是 82 的锅 |
+| 仍然 300ms 断 | 不是 82，问题在 proof 之后 3 的时序或内容 |
+| 一直不断，但也不发东西 | 客户端在等别的包 |
+
+确认 82 是元凶后，下一轮再单独恢复它（`NO_WELCOME` 不设即恢复）。
+
 ## 7. 回传什么
 
 1. **控制台日志全文**（从 `server.start` 到最后一行）。
