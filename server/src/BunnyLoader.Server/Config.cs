@@ -156,6 +156,20 @@ public sealed class ServerConfig
             EnvNotes.Add($"PROOF_NETMODULE_KIND={kind}");
         }
 
+        string? disable163 = Env("DISABLE_163");
+        if (!string.IsNullOrWhiteSpace(disable163))
+        {
+            Proof.Disable163 = ParseBool(disable163, "DISABLE_163");
+            EnvNotes.Add($"DISABLE_163={Proof.Disable163}");
+        }
+
+        string? serverName = Env("SERVER_NAME_163");
+        if (!string.IsNullOrWhiteSpace(serverName))
+        {
+            Proof.ServerName = serverName.Trim();
+            EnvNotes.Add($"SERVER_NAME_163={Proof.ServerName}");
+        }
+
         string? si163 = Env("SERVERINFO_163_HEX");
         if (!string.IsNullOrWhiteSpace(si163))
         {
@@ -764,6 +778,18 @@ public sealed class ProofSection
     /// </summary>
     [JsonPropertyName("serverInfo163Hex")]
     public string ServerInfo163Hex { get; set; } = "";
+
+    /// <summary>true = 验证通过后不发 163（对照组，用来确认 163 是否必须）。</summary>
+    [JsonPropertyName("disable163")]
+    public bool Disable163 { get; set; }
+
+    /// <summary>163 里的服务器名。</summary>
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = "Bunny Server";
+
+    /// <summary>163 里的状态文本。</summary>
+    [JsonPropertyName("serverStatus")]
+    public string ServerStatus { get; set; } = "Online";
 
     /// <summary>收到 id:1 之后，等多少毫秒再发 id:3（默认 0 = 立刻）。</summary>
     [JsonPropertyName("msg3DelayMs")]

@@ -264,10 +264,20 @@ internal sealed class Session
         return ProofState.Verified;
     }
 
-    /// <summary>阶段二：发移动版 ServerInfo（消息 163）。</summary>
+    /// <summary>
+    /// 阶段二：发移动版 ServerInfo（消息 163）。
+    /// 字段顺序（按用户给的规范）：byte 状态版本 | string 服务器名 | string 状态 | byte 最大人数 | byte 当前人数
+    /// 字符串用 7bit 长度前缀（LEB128）。
+    /// </summary>
     private async Task SendServerInfoAsync(NetworkStream stream, CancellationToken cancellationToken)
     {
-        byte[] payload = Array.Empty<byte>();
+        if (_config.Proof.Disable163)
+        {
+            _log.Info("serverinfo.163.disabled", ("conn", _id), ("note", "DISABLE_163=true，跳过"));
+            return;
+        }
+
+        byte[] payload;
         string hex = _config.Proof.ServerInfo163Hex;
 
         if (!string.IsNullOrWhiteSpace(hex))
@@ -276,9 +286,13 @@ internal sealed class Session
         }
         else
         {
-            _log.Warn("serverinfo.163.empty-payload",
-                ("conn", _id),
-                ("note", "文档未给字段布局，先用空负载；可用 SERVERINFO_163_HEX 覆盖"));
+            using var ms = new MemoryStream(64);
+            ms.WriteByte(0);                                   // 状态版本
+            Write7BitString(ms, _config.Proof.ServerName);      // 服务器名
+            Write7BitString(ms, _config.Proof.ServerStatus);    // 状态文本
+            ms.WriteByte(16);                                  // 最大人数
+            ms.WriteByte(1);                                   // 当前人数
+            payload = ms.ToArray();
         }
 
         byte[] frame = Codec.Frame(163, payload);
@@ -288,7 +302,24 @@ internal sealed class Session
             ("conn", _id),
             ("bytes", frame.Length),
             ("payloadLen", payload.Length),
-            ("hex", Codec.Hex(frame, 32)));
+            ("hex", Codec.Hex(frame, 40)));
+    }
+
+    private static void Write7BitString(Stream stream, string value)
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(value);
+        int length = bytes.Length;
+
+        do
+        {
+            byte b = (byte)(length & 0x7F);
+            length >>= 7;
+            if (length > 0) b |= 0x80;
+            stream.WriteByte(b);
+        }
+        while (length > 0);
+
+        stream.Write(bytes, 0, bytes.Length);
     }
 
     private sealed class ProofRejectedException : Exception { }

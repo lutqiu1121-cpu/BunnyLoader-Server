@@ -263,7 +263,32 @@ def pcap_flow(sock: socket.socket) -> int:
 
     ident, payload = recv_frame(sock)
     check("验证后收到移动版 ServerInfo (163)", ident == 163, ident)
-    print(f"        163 负载 {len(payload)} 字节: {payload.hex()}")
+
+    if ident == 163:
+        def read7bit(buf, pos):
+            k = 0; shift = 0
+            while True:
+                b = buf[pos]; pos += 1
+                k |= (b & 0x7F) << shift
+                if not (b & 0x80):
+                    break
+                shift += 7
+            return k, pos
+
+        pos = 0
+        ver = payload[pos]; pos += 1
+        s1len, pos = read7bit(payload, pos)
+        name = payload[pos:pos + s1len].decode("utf-8"); pos += s1len
+        s2len, pos = read7bit(payload, pos)
+        status = payload[pos:pos + s2len].decode("utf-8"); pos += s2len
+        maxp = payload[pos]; curp = payload[pos + 1]
+
+        check("163 状态版本 = 0", ver == 0, ver)
+        check("163 服务器名非空", bool(name), name)
+        check("163 状态非空", bool(status), status)
+        check("163 最大人数 = 16", maxp == 16, maxp)
+        check("163 当前人数 = 1", curp == 1, curp)
+        print(f"        163: ver={ver} name={name!r} status={status!r} {curp}/{maxp}")
 
     sock.sendall(frame(1, string("Terraria326")))
     ident, payload = recv_frame(sock)

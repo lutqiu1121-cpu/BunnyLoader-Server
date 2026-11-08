@@ -147,6 +147,33 @@ jobs:
           docker logs panel-doc | grep -E 'proof\.(sent|verified)|serverinfo\.163' | head -3
           docker rm -f panel-doc
 
+      - name: 严格状态机 — DISABLE_163 对照组
+        run: |
+          docker run -d --name panel-n163 --restart=no \
+            -e PROOF_MODE=on -e DISABLE_163=true -e MSG3_VARIANT=flags1 \
+            -p 17796:7777 -v "$PWD/server/dist:/app" -w /app \
+            mcr.microsoft.com/dotnet/runtime:8.0 \
+            dotnet BunnyLoader.Server.dll --port 7777
+          for i in $(seq 1 30); do
+            docker logs panel-n163 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
+          done
+          python3 - <<'PYC'
+          import socket, sys
+          sys.path.insert(0, "tools")
+          from fake_client import DOC_PROOF, DOC_PROOF_REPLY, frame, string, recv_frame, recv_exact
+          s = socket.create_connection(("127.0.0.1", 17796), timeout=6)
+          s.settimeout(6)
+          assert recv_exact(s, len(DOC_PROOF)) == DOC_PROOF
+          s.sendall(DOC_PROOF_REPLY)
+          s.sendall(frame(1, string("Terraria326")))
+          ident, payload = recv_frame(s)
+          assert ident == 3, f"期望 3，收到 {ident}"
+          assert payload == b"\x01\x01", payload.hex()
+          print("PASS DISABLE_163 下回执后直接回 id:3")
+          PYC
+          docker logs panel-n163 | grep -E 'proof\.verified|serverinfo\.163' | head -3
+          docker rm -f panel-n163
+
       - name: 严格状态机 — 验证前发 Hello 必须断开
         run: |
           docker run -d --name panel-rej --restart=no \
