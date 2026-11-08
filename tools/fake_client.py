@@ -20,6 +20,7 @@ from proto_ref import (  # noqa: E402
     HELLO_PREFIX,
     KIND_WELCOME,
     MODULE_ID,
+    decode_tile_section,
     decode_world_data,
     frame,
     read_string,
@@ -64,6 +65,42 @@ def check_welcome(ident: int, payload: bytes, label: str) -> None:
     check(f"{label}: 长度 4（含 rules）", len(payload) == 4, len(payload))
 
 
+def world_flow(sock: socket.socket) -> int:
+    """R3：发 8（SpawnTileData），期望 7 / 9 / 10×N / 49。"""
+    import struct as _struct
+
+    sock.sendall(frame(8, _struct.pack("<iiB", 2100, 349, 0)))
+    got7 = got9 = sections = 0
+    started = False
+    first = None
+    for _ in range(400):
+        ident, payload = recv_frame(sock)
+        if ident == 7:
+            got7 += 1
+        elif ident == 9:
+            got9 += 1
+        elif ident == 10:
+            info = decode_tile_section(payload)
+            if first is None:
+                first = info
+            sections += 1
+        elif ident == 49:
+            started = True
+            break
+
+    check("收到再次的 id=7", got7 >= 1, got7)
+    check("收到 id=9 状态文本", got9 >= 1, got9)
+    check("收到至少 1 个 id=10 分块", sections > 0, sections)
+    check("首个分块头 = 200x150",
+          bool(first) and first["width"] == 200 and first["height"] == 150, first)
+    check("收到 id=49 开始游戏", started, started)
+    if first:
+        print(f"        首个分块 xStart={first['xStart']} yStart={first['yStart']} "
+              f"raw={first['rawLen']} bytes, 共 {sections} 块")
+    print()
+    return 0 if FAILED == 0 else 1
+
+
 def main(host: str, port: int, variant: str = "flags") -> int:
     print(f"连接 {host}:{port}")
     sock = socket.create_connection((host, port), timeout=10)
@@ -87,38 +124,7 @@ def main(host: str, port: int, variant: str = "flags") -> int:
         )
         check(f"消息 3 负载（{variant}）", payload == expected, payload.hex())
 
-        # R3：发 8（SpawnTileData）请求分块，服务端应回 7/9/10×N/49
-        if variant == "world":
-            import struct as _struct
-
-            sock.sendall(frame(8, _struct.pack("<iiB", 2100, 349, 0)))
-            got7 = got9 = sections = 0
-            started = False
-            first = None
-            for _ in range(400):
-                ident, payload = recv_frame(sock)
-                if ident == 7:
-                    got7 += 1
-                elif ident == 9:
-                    got9 += 1
-                elif ident == 10:
-                    info = decode_tile_section(payload)
-                    if first is None:
-                        first = info
-                    sections += 1
-                elif ident == 49:
-                    started = True
-                    break
-            check("收到再次的 id=7", got7 >= 1, got7)
-            check("收到 id=9 状态文本", got9 >= 1, got9)
-            check("收到至少 1 个 id=10 分块", sections > 0, sections)
-            check("首个分块头 = 200x150", bool(first) and first["width"] == 200 and first["height"] == 150, first)
-            check("收到 id=49 开始游戏", started, started)
-            if first:
-                print(f"        首个分块 xStart={first['xStart']} yStart={first['yStart']} "
-                      f"raw={first['rawLen']} bytes, 共 {sections} 块")
-            print()
-            return 0 if FAILED == 0 else 1
+# 3. 之后按变体走不同分支
 
         # SEND_MSG7_AFTER_3：消息 3 之后同一个 write 里跟欢迎包和/或消息 7
         if variant in ("msg7", "msg7only"):
@@ -181,6 +187,9 @@ def main(host: str, port: int, variant: str = "flags") -> int:
                   f"{world['maxTilesX']}x{world['maxTilesY']} "
                   f"spawn=({world['spawnTileX']},{world['spawnTileY']}) "
                   f"payload={len(payload)}")
+
+        if variant == "world":
+            return world_flow(sock)
     finally:
         sock.close()
 
