@@ -45,6 +45,7 @@ internal sealed class Session
     private readonly WldWorld? _wld;
     private bool _suppressOutbound;
     private bool _spawnCorrected;
+    private bool _proofDone;
     private bool _finishedSent;
     private int _lastSectionX = int.MinValue;
     private int _lastSectionY = int.MinValue;
@@ -122,38 +123,33 @@ internal sealed class Session
     }
 
 
-    /// <summary>从 inbox 里切出完整帧并分发。</summary>
+    /// <summary>切出完整帧并分发；帧在分发前就从 inbox 移除，保证 inbox 始终是「下一帧的开头」。</summary>
     private async Task ProcessFramesAsync(NetworkStream stream, List<byte> inbox, CancellationToken cancellationToken)
     {
-        int offset = 0;
-        while (inbox.Count - offset >= 3)
+        while (inbox.Count >= 3)
         {
-            int frameLength = inbox[offset] | (inbox[offset + 1] << 8);
+            int frameLength = inbox[0] | (inbox[1] << 8);
             if (frameLength < 3)
             {
                 _log.Error("frame.invalid", ("conn", _id), ("length", frameLength));
+                inbox.Clear();
                 return;
             }
 
-            if (inbox.Count - offset < frameLength)
+            if (inbox.Count < frameLength)
                 break;
 
-            byte id = inbox[offset + 2];
-            byte[] payload = inbox.GetRange(offset + 3, frameLength - 3).ToArray();
-            offset += frameLength;
+            byte id = inbox[2];
+            byte[] payload = inbox.GetRange(3, frameLength - 3).ToArray();
+            inbox.RemoveRange(0, frameLength);
 
-            await DispatchAsync(stream, id, payload, cancellationToken);
+            await DispatchAsync(stream, id, payload, inbox, cancellationToken);
         }
-
-        if (offset > 0)
-            inbox.RemoveRange(0, offset);
     }
 
     /// <summary>
-    /// 纯文本 proof 握手。
-    ///   on   ：立刻发一行，等客户端回一行（最多 timeout 秒），然后无论成败进入帧协议；
-    ///   off  ：不发，直接帧协议；
-    ///   auto ：先等一小会儿。若先到的是合法帧，判定为老客户端，绝不发文本。
+    /// proof 握手（连上就做的那种）。时机/封装由配置决定：
+    ///   timing=before（默认）在这里做；timing=after-hello 推迟到收到 id:1 之后。
     /// </summary>
     private async Task ProveAsync(NetworkStream stream, List<byte> inbox, CancellationToken cancellationToken)
     {
@@ -162,6 +158,12 @@ internal sealed class Session
         if (proof.Mode == "off")
         {
             _log.Info("proof.skipped", ("conn", _id), ("reason", "mode=off"));
+            return;
+        }
+
+        if (proof.Timing == "after-hello")
+        {
+            _log.Info("proof.deferred", ("conn", _id), ("note", "等收到 id:1 之后再握手"));
             return;
         }
 
@@ -181,6 +183,14 @@ internal sealed class Session
             }
         }
 
+        await SendProofAsync(stream, cancellationToken);
+        await AwaitProofAsync(stream, inbox, cancellationToken);
+    }
+
+    /// <summary>按 framing/wrapper 组出要发出去的 proof 字节。</summary>
+    private byte[] BuildProofBytes()
+    {
+        ProofSection proof = _config.Proof;
         string suffix = proof.Suffix switch
         {
             "crlf" => "\r\n",
@@ -188,31 +198,93 @@ internal sealed class Session
             _ => "\n",
         };
 
-        byte[] greeting = Encoding.ASCII.GetBytes(proof.ServerLine + suffix);
-        await stream.WriteAsync(greeting, cancellationToken);
-        _capture?.ToClient(greeting);
-        _log.Info("proof.sent", ("conn", _id), ("text", proof.ServerLine), ("suffix", proof.Suffix));
+        byte[] text = Encoding.ASCII.GetBytes(proof.ServerLine + suffix);
 
+        if (proof.Wrapper == "netmodule")
+        {
+            int head = 2 + (proof.NetModuleKind.HasValue ? 1 : 0);
+            byte[] payload = new byte[head + text.Length];
+            payload[0] = 0x7F;
+            payload[1] = 0xB1;
+            if (proof.NetModuleKind.HasValue)
+                payload[2] = (byte)proof.NetModuleKind.Value;
+            text.CopyTo(payload, head);
+            return Codec.Frame(MessageId.NetModules, payload);
+        }
+
+        if (proof.Framing == "frame")
+        {
+            // [u16 总长][文本]：按用户给的形式，长度含自身 2 字节
+            int total = text.Length + 2;
+            byte[] framed = new byte[total];
+            BinaryPrimitives.WriteUInt16LittleEndian(framed.AsSpan(0, 2), (ushort)total);
+            text.CopyTo(framed, 2);
+            return framed;
+        }
+
+        return text;
+    }
+
+    private async Task SendProofAsync(NetworkStream stream, CancellationToken cancellationToken)
+    {
+        byte[] bytes = BuildProofBytes();
+        await stream.WriteAsync(bytes, cancellationToken);
+        _capture?.ToClient(bytes);
+        _log.Info("proof.sent",
+            ("conn", _id),
+            ("text", _config.Proof.ServerLine),
+            ("suffix", _config.Proof.Suffix),
+            ("framing", _config.Proof.Framing),
+            ("wrapper", _config.Proof.Wrapper),
+            ("bytes", bytes.Length));
+    }
+
+    private async Task AwaitProofAsync(NetworkStream stream, List<byte> inbox, CancellationToken cancellationToken)
+    {
+        ProofSection proof = _config.Proof;
         DateTime end = DateTime.UtcNow.AddSeconds(proof.TimeoutSeconds);
+
         while (DateTime.UtcNow < end)
         {
-            string? line = TakeLine(inbox);
-            if (line is not null)
+            if (TakeProof(inbox, proof.ClientLine))
             {
-                _log.Info("proof.received", ("conn", _id), ("text", line));
-                if (line.Trim() == proof.ClientLine)
-                {
-                    _log.Info("proof.accepted", ("conn", _id));
-                    return;
-                }
-
-                _log.Warn("proof.unexpected", ("conn", _id), ("expected", proof.ClientLine), ("got", line));
+                _proofDone = true;
+                _log.Info("proof.accepted", ("conn", _id));
+                return;
             }
 
             await ReadIntoAsync(stream, inbox, cancellationToken, 200);
         }
 
         _log.Warn("proof.timeout", ("conn", _id), ("seconds", proof.TimeoutSeconds));
+    }
+
+    /// <summary>在 inbox 里找客户端回执（裸文本/带帧头/封在 82 里都能搜到）。</summary>
+    private bool TakeProof(List<byte> inbox, string clientLine)
+    {
+        byte[] needle = Encoding.ASCII.GetBytes(clientLine);
+
+        for (int i = 0; i + needle.Length <= inbox.Count; i++)
+        {
+            bool match = true;
+            for (int j = 0; j < needle.Length; j++)
+            {
+                if (inbox[i + j] != needle[j]) { match = false; break; }
+            }
+            if (!match) continue;
+
+            string found = Encoding.ASCII.GetString(inbox.GetRange(i, needle.Length).ToArray());
+
+            int cut = i + needle.Length;
+            while (cut < inbox.Count && (inbox[cut] == (byte)'\r' || inbox[cut] == (byte)'\n'))
+                cut++;
+            inbox.RemoveRange(0, cut);
+
+            _log.Info("proof.received", ("conn", _id), ("text", found));
+            return true;
+        }
+
+        return false;
     }
 
     private async Task ReadIntoAsync(NetworkStream stream, List<byte> inbox, CancellationToken outer, int milliseconds)
@@ -229,7 +301,6 @@ internal sealed class Session
         }
         catch (OperationCanceledException) when (!outer.IsCancellationRequested)
         {
-            // 只是这一段等超时，继续下一轮
         }
     }
 
@@ -243,19 +314,7 @@ internal sealed class Session
         return length >= 3 && length <= 4096 && inbox[2] == MessageId.Hello;
     }
 
-    /// <summary>从 inbox 头部取一行（含 \n 或 \r\n）；没有完整行返回 null。</summary>
-    private static string? TakeLine(List<byte> inbox)
-    {
-        int newline = inbox.IndexOf((byte)0x0A);
-        if (newline < 0)
-            return null;
-
-        string line = Encoding.ASCII.GetString(inbox.GetRange(0, newline).ToArray()).TrimEnd('\r');
-        inbox.RemoveRange(0, newline + 1);
-        return line;
-    }
-
-    private async Task DispatchAsync(NetworkStream stream, byte id, byte[] payload, CancellationToken cancellationToken)
+    private async Task DispatchAsync(NetworkStream stream, byte id, byte[] payload, List<byte> inbox, CancellationToken cancellationToken)
     {
         _log.Info("frame.recv",
             ("conn", _id),
@@ -278,6 +337,14 @@ internal sealed class Session
                     ("is326", version == "Terraria326"),
                     ("msg3", label),
                     ("connection", _sequence));
+
+                // PROOF_AFTER_HELLO：客户端可能是收到 Hello 之后才去处理 proof
+                if (!_proofDone && _config.Proof.Mode != "off" && _config.Proof.Timing == "after-hello")
+                {
+                    _log.Info("proof.now", ("conn", _id), ("note", "收到 id:1 之后再握手"));
+                    await SendProofAsync(stream, cancellationToken);
+                    await AwaitProofAsync(stream, inbox, cancellationToken);
+                }
 
                 if (_config.Handshake.SkipApproved)
                 {

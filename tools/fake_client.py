@@ -104,26 +104,54 @@ def world_flow(sock: socket.socket, req_x: int = 2100, req_y: int = 349, min_x: 
     return 0 if FAILED == 0 else 1
 
 
+def read_proof(sock: socket.socket, kind: str) -> bytes:
+    """按服务端的封装方式读回 proof。kind: raw / frame / module"""
+    if kind == "frame":
+        header = recv_exact(sock, 2)
+        total = header[0] | (header[1] << 8)
+        return recv_exact(sock, total - 2)
+
+    if kind == "module":
+        ident, payload = recv_frame(sock)
+        check("proof 封在 id=82", ident == 82, ident)
+        check("proof 模块号 0xB17F", payload[:2] == b"\x7f\xb1", payload[:2].hex())
+        return payload[2:]
+
+    line = b""
+    while not line.endswith(b"\n") and len(line) < 256:
+        chunk = sock.recv(1)
+        if not chunk:
+            break
+        line += chunk
+    return line
+
+
 def main(host: str, port: int, variant: str = "flags") -> int:
     print(f"连接 {host}:{port}")
     sock = socket.create_connection((host, port), timeout=10)
     sock.settimeout(10)
     try:
-        # 0. 纯文本 proof 握手（服务端先发一行，客户端回一行）
-        if variant in ("proof", "proofworld"):
+        proof_kind = {"proof": "raw", "proofworld": "raw",
+                      "proofframe": "frame", "proofmodule": "module"}.get(variant)
+
+        # 0a. 连上就做的 proof（before-hello）
+        if proof_kind and variant != "proofafter":
             sock.settimeout(5)
-            line = b""
-            while not line.endswith(b"\n") and len(line) < 256:
-                chunk = sock.recv(1)
-                if not chunk:
-                    break
-                line += chunk
-            check("收到服务端 proof 行", line.strip() == b"NingLauncher/1/server", line)
+            got = read_proof(sock, proof_kind)
+            check("收到服务端 proof", got.strip() == b"NingLauncher/1/server", got)
             sock.sendall(b"NingLauncher/1/client\n")
             sock.settimeout(10)
 
         # 1. Hello
         sock.sendall(frame(1, string("Terraria326")))
+
+        # 0b. PROOF_AFTER_HELLO：Hello 发出去之后才收到 proof，回执之后才该收到 id=3
+        if variant == "proofafter":
+            sock.settimeout(5)
+            got = read_proof(sock, "raw")
+            check("Hello 之后收到 proof", got.strip() == b"NingLauncher/1/server", got)
+            sock.sendall(b"NingLauncher/1/client\n")
+            sock.settimeout(10)
         ident, payload = recv_frame(sock)
         check("回复 id = 3", ident == 3, ident)
         expected = {
@@ -137,6 +165,9 @@ def main(host: str, port: int, variant: str = "flags") -> int:
             "world": b"\x01\x01",     # 完整进世界流程
             "worldneg": b"\x01\x01",  # 客户端发 (-1,-1) 时应回退到出生点
             "proof": b"\x01\x01",      # 先做纯文本 proof 握手
+            "proofafter": b"\x01\x01", # 先发 Hello，再做 proof
+            "proofframe": b"\x01\x01", # proof 带 2 字节长度头
+            "proofmodule": b"\x01\x01",# proof 封在 82 里
             "proofworld": b"\x01\x01", # proof + 完整进世界
         }.get(variant) or (
             bytes.fromhex(variant[4:].replace(" ", "")) if variant.startswith("hex:") else None
@@ -233,7 +264,7 @@ if __name__ == "__main__":
     host = sys.argv[1]
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 7777
     variant = sys.argv[3] if len(sys.argv) > 3 else "flags1"
-    allowed = ("flags1", "flags0", "flags", "slot", "silent", "msg7", "msg7only", "world", "worldneg", "proof", "proofworld")
+    allowed = ("flags1", "flags0", "flags", "slot", "silent", "msg7", "msg7only", "world", "worldneg", "proof", "proofworld", "proofafter", "proofframe", "proofmodule")
     if variant not in allowed and not variant.startswith("hex:"):
         print("第三个参数只能是 " + " / ".join(allowed) + " / hex:XXXX")
         sys.exit(2)

@@ -126,6 +126,36 @@ public sealed class ServerConfig
             EnvNotes.Add($"PROOF_SUFFIX={Proof.Suffix}");
         }
 
+        string? proofAfterHello = Env("PROOF_AFTER_HELLO");
+        if (!string.IsNullOrWhiteSpace(proofAfterHello))
+        {
+            Proof.Timing = ParseBool(proofAfterHello, "PROOF_AFTER_HELLO") ? "after-hello" : "before";
+            EnvNotes.Add($"PROOF_AFTER_HELLO={Proof.Timing}");
+        }
+
+        string? proofWithLength = Env("PROOF_WITH_LENGTH");
+        if (!string.IsNullOrWhiteSpace(proofWithLength))
+        {
+            Proof.Framing = ParseBool(proofWithLength, "PROOF_WITH_LENGTH") ? "frame" : "raw";
+            EnvNotes.Add($"PROOF_WITH_LENGTH={Proof.Framing}");
+        }
+
+        string? proofNetModule = Env("PROOF_IN_NETMODULE");
+        if (!string.IsNullOrWhiteSpace(proofNetModule))
+        {
+            Proof.Wrapper = ParseBool(proofNetModule, "PROOF_IN_NETMODULE") ? "netmodule" : "plain";
+            EnvNotes.Add($"PROOF_IN_NETMODULE={Proof.Wrapper}");
+        }
+
+        string? proofKind = Env("PROOF_NETMODULE_KIND");
+        if (!string.IsNullOrWhiteSpace(proofKind))
+        {
+            if (!int.TryParse(proofKind.Trim(), out int kind))
+                throw new InvalidDataException($"PROOF_NETMODULE_KIND 不是整数: {proofKind}");
+            Proof.NetModuleKind = kind;
+            EnvNotes.Add($"PROOF_NETMODULE_KIND={kind}");
+        }
+
         string? proofTimeout = Env("PROOF_TIMEOUT");
         if (!string.IsNullOrWhiteSpace(proofTimeout))
         {
@@ -331,6 +361,24 @@ public sealed class ServerConfig
         if (suffix is not ("lf" or "crlf" or "none"))
             throw new InvalidDataException($"proof.suffix 只能是 lf/crlf/none，当前: {Proof.Suffix}");
         Proof.Suffix = suffix;
+
+        string timing = Proof.Timing.Trim().ToLowerInvariant();
+        if (timing is not ("before" or "after-hello"))
+            throw new InvalidDataException($"proof.timing 只能是 before / after-hello，当前: {Proof.Timing}");
+        Proof.Timing = timing;
+
+        string framing = Proof.Framing.Trim().ToLowerInvariant();
+        if (framing is not ("raw" or "frame"))
+            throw new InvalidDataException($"proof.framing 只能是 raw / frame，当前: {Proof.Framing}");
+        Proof.Framing = framing;
+
+        string wrapper = Proof.Wrapper.Trim().ToLowerInvariant();
+        if (wrapper is not ("plain" or "netmodule"))
+            throw new InvalidDataException($"proof.wrapper 只能是 plain / netmodule，当前: {Proof.Wrapper}");
+        Proof.Wrapper = wrapper;
+
+        if (Proof.NetModuleKind is < 0 or > 255)
+            throw new InvalidDataException($"proof.netModuleKind 应在 0..255，当前 {Proof.NetModuleKind}");
 
         if (Proof.TimeoutSeconds < 1 || Proof.TimeoutSeconds > 60)
             throw new InvalidDataException($"proof.timeoutSeconds 应在 1..60，当前 {Proof.TimeoutSeconds}");
@@ -559,4 +607,20 @@ public sealed class ProofSection
 
     [JsonPropertyName("timeoutSeconds")]
     public int TimeoutSeconds { get; set; } = 3;
+
+    /// <summary>"before" = 连上就发（默认）；"after-hello" = 收到 id:1 之后再发。</summary>
+    [JsonPropertyName("timing")]
+    public string Timing { get; set; } = "before";
+
+    /// <summary>"raw" = 裸文本（默认）；"frame" = 加泰拉瑞亚 2 字节长度头。</summary>
+    [JsonPropertyName("framing")]
+    public string Framing { get; set; } = "raw";
+
+    /// <summary>"plain" = 直接发文本（默认）；"netmodule" = 封进 id:82 的 NetModule。</summary>
+    [JsonPropertyName("wrapper")]
+    public string Wrapper { get; set; } = "plain";
+
+    /// <summary>wrapper=netmodule 时，模块号后是否再插一个 kind 字节；null = 不插。</summary>
+    [JsonPropertyName("netModuleKind")]
+    public int? NetModuleKind { get; set; }
 }

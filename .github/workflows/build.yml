@@ -147,6 +147,46 @@ jobs:
           docker logs panel-proof | grep -E 'proof\.(sent|received|accepted)' | head -3
           docker rm -f panel-proof
 
+      - name: Proof after-hello — Hello 之后才握手
+        run: |
+          docker run -d --name panel-pa --restart=no \
+            -e PROOF_MODE=on -e PROOF_AFTER_HELLO=true -e MSG3_VARIANT=flags1 \
+            -p 17792:7777 -v "$PWD/server/dist:/app" -w /app \
+            mcr.microsoft.com/dotnet/runtime:8.0 \
+            dotnet BunnyLoader.Server.dll --port 7777
+          for i in $(seq 1 30); do
+            docker logs panel-pa 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
+          done
+          python3 tools/fake_client.py 127.0.0.1 17792 proofafter
+          docker logs panel-pa | grep -E 'proof\.(now|sent|received|accepted)' | head -4
+          docker rm -f panel-pa
+
+      - name: Proof with length — 2 字节长度头
+        run: |
+          docker run -d --name panel-pf --restart=no \
+            -e PROOF_MODE=on -e PROOF_WITH_LENGTH=true -e MSG3_VARIANT=flags1 \
+            -p 17793:7777 -v "$PWD/server/dist:/app" -w /app \
+            mcr.microsoft.com/dotnet/runtime:8.0 \
+            dotnet BunnyLoader.Server.dll --port 7777
+          for i in $(seq 1 30); do
+            docker logs panel-pf 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
+          done
+          python3 tools/fake_client.py 127.0.0.1 17793 proofframe
+          docker rm -f panel-pf
+
+      - name: Proof in NetModule — 封进 id=82
+        run: |
+          docker run -d --name panel-pm --restart=no \
+            -e PROOF_MODE=on -e PROOF_IN_NETMODULE=true -e MSG3_VARIANT=flags1 \
+            -p 17794:7777 -v "$PWD/server/dist:/app" -w /app \
+            mcr.microsoft.com/dotnet/runtime:8.0 \
+            dotnet BunnyLoader.Server.dll --port 7777
+          for i in $(seq 1 30); do
+            docker logs panel-pm 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
+          done
+          python3 tools/fake_client.py 127.0.0.1 17794 proofmodule
+          docker rm -f panel-pm
+
       - name: Proof auto — 老客户端直接发帧，不应收到文本
         run: |
           docker run -d --name panel-auto --restart=no \

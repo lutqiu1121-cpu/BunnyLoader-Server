@@ -190,6 +190,9 @@ public static class Program
                 ("welcomeHex", config.Handshake.WelcomeHex),
                 ("candidates", config.Handshake.Candidates),
                 ("proofMode", config.Proof.Mode),
+                ("proofTiming", config.Proof.Timing),
+                ("proofFraming", config.Proof.Framing),
+                ("proofWrapper", config.Proof.Wrapper),
                 ("proofServerLine", config.Proof.ServerLine),
                 ("skipApproved", config.Handshake.SkipApproved),
                 ("sendMsg7After3", config.Handshake.SendMsg7After3),
@@ -395,5 +398,8 @@ public static class Program
         Console.WriteLine("  PROOF_MODE           auto（默认）/ on / off");
         Console.WriteLine("  PROOF_SUFFIX         lf（默认）/ crlf / none");
         Console.WriteLine("  PROOF_TIMEOUT        等客户端 proof 的秒数，默认 3");
+        Console.WriteLine("  PROOF_AFTER_HELLO    true=收到 id:1 之后再做 proof");
+        Console.WriteLine("  PROOF_WITH_LENGTH    true=proof 带 2 字节长度头");
+        Console.WriteLine("  PROOF_IN_NETMODULE   true=proof 封进 id:82（模块 0xB17F）");
     }
 }
