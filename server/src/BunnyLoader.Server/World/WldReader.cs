@@ -128,6 +128,7 @@ public static class WldReader
             DayTime = dayTime,
             GameMode = gameMode,
             Tiles = tiles,
+            FrameImportant = frameImportant,
         };
 
         if (sectionCount >= 3)
@@ -159,58 +160,62 @@ public static class WldReader
                 {
                     flags3 = br.ReadByte();
                     if ((flags3 & 0x01) != 0)
-                        _ = br.ReadByte();      // flags4：我们不用
+                        _ = br.ReadByte();      // flags4：用不到
                 }
             }
 
             bool active = (flags1 & 0x02) != 0;
             bool hasWall = (flags1 & 0x04) != 0;
-            bool liquid = (flags1 & 0x18) != 0;
+            byte liquidFlags = (byte)(flags1 & 0x18);
             bool typeHigh = (flags1 & 0x20) != 0;
 
-            // 1. 方块类型（低字节，必要时高字节）
-            int type = 0;
+            // 1. 方块类型
+            ushort type = 0;
             if (active)
             {
                 type = br.ReadByte();
                 if (typeHigh)
-                    type |= br.ReadByte() << 8;
+                    type |= (ushort)(br.ReadByte() << 8);
             }
 
-            // 2. 帧（只有 frameImportant 的方块才有）
+            // 2. 帧（仅 frameImportant）
+            short frameX = 0, frameY = 0;
             if (active && type < frameImportant.Length && frameImportant[type])
             {
-                _ = br.ReadInt16();
-                _ = br.ReadInt16();
+                frameX = br.ReadInt16();
+                frameY = br.ReadInt16();
             }
 
             // 3. 方块油漆
             if ((flags3 & 0x08) != 0)
                 _ = br.ReadByte();
 
-            // 4. 墙壁（低字节）与墙油漆
-            int wall = 0;
+            // 4. 墙壁低字节
+            ushort wall = 0;
             if (hasWall)
                 wall = br.ReadByte();
+
+            // 5. 墙油漆
             if ((flags3 & 0x10) != 0)
                 _ = br.ReadByte();
 
-            // 5. 液体量
-            if (liquid)
-                _ = br.ReadByte();
+            // 6. 液体量
+            byte liquidAmount = 0;
+            if (liquidFlags != 0)
+                liquidAmount = br.ReadByte();
 
-            // 6. 墙壁高字节
+            // 7. 墙壁高字节
             if ((flags3 & 0x40) != 0)
-                wall |= br.ReadByte() << 8;
+                wall |= (ushort)(br.ReadByte() << 8);
 
-            // 7. 跑长
+            // 8. 跑长
             int run = 1;
             if ((flags1 & 0x40) != 0)
                 run += br.ReadByte();
             else if ((flags1 & 0x80) != 0)
                 run += br.ReadByte() | (br.ReadByte() << 8);
 
-            var tile = new Tile(active, (byte)Math.Min(type, 255), (byte)Math.Min(wall, 255));
+            var tile = new Tile(active, type, wall, frameX, frameY, liquidFlags, liquidAmount);
 
             for (int k = 0; k < run && written < total; k++)
             {

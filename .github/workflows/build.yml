@@ -133,6 +133,16 @@ jobs:
           python3 tools/fake_client.py 127.0.0.1 17782 flags0
           docker rm -f panel-v3
 
+      - name: Real world — 解析真实 1.4.5.8 存档
+        run: |
+          docker run --rm -v "$PWD/server/testdata:/td:ro" -v "$PWD/server/dist:/app" -w /app \
+            mcr.microsoft.com/dotnet/runtime:8.0 \
+            dotnet BunnyLoader.Server.dll --world-info /td/real-world.wld | tee /tmp/real.txt
+          grep -q '"size":"4200x1200"' /tmp/real.txt
+          grep -q '"spawn":"2105,312"' /tmp/real.txt
+          grep -q '"version":326' /tmp/real.txt
+          grep -q '块状的小屋' /tmp/real.txt
+
       - name: World file — 解析 .wld 并打印摘要
         run: |
           mkdir -p /tmp/wld

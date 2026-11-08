@@ -19,6 +19,12 @@ public sealed class WldWorld
     public bool DayTime { get; init; }
     public int GameMode { get; init; }
 
+    /// <summary>哪些方块类型是 frameImportant（决定分块里要不要写 frameX/frameY）。</summary>
+    public bool[] FrameImportant { get; init; } = Array.Empty<bool>();
+
+    public bool IsFrameImportant(ushort type) =>
+        type < FrameImportant.Length && FrameImportant[type];
+
     /// <summary>行优先：index = y * MaxTilesX + x。</summary>
     public Tile[] Tiles { get; init; } = Array.Empty<Tile>();
 

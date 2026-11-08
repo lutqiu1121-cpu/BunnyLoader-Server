@@ -280,7 +280,7 @@ internal sealed class Session
                 int sections = 0;
                 foreach ((int sx, int sy) in SectionBlock(reqX, reqY))
                 {
-                    byte[] compressed = TileSection.Encode(sx, sy, GetTile);
+                    byte[] compressed = TileSection.Encode(sx, sy, GetTile, IsFrameImportant);
                     frames.Add(Messages.TileSectionPacket(compressed));
                     sections++;
                 }
@@ -513,6 +513,8 @@ internal sealed class Session
     /// 平坦世界：地表以上空气，地表那一层草地，往下泥土，岩层以下石头。
     /// 只够给客户端画图与站人，不做地形生成。
     /// </summary>
+    private bool IsFrameImportant(ushort type) => _wld?.IsFrameImportant(type) ?? false;
+
     private int WorldMaxX => _wld?.MaxTilesX ?? _config.World.MaxTilesX;
     private int WorldMaxY => _wld?.MaxTilesY ?? _config.World.MaxTilesY;
     private int WorldSpawnX => _wld?.SpawnTileX ?? _config.World.SpawnTileX;
@@ -533,12 +535,12 @@ internal sealed class Session
             return default;                                        // 空气
 
         if (y == surface)
-            return new Tile(true, TileSection.TypeGrass, 0);
+            return Tile.Solid(TileSection.TypeGrass);
 
         if (y < rock)
-            return new Tile(true, TileSection.TypeDirt, 0);
+            return Tile.Solid(TileSection.TypeDirt);
 
-        return new Tile(true, TileSection.TypeStone, 0);
+        return Tile.Solid(TileSection.TypeStone);
     }
 
     /// <summary>

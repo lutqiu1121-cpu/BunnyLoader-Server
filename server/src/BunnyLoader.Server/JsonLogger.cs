@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace BunnyLoader.Server;
@@ -56,7 +57,8 @@ public sealed class JsonLogger
         string line;
         using (var buffer = new MemoryStream(256))
         {
-            using (var writer = new Utf8JsonWriter(buffer))
+            var options = new JsonWriterOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+            using (var writer = new Utf8JsonWriter(buffer, options))
             {
                 writer.WriteStartObject();
                 writer.WriteString("ts", DateTimeOffset.UtcNow.ToString("O"));
