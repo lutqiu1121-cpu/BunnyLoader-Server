@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Text;
 using System.Net.Sockets;
 using BunnyLoader.Server.Protocol;
 using BunnyLoader.Server.World;
@@ -75,6 +76,14 @@ internal sealed class Session
         try
         {
             using NetworkStream stream = _client.GetStream();
+
+            // 纯文本 proof 握手（二开版 "protocol 1"）。必须在帧协议之前。
+            await ProveAsync(stream, inbox, cancellationToken);
+
+            // proof 阶段可能已经把第一批帧一起读进来了，先处理掉。
+            if (inbox.Count > 0)
+                await ProcessFramesAsync(stream, inbox, cancellationToken);
+
             while (!cancellationToken.IsCancellationRequested)
             {
                 int read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
@@ -89,28 +98,7 @@ internal sealed class Session
                 for (int i = 0; i < read; i++)
                     inbox.Add(buffer[i]);
 
-                int offset = 0;
-                while (inbox.Count - offset >= 3)
-                {
-                    int frameLength = inbox[offset] | (inbox[offset + 1] << 8);
-                    if (frameLength < 3)
-                    {
-                        _log.Error("frame.invalid", ("conn", _id), ("length", frameLength));
-                        return;
-                    }
-
-                    if (inbox.Count - offset < frameLength)
-                        break;
-
-                    byte id = inbox[offset + 2];
-                    byte[] payload = inbox.GetRange(offset + 3, frameLength - 3).ToArray();
-                    offset += frameLength;
-
-                    await DispatchAsync(stream, id, payload, cancellationToken);
-                }
-
-                if (offset > 0)
-                    inbox.RemoveRange(0, offset);
+                await ProcessFramesAsync(stream, inbox, cancellationToken);
             }
 
             _log.Info("conn.close", ("conn", _id), ("bytes", total), ("reason", "shutdown"));
@@ -131,6 +119,137 @@ internal sealed class Session
         {
             _client.Dispose();
         }
+    }
+
+
+    /// <summary>从 inbox 里切出完整帧并分发。</summary>
+    private async Task ProcessFramesAsync(NetworkStream stream, List<byte> inbox, CancellationToken cancellationToken)
+    {
+        int offset = 0;
+        while (inbox.Count - offset >= 3)
+        {
+            int frameLength = inbox[offset] | (inbox[offset + 1] << 8);
+            if (frameLength < 3)
+            {
+                _log.Error("frame.invalid", ("conn", _id), ("length", frameLength));
+                return;
+            }
+
+            if (inbox.Count - offset < frameLength)
+                break;
+
+            byte id = inbox[offset + 2];
+            byte[] payload = inbox.GetRange(offset + 3, frameLength - 3).ToArray();
+            offset += frameLength;
+
+            await DispatchAsync(stream, id, payload, cancellationToken);
+        }
+
+        if (offset > 0)
+            inbox.RemoveRange(0, offset);
+    }
+
+    /// <summary>
+    /// 纯文本 proof 握手。
+    ///   on   ：立刻发一行，等客户端回一行（最多 timeout 秒），然后无论成败进入帧协议；
+    ///   off  ：不发，直接帧协议；
+    ///   auto ：先等一小会儿。若先到的是合法帧，判定为老客户端，绝不发文本。
+    /// </summary>
+    private async Task ProveAsync(NetworkStream stream, List<byte> inbox, CancellationToken cancellationToken)
+    {
+        ProofSection proof = _config.Proof;
+
+        if (proof.Mode == "off")
+        {
+            _log.Info("proof.skipped", ("conn", _id), ("reason", "mode=off"));
+            return;
+        }
+
+        if (proof.Mode == "auto")
+        {
+            DateTime deadline = DateTime.UtcNow.AddMilliseconds(200);
+            while (DateTime.UtcNow < deadline && inbox.Count < 3)
+                await ReadIntoAsync(stream, inbox, cancellationToken, 100);
+
+            if (inbox.Count >= 3 && LooksLikeFrame(inbox))
+            {
+                _log.Info("proof.skipped", ("conn", _id), ("reason", "legacy-frame", "note", "老客户端直接发帧，不发文本"));
+                return;
+            }
+        }
+
+        string suffix = proof.Suffix switch
+        {
+            "crlf" => "\r\n",
+            "none" => "",
+            _ => "\n",
+        };
+
+        byte[] greeting = Encoding.ASCII.GetBytes(proof.ServerLine + suffix);
+        await stream.WriteAsync(greeting, cancellationToken);
+        _capture?.ToClient(greeting);
+        _log.Info("proof.sent", ("conn", _id), ("text", proof.ServerLine), ("suffix", proof.Suffix));
+
+        DateTime end = DateTime.UtcNow.AddSeconds(proof.TimeoutSeconds);
+        while (DateTime.UtcNow < end)
+        {
+            string? line = TakeLine(inbox);
+            if (line is not null)
+            {
+                _log.Info("proof.received", ("conn", _id), ("text", line));
+                if (line.Trim() == proof.ClientLine)
+                {
+                    _log.Info("proof.accepted", ("conn", _id));
+                    return;
+                }
+
+                _log.Warn("proof.unexpected", ("conn", _id), ("expected", proof.ClientLine), ("got", line));
+            }
+
+            await ReadIntoAsync(stream, inbox, cancellationToken, 200);
+        }
+
+        _log.Warn("proof.timeout", ("conn", _id), ("seconds", proof.TimeoutSeconds));
+    }
+
+    private async Task ReadIntoAsync(NetworkStream stream, List<byte> inbox, CancellationToken outer, int milliseconds)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(outer);
+        timeout.CancelAfter(milliseconds);
+
+        var buffer = new byte[8192];
+        try
+        {
+            int read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), timeout.Token);
+            for (int i = 0; i < read; i++)
+                inbox.Add(buffer[i]);
+        }
+        catch (OperationCanceledException) when (!outer.IsCancellationRequested)
+        {
+            // 只是这一段等超时，继续下一轮
+        }
+    }
+
+    /// <summary>是不是一条泰拉瑞亚帧的开头（长度合理且 id 是 Hello）。</summary>
+    private static bool LooksLikeFrame(List<byte> inbox)
+    {
+        if (inbox.Count < 3)
+            return false;
+
+        int length = inbox[0] | (inbox[1] << 8);
+        return length >= 3 && length <= 4096 && inbox[2] == MessageId.Hello;
+    }
+
+    /// <summary>从 inbox 头部取一行（含 \n 或 \r\n）；没有完整行返回 null。</summary>
+    private static string? TakeLine(List<byte> inbox)
+    {
+        int newline = inbox.IndexOf((byte)0x0A);
+        if (newline < 0)
+            return null;
+
+        string line = Encoding.ASCII.GetString(inbox.GetRange(0, newline).ToArray()).TrimEnd('\r');
+        inbox.RemoveRange(0, newline + 1);
+        return line;
     }
 
     private async Task DispatchAsync(NetworkStream stream, byte id, byte[] payload, CancellationToken cancellationToken)

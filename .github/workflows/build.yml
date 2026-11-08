@@ -133,6 +133,34 @@ jobs:
           python3 tools/fake_client.py 127.0.0.1 17782 flags0
           docker rm -f panel-v3
 
+      - name: Proof on — 纯文本握手 + 完整进世界
+        run: |
+          docker run -d --name panel-proof --restart=no \
+            -e PROOF_MODE=on -e MSG3_VARIANT=flags1 \
+            -p 17790:7777 -v "$PWD/server/dist:/app" -w /app \
+            mcr.microsoft.com/dotnet/runtime:8.0 \
+            dotnet BunnyLoader.Server.dll --port 7777
+          for i in $(seq 1 30); do
+            docker logs panel-proof 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
+          done
+          python3 tools/fake_client.py 127.0.0.1 17790 proofworld
+          docker logs panel-proof | grep -E 'proof\.(sent|received|accepted)' | head -3
+          docker rm -f panel-proof
+
+      - name: Proof auto — 老客户端直接发帧，不应收到文本
+        run: |
+          docker run -d --name panel-auto --restart=no \
+            -e PROOF_MODE=auto -e MSG3_VARIANT=flags1 \
+            -p 17791:7777 -v "$PWD/server/dist:/app" -w /app \
+            mcr.microsoft.com/dotnet/runtime:8.0 \
+            dotnet BunnyLoader.Server.dll --port 7777
+          for i in $(seq 1 30); do
+            docker logs panel-auto 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
+          done
+          python3 tools/fake_client.py 127.0.0.1 17791 world
+          docker logs panel-auto | grep -E 'proof\.skipped' | head -2
+          docker rm -f panel-auto
+
       - name: Real world — 解析真实 1.4.5.8 存档
         run: |
           docker run --rm -v "$PWD/server/testdata:/td:ro" -v "$PWD/server/dist:/app" -w /app \

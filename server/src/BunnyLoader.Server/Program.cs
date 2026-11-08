@@ -27,6 +27,7 @@ public static class Program
         string? cliMsg3 = null;
         string? worldPath = null;
         bool worldInfo = false;
+        string? cliProof = null;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -66,6 +67,10 @@ public static class Program
                     worldPath = infoPath;
                     worldInfo = true;
                     break;
+                case "--proof":
+                    if (!TryValue(args, ref i, out string proofArg)) return 2;
+                    cliProof = proofArg.Trim().ToLowerInvariant();
+                    break;
                 case "--selftest":
                     selftest = true;
                     break;
@@ -96,6 +101,8 @@ public static class Program
                 config.Handshake.Layout = cliMsg3;
                 config.Handshake.Auto = false;
             }
+            if (cliProof is not null)
+                config.Proof.Mode = cliProof;
             config.Validate();
         }
         catch (Exception e)
@@ -182,6 +189,8 @@ public static class Program
                 ("msg3Hex", config.Handshake.Msg3Hex),
                 ("welcomeHex", config.Handshake.WelcomeHex),
                 ("candidates", config.Handshake.Candidates),
+                ("proofMode", config.Proof.Mode),
+                ("proofServerLine", config.Proof.ServerLine),
                 ("skipApproved", config.Handshake.SkipApproved),
                 ("sendMsg7After3", config.Handshake.SendMsg7After3),
                 ("msg7IncludeWelcome", config.Handshake.Msg7IncludeWelcome),
@@ -363,6 +372,7 @@ public static class Program
         Console.WriteLine("  --selftest           配置 + 编解码自检后退出");
         Console.WriteLine("  --world <path>       用原版 .wld 作为真实世界（否则用平坦世界）");
         Console.WriteLine("  --world-info <path>  只解析 .wld 并打印摘要后退出");
+        Console.WriteLine("  --proof <auto|on|off> 二开版纯文本握手：auto=先探测（默认）");
         Console.WriteLine();
         Console.WriteLine("环境变量（面板只能改启动命令时用这些）:");
         Console.WriteLine("  SERVER_PORT / PORT   监听端口，默认 7777");
@@ -382,5 +392,8 @@ public static class Program
         Console.WriteLine("  WORLD_NAME           世界名");
         Console.WriteLine("  SERVER_NAME          服务器名");
         Console.WriteLine("  WORLD_FILE           原版 .wld 路径（等价 --world）");
+        Console.WriteLine("  PROOF_MODE           auto（默认）/ on / off");
+        Console.WriteLine("  PROOF_SUFFIX         lf（默认）/ crlf / none");
+        Console.WriteLine("  PROOF_TIMEOUT        等客户端 proof 的秒数，默认 3");
     }
 }

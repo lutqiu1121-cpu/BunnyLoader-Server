@@ -32,6 +32,9 @@ public sealed class ServerConfig
     [JsonPropertyName("handshake")]
     public HandshakeSection Handshake { get; set; } = new();
 
+    [JsonPropertyName("proof")]
+    public ProofSection Proof { get; set; } = new();
+
     private static readonly JsonSerializerOptions Options = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -107,6 +110,29 @@ public sealed class ServerConfig
         {
             Logging.Level = level.Trim();
             EnvNotes.Add($"LOG_LEVEL={Logging.Level}");
+        }
+
+        string? proofMode = Env("PROOF_MODE");
+        if (!string.IsNullOrWhiteSpace(proofMode))
+        {
+            Proof.Mode = proofMode.Trim().ToLowerInvariant();
+            EnvNotes.Add($"PROOF_MODE={Proof.Mode}");
+        }
+
+        string? proofSuffix = Env("PROOF_SUFFIX");
+        if (!string.IsNullOrWhiteSpace(proofSuffix))
+        {
+            Proof.Suffix = proofSuffix.Trim().ToLowerInvariant();
+            EnvNotes.Add($"PROOF_SUFFIX={Proof.Suffix}");
+        }
+
+        string? proofTimeout = Env("PROOF_TIMEOUT");
+        if (!string.IsNullOrWhiteSpace(proofTimeout))
+        {
+            if (!int.TryParse(proofTimeout.Trim(), out int t))
+                throw new InvalidDataException($"PROOF_TIMEOUT 不是整数: {proofTimeout}");
+            Proof.TimeoutSeconds = t;
+            EnvNotes.Add($"PROOF_TIMEOUT={t}");
         }
 
         string? worldFile = Env("WORLD_FILE");
@@ -295,6 +321,19 @@ public sealed class ServerConfig
         if (variant is not ("flags" or "slot"))
             throw new InvalidDataException($"handshake.layout 只能是 flags / slot，当前: {Handshake.Layout}");
         Handshake.Layout = variant;
+
+        string proofModeValue = Proof.Mode.Trim().ToLowerInvariant();
+        if (proofModeValue is not ("auto" or "on" or "off"))
+            throw new InvalidDataException($"proof.mode 只能是 auto/on/off，当前: {Proof.Mode}");
+        Proof.Mode = proofModeValue;
+
+        string suffix = Proof.Suffix.Trim().ToLowerInvariant();
+        if (suffix is not ("lf" or "crlf" or "none"))
+            throw new InvalidDataException($"proof.suffix 只能是 lf/crlf/none，当前: {Proof.Suffix}");
+        Proof.Suffix = suffix;
+
+        if (Proof.TimeoutSeconds < 1 || Proof.TimeoutSeconds > 60)
+            throw new InvalidDataException($"proof.timeoutSeconds 应在 1..60，当前 {Proof.TimeoutSeconds}");
 
         ValidateHex(Handshake.Msg3Hex, "handshake.msg3Hex");
         ValidateHex(Handshake.WelcomeHex, "handshake.welcomeHex");
@@ -491,4 +530,33 @@ public sealed class HandshakeSection
     /// </summary>
     [JsonPropertyName("msg7IncludeWelcome")]
     public bool Msg7IncludeWelcome { get; set; } = true;
+}
+
+
+/// <summary>
+/// 二开版制作方提供的纯文本握手（"protocol 1"）。
+/// 服务端连上后先发一行裸文本，客户端回一行；两行都对上才进入正常帧协议。
+///
+/// ⚠ 这段是**裸 TCP 文本**，不是泰拉瑞亚的帧格式。对不支持它的老客户端发送，
+/// 会把它的解析器带偏（它会拿 'N','i' 当帧长）。所以默认 auto：先等一小会儿看
+/// 客户端是不是直接发帧（老客户端），是就直接走帧协议、绝不发文本。
+/// </summary>
+public sealed class ProofSection
+{
+    /// <summary>auto = 先探测；on = 总是发；off = 完全不发。</summary>
+    [JsonPropertyName("mode")]
+    public string Mode { get; set; } = "auto";
+
+    [JsonPropertyName("serverLine")]
+    public string ServerLine { get; set; } = "NingLauncher/1/server";
+
+    [JsonPropertyName("clientLine")]
+    public string ClientLine { get; set; } = "NingLauncher/1/client";
+
+    /// <summary>行尾：lf = \n，crlf = \r\n，none = 不加。</summary>
+    [JsonPropertyName("suffix")]
+    public string Suffix { get; set; } = "lf";
+
+    [JsonPropertyName("timeoutSeconds")]
+    public int TimeoutSeconds { get; set; } = 3;
 }

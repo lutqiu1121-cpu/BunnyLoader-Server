@@ -109,6 +109,19 @@ def main(host: str, port: int, variant: str = "flags") -> int:
     sock = socket.create_connection((host, port), timeout=10)
     sock.settimeout(10)
     try:
+        # 0. 纯文本 proof 握手（服务端先发一行，客户端回一行）
+        if variant in ("proof", "proofworld"):
+            sock.settimeout(5)
+            line = b""
+            while not line.endswith(b"\n") and len(line) < 256:
+                chunk = sock.recv(1)
+                if not chunk:
+                    break
+                line += chunk
+            check("收到服务端 proof 行", line.strip() == b"NingLauncher/1/server", line)
+            sock.sendall(b"NingLauncher/1/client\n")
+            sock.settimeout(10)
+
         # 1. Hello
         sock.sendall(frame(1, string("Terraria326")))
         ident, payload = recv_frame(sock)
@@ -123,6 +136,8 @@ def main(host: str, port: int, variant: str = "flags") -> int:
             "msg7only": b"\x01\x01", # 3 之后直接跟 7
             "world": b"\x01\x01",     # 完整进世界流程
             "worldneg": b"\x01\x01",  # 客户端发 (-1,-1) 时应回退到出生点
+            "proof": b"\x01\x01",      # 先做纯文本 proof 握手
+            "proofworld": b"\x01\x01", # proof + 完整进世界
         }.get(variant) or (
             bytes.fromhex(variant[4:].replace(" ", "")) if variant.startswith("hex:") else None
         )
@@ -197,6 +212,9 @@ def main(host: str, port: int, variant: str = "flags") -> int:
 
         if variant == "worldneg":
             return world_flow(sock, -1, -1, 1000)
+
+        if variant == "proofworld":
+            return world_flow(sock)
     finally:
         sock.close()
 
@@ -215,7 +233,7 @@ if __name__ == "__main__":
     host = sys.argv[1]
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 7777
     variant = sys.argv[3] if len(sys.argv) > 3 else "flags1"
-    allowed = ("flags1", "flags0", "flags", "slot", "silent", "msg7", "msg7only", "world", "worldneg")
+    allowed = ("flags1", "flags0", "flags", "slot", "silent", "msg7", "msg7only", "world", "worldneg", "proof", "proofworld")
     if variant not in allowed and not variant.startswith("hex:"):
         print("第三个参数只能是 " + " / ".join(allowed) + " / hex:XXXX")
         sys.exit(2)

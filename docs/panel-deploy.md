@@ -320,6 +320,50 @@ y >= rockLayer        石头（类型 1）
 | 仍在下坠 | 回传日志里的 `spawn.fallback` / `sections` 行 |
 | 有地面但全黑 | 缺光照/背景墙，下一轮补 |
 
+## 6.10 二开版 proof 握手（本轮）
+
+制作方给的兼容握手是**纯文本**，不走泰拉瑞亚帧格式：
+
+```
+服务端 → 客户端：NingLauncher/1/server\n
+客户端 → 服务端：NingLauncher/1/client\n
+```
+
+对上之后才进入正常协议（`id:1` Hello 及后续）。
+
+| 环境变量 | 值 | 说明 |
+|---|---|---|
+| `PROOF_MODE` | `auto`（默认） | 先等 200ms 看客户端是否直接发帧；是就判定为老客户端，**绝不发文本** |
+| | `on` | 连上就发，等 3 秒回执，然后照常进入协议 |
+| | `off` | 完全不发 |
+| `PROOF_SUFFIX` | `lf`（默认）/ `crlf` / `none` | 行尾；客户端要求不带换行时用 `none` |
+| `PROOF_TIMEOUT` | 秒，默认 3 | 等客户端回执的时间 |
+
+日志：
+
+```json
+{"ev":"proof.sent","text":"NingLauncher/1/server","suffix":"lf"}
+{"ev":"proof.received","text":"NingLauncher/1/client"}
+{"ev":"proof.accepted"}
+```
+
+老客户端（无锁版）什么都不用改：`auto` 会看到它直接发 `id:1`，记一条 `proof.skipped reason=legacy-frame` 然后照常走。
+
+**给带锁客户端测试时建议直接 `PROOF_MODE=on`**，省掉 200ms 探测：
+
+```bash
+sh -c 'WORLD_FILE=块状的小屋.wld PROOF_MODE=on sh start.sh'
+```
+
+如果连不上：
+
+| 现象 | 处理 |
+|---|---|
+| 有 `proof.sent` 但没有 `proof.received` | 客户端不认换行 → 试 `PROOF_SUFFIX=none` |
+| 有 `proof.received` 但 `proof.unexpected` | 回执文本不一样 → 把日志里的 `got` 发我 |
+| 有 `proof.accepted` 但随后断开 | 握手通过，问题在后面的协议 |
+| 老客户端反而连不上 | 说明 auto 没识别出来，先用 `PROOF_MODE=off` |
+
 ## 7. 回传什么
 
 1. **控制台日志全文**（从 `server.start` 到最后一行）。
