@@ -548,20 +548,28 @@ internal sealed class Session
                     _finishedSent = true;
                     await SendAsync(stream, Messages.FinishedConnectingPacket(), cancellationToken);
 
-                    if (_config.R5.SendHealth)
-                    {
-                        await SendAsync(stream,
-                            Messages.PlayerHealthPacket(PlayerSlot, 100, 100, 20, 20),
-                            cancellationToken);
-                        _log.Info("health.sent", ("conn", _id), ("hp", 100), ("maxHp", 100), ("mana", 20));
-                    }
-
                     _log.Info("world.entered", ("conn", _id), ("x", px), ("y", py));
                 }
                 else
                 {
                     _log.Info("player.spawn.ignored", ("conn", _id));
                 }
+                break;
+            }
+
+            case MessageId.PlayerHealth:
+            {
+                // 客户端上报的血量与上限：只记录 + 原样回显，绝不覆盖（生命水晶/死亡重连都要尊重）
+                string hex = Codec.Hex(payload, 12);
+                _log.Info("player.health", ("conn", _id), ("hex", hex));
+                await SendAsync(stream, Codec.Frame(MessageId.PlayerHealth, payload), cancellationToken);
+                break;
+            }
+
+            case MessageId.PlayerMana:
+            {
+                _log.Info("player.mana", ("conn", _id), ("hex", Codec.Hex(payload, 12)));
+                await SendAsync(stream, Codec.Frame(MessageId.PlayerMana, payload), cancellationToken);
                 break;
             }
 
@@ -768,12 +776,64 @@ internal sealed class Session
     /// 平坦世界：地表以上空气，地表那一层草地，往下泥土，岩层以下石头。
     /// 只够给客户端画图与站人，不做地形生成。
     /// </summary>
+    private int? _safeSpawnX;
+    private int? _safeSpawnY;
+
+    /// <summary>
+    /// 出生点必须是「上方是空气、下方是实心块」的那一格。
+    /// 世界自带坐标可能悬空（会摔伤），所以从给定坐标附近向下找最近的地面。
+    /// </summary>
+    private (int X, int Y) SafeSpawn()
+    {
+        if (_safeSpawnX.HasValue)
+            return (_safeSpawnX.Value, _safeSpawnY!.Value);
+
+        int x = _wld?.SpawnTileX ?? _config.World.SpawnTileX;
+        int y = _wld?.SpawnTileY ?? _config.World.SpawnTileY;
+
+        int maxY = WorldMaxY;
+        if (x < 0) x = 0;
+        if (x >= WorldMaxX) x = WorldMaxX - 1;
+        if (y < 0) y = 0;
+
+        // 从出生点上方 60 格开始找，避免跑到屋顶或很远的地表
+        int start = Math.Max(0, y - 60);
+        int limit = Math.Min(maxY - 2, y + 220);
+
+        for (int yy = start; yy < limit; yy++)
+        {
+            if (GetTile(x, yy).Active)
+                continue;
+
+            if (GetTile(x, yy + 1).Active)
+            {
+                _safeSpawnX = x;
+                _safeSpawnY = yy;
+
+                if (yy != y)
+                {
+                    _log.Info("spawn.grounded",
+                        ("conn", _id),
+                        ("from", $"{x},{y}"),
+                        ("to", $"{x},{yy}"));
+                }
+
+                return (x, yy);
+            }
+        }
+
+        _safeSpawnX = x;
+        _safeSpawnY = Math.Min(y, maxY - 2);
+        _log.Warn("spawn.ground-failed", ("conn", _id), ("using", $"{_safeSpawnX},{_safeSpawnY}"));
+        return (_safeSpawnX.Value, _safeSpawnY.Value);
+    }
+
     private bool IsFrameImportant(ushort type) => _wld?.IsFrameImportant(type) ?? false;
 
     private int WorldMaxX => _wld?.MaxTilesX ?? _config.World.MaxTilesX;
     private int WorldMaxY => _wld?.MaxTilesY ?? _config.World.MaxTilesY;
-    private int WorldSpawnX => _wld?.SpawnTileX ?? _config.World.SpawnTileX;
-    private int WorldSpawnY => _wld?.SpawnTileY ?? _config.World.SpawnTileY;
+    private int WorldSpawnX => SafeSpawn().X;
+    private int WorldSpawnY => SafeSpawn().Y;
 
     private Tile GetTile(int x, int y)
     {

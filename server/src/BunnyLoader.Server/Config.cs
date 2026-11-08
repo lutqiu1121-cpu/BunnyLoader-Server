@@ -173,13 +173,6 @@ public sealed class ServerConfig
             EnvNotes.Add($"ECHO_ACTIVE={R5.EchoActive}");
         }
 
-        string? sendHealth = Env("SEND_HEALTH");
-        if (!string.IsNullOrWhiteSpace(sendHealth))
-        {
-            R5.SendHealth = ParseBool(sendHealth, "SEND_HEALTH");
-            EnvNotes.Add($"SEND_HEALTH={R5.SendHealth}");
-        }
-
         string? disable163 = Env("DISABLE_163");
         if (!string.IsNullOrWhiteSpace(disable163))
         {
@@ -861,7 +854,5 @@ public sealed class R5Section
     [JsonPropertyName("echoActive")]
     public bool EchoActive { get; set; } = true;
 
-    /// <summary>进入世界后发 100/100 血、20/20 蓝（消息 16）。</summary>
-    [JsonPropertyName("sendHealth")]
-    public bool SendHealth { get; set; } = true;
+    // 硬编码满血已废除：血量以客户端上报为准，服务端只记录并原样回显。
 }
