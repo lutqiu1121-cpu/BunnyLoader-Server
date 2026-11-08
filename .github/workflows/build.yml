@@ -159,7 +159,7 @@ jobs:
           python3 tools/fake_client.py 127.0.0.1 17786 msg7only
           docker rm -f panel-b7o
 
-      - name: Candidates rotation — MSG3_CANDIDATES=auto（第1次应为槽位 0）
+      - name: Candidates rotation — MSG3_CANDIDATES=auto（第1次应为 16 字节补零）
         run: |
           docker run -d --name panel-cand --restart=no \
             -e MSG3_CANDIDATES=auto \
@@ -170,7 +170,7 @@ jobs:
             docker logs panel-cand 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
           done
           docker logs panel-cand || true
-          python3 tools/fake_client.py 127.0.0.1 17784 hex:00
+          python3 tools/fake_client.py 127.0.0.1 17784 hex:00000000000000000000000000000000
           docker rm -f panel-cand
 
       - name: Isolation — SKIP_WELCOME_PACK=true（消息3后必须零字节）
