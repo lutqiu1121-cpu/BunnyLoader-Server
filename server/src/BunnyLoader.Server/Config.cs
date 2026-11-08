@@ -156,6 +156,22 @@ public sealed class ServerConfig
             EnvNotes.Add($"PROOF_NETMODULE_KIND={kind}");
         }
 
+        string? msg3Delay = Env("PROOF_MSG3_DELAY_MS");
+        if (!string.IsNullOrWhiteSpace(msg3Delay))
+        {
+            if (!int.TryParse(msg3Delay.Trim(), out int d))
+                throw new InvalidDataException($"PROOF_MSG3_DELAY_MS 不是整数: {msg3Delay}");
+            Proof.Msg3DelayMs = d;
+            EnvNotes.Add($"PROOF_MSG3_DELAY_MS={d}");
+        }
+
+        string? msg3Fixed = Env("MSG3_FIXED");
+        if (!string.IsNullOrWhiteSpace(msg3Fixed))
+        {
+            Handshake.Msg3Fixed = ParseBool(msg3Fixed, "MSG3_FIXED");
+            EnvNotes.Add($"MSG3_FIXED={Handshake.Msg3Fixed}");
+        }
+
         string? legacyCapture = Env("PROOF_LEGACY_CAPTURE");
         if (!string.IsNullOrWhiteSpace(legacyCapture))
         {
@@ -318,6 +334,7 @@ public sealed class ServerConfig
         string? variant = Env("MSG3_VARIANT");
         if (!string.IsNullOrWhiteSpace(variant))
         {
+            Handshake.Msg3Fixed = false;   // 显式指定就不是固定 01 01 了
             switch (variant.Trim().ToLowerInvariant())
             {
                 case "auto":
@@ -656,6 +673,13 @@ public sealed class HandshakeSection
     /// true 时**完全不发欢迎包**（82/200）。用于隔离测试：确认是不是它把客户端撞掉的。
     /// 注意：关掉之后，客户端收到世界数据(7)时会自踢（ModNet.cpp:249-253）。
     /// </summary>
+    /// <summary>
+    /// true（默认）= 消息 3 固定用 flags+bool1（01 01），不轮换。
+    /// 显式给 MSG3_VARIANT / MSG3_LAYOUT 时会自动关掉。
+    /// </summary>
+    [JsonPropertyName("msg3Fixed")]
+    public bool Msg3Fixed { get; set; } = true;
+
     [JsonPropertyName("noWelcome")]
     public bool NoWelcome { get; set; }
 
@@ -726,6 +750,10 @@ public sealed class ProofSection
     /// </summary>
     [JsonPropertyName("legacyCapture")]
     public bool LegacyCapture { get; set; } = true;
+
+    /// <summary>收到 id:1 之后，等多少毫秒再发 id:3（默认 0 = 立刻）。</summary>
+    [JsonPropertyName("msg3DelayMs")]
+    public int Msg3DelayMs { get; set; }
 
     /// <summary>
     /// true 时发完 proof 会等客户端回执（默认 false）。

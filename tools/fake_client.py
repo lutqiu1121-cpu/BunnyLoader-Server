@@ -257,18 +257,19 @@ def pcap_flow(sock: socket.socket) -> int:
     data = recv_exact(sock, len(PCAP_PROOF))
     check("proof = 1b 00 52 7f b1 01 + 文本（27 字节）", data == PCAP_PROOF, data.hex())
 
-    ident, payload = recv_frame(sock)
-    check("proof 之后立刻收到 id=3（不等 id:1）", ident == 3, ident)
-
     sock.settimeout(0.4)
     try:
         early = sock.recv(64)
     except socket.timeout:
         early = None
-    check("id:3 之后静默（不发欢迎包/世界）", early is None, early[:16].hex() if early else None)
-    sock.settimeout(10)
+    check("proof 之后静默（不发 id:3）", early is None, early[:16].hex() if early else None)
 
+    sock.settimeout(10)
     sock.sendall(frame(1, string("Terraria326")))
+    ident, payload = recv_frame(sock)
+    check("发 id:1 之后收到 id=3", ident == 3, ident)
+    check("消息 3 负载 = 01 01", payload == b"\x01\x01", payload.hex())
+
     sock.sendall(frame(68, string(HELLO_PREFIX + '{"mods":[],"textures":0}')))
     ident, payload = recv_frame(sock)
     check_welcome(ident, payload, "68 之后的欢迎包")
@@ -290,18 +291,19 @@ def proof_doc_flow(sock: socket.socket) -> int:
     data = recv_exact(sock, len(DOC_PROOF))
     check("proof = 18 00 52 47 4e + 文本（26 字节）", data == DOC_PROOF, data.hex())
 
-    ident, payload = recv_frame(sock)
-    check("proof 之后立刻收到 id=3", ident == 3, ident)
-
     sock.settimeout(0.4)
     try:
         early = sock.recv(64)
     except socket.timeout:
         early = None
-    check("id:3 之后静默", early is None, early[:16].hex() if early else None)
-    sock.settimeout(10)
+    check("proof 之后静默（不发 id:3）", early is None, early[:16].hex() if early else None)
 
+    sock.settimeout(10)
     sock.sendall(frame(1, string("Terraria326")))
+    ident, payload = recv_frame(sock)
+    check("发 id:1 之后收到 id=3", ident == 3, ident)
+    check("消息 3 负载 = 01 01", payload == b"\x01\x01", payload.hex())
+
     sock.sendall(frame(68, string(HELLO_PREFIX + '{"mods":[],"textures":0}')))
     ident, payload = recv_frame(sock)
     check_welcome(ident, payload, "68 之后的欢迎包")

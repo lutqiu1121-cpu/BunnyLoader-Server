@@ -212,29 +212,11 @@ internal sealed class Session
             ("hex", Codec.Hex(bytes, 32)),
             ("format", proof.LegacyCapture ? "capture" : "doc"));
 
-        // 关键：客户端验完证明后**等服务器发 id:3** 才发 id:1。
-        // 所以紧接着把 3 发出去，然后闭嘴（不发任何地图数据）。
-        if (_config.Handshake.SkipApproved)
-        {
-            _log.Info("approved.early-skipped", ("conn", _id), ("reason", "SKIP_APPROVED"));
-            return;
-        }
-
-        (string layout, bool specialFlag) = PickMsg3Variant();
-        string label = layout == "slot" ? "slot" : (specialFlag ? "flags+bool1" : "flags+bool0");
-
-        var frames = new List<byte[]> { BuildMsg3(layout, specialFlag) };
-        if (_config.Handshake.WelcomeAfter3 && !_config.Handshake.SkipWelcomePack)
-            frames.Add(BuildWelcomeFrame());
-
-        await SendBundleAsync(stream, frames, cancellationToken);
-        _approvedEarly = true;
-
-        _log.Info("approved.early",
+        // 只发证明，然后严格闭嘴：不发 3、不发欢迎包、不发地图。
+        // 等客户端发 id:1 之后再回 3。
+        _log.Info("proof.silent-after",
             ("conn", _id),
-            ("msg3", label),
-            ("welcome", frames.Count > 1),
-            ("note", "证明之后立刻发 3，然后闭嘴"));
+            ("note", "证明已发，静默等 id:1"));
     }
 
     private async Task ReadIntoAsync(NetworkStream stream, List<byte> inbox, CancellationToken outer, int milliseconds)
@@ -279,13 +261,10 @@ internal sealed class Session
             {
                 string version = TryReadString(payload) ?? "";
 
-                if (_approvedEarly)
+                if (_config.Proof.Msg3DelayMs > 0)
                 {
-                    _log.Info("hello.after-approval",
-                        ("conn", _id),
-                        ("version", version),
-                        ("note", "3 已在证明之后发过，继续等 68/6"));
-                    break;
+                    _log.Info("approved.delay", ("conn", _id), ("ms", _config.Proof.Msg3DelayMs));
+                    await Task.Delay(_config.Proof.Msg3DelayMs, cancellationToken);
                 }
 
                 (string layout, bool specialFlag) = PickMsg3Variant();
@@ -531,6 +510,10 @@ internal sealed class Session
     /// </summary>
     private (string Layout, bool SpecialFlag) PickMsg3Variant()
     {
+        // 证明模式下固定 flags+bool1（01 01），不轮换
+        if (_config.Handshake.Msg3Fixed)
+            return ("flags", true);
+
         HandshakeSection handshake = _config.Handshake;
         if (!handshake.Auto)
             return (handshake.Layout, handshake.SpecialFlag);
