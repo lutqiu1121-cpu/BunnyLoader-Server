@@ -95,7 +95,7 @@ public static class Messages
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(3, 2), maxHp);
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(5, 2), mana);
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(7, 2), maxMana);
-        return Frame(MessageId.PlayerHealth, payload);
+        return Codec.Frame(MessageId.PlayerHealth, payload);
     }
 
     public static byte[] PlayerSpawnPacket(byte player, short spawnX, short spawnY)
