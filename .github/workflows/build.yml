@@ -133,10 +133,10 @@ jobs:
           python3 tools/fake_client.py 127.0.0.1 17782 flags0
           docker rm -f panel-v3
 
-      - name: Proof — 官方文档格式（PROOF_LEGACY_CAPTURE=false）
+      - name: 严格状态机 — 26 字节证明 + 回执 + 163 + 进世界
         run: |
           docker run -d --name panel-doc --restart=no \
-            -e PROOF_MODE=on -e PROOF_LEGACY_CAPTURE=false -e MSG3_VARIANT=flags1 \
+            -e PROOF_MODE=on -e MSG3_VARIANT=flags1 \
             -p 17790:7777 -v "$PWD/server/dist:/app" -w /app \
             mcr.microsoft.com/dotnet/runtime:8.0 \
             dotnet BunnyLoader.Server.dll --port 7777
@@ -144,22 +144,22 @@ jobs:
             docker logs panel-doc 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
           done
           python3 tools/fake_client.py 127.0.0.1 17790 proofdoc
-          docker logs panel-doc | grep -E 'proof\.(sent|received|verified)' | head -3
+          docker logs panel-doc | grep -E 'proof\.(sent|verified)|serverinfo\.163' | head -3
           docker rm -f panel-doc
 
-      - name: Proof — 抓包形式（默认）+ 进世界
+      - name: 严格状态机 — 验证前发 Hello 必须断开
         run: |
-          docker run -d --name panel-cap --restart=no \
+          docker run -d --name panel-rej --restart=no \
             -e PROOF_MODE=on -e MSG3_VARIANT=flags1 \
             -p 17798:7777 -v "$PWD/server/dist:/app" -w /app \
             mcr.microsoft.com/dotnet/runtime:8.0 \
             dotnet BunnyLoader.Server.dll --port 7777
           for i in $(seq 1 30); do
-            docker logs panel-cap 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
+            docker logs panel-rej 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
           done
-          python3 tools/fake_client.py 127.0.0.1 17798 proofpcap
-          docker logs panel-cap | grep -E 'proof\.(sent|no-receipt|verified|first-frame)' | head -3
-          docker rm -f panel-cap
+          python3 tools/fake_client.py 127.0.0.1 17798 proofreject
+          docker logs panel-rej | grep -E 'proof\.rejected' | head -2
+          docker rm -f panel-rej
 
       - name: Proof off — 老客户端直接发帧（legacy 兼容）
         run: |

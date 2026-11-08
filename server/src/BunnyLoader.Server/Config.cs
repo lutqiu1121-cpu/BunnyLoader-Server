@@ -156,6 +156,13 @@ public sealed class ServerConfig
             EnvNotes.Add($"PROOF_NETMODULE_KIND={kind}");
         }
 
+        string? si163 = Env("SERVERINFO_163_HEX");
+        if (!string.IsNullOrWhiteSpace(si163))
+        {
+            Proof.ServerInfo163Hex = si163.Trim();
+            EnvNotes.Add($"SERVERINFO_163_HEX={Proof.ServerInfo163Hex}");
+        }
+
         string? msg3Delay = Env("PROOF_MSG3_DELAY_MS");
         if (!string.IsNullOrWhiteSpace(msg3Delay))
         {
@@ -750,6 +757,13 @@ public sealed class ProofSection
     /// </summary>
     [JsonPropertyName("legacyCapture")]
     public bool LegacyCapture { get; set; } = true;
+
+    /// <summary>
+    /// 移动版 ServerInfo（消息 163）的负载 hex。留空 = 空负载（最简合法帧）。
+    /// 文档没有给出字段布局，需要时用这个覆盖。
+    /// </summary>
+    [JsonPropertyName("serverInfo163Hex")]
+    public string ServerInfo163Hex { get; set; } = "";
 
     /// <summary>收到 id:1 之后，等多少毫秒再发 id:3（默认 0 = 立刻）。</summary>
     [JsonPropertyName("msg3DelayMs")]

@@ -47,7 +47,6 @@ internal sealed class Session
     private bool _spawnCorrected;
     private bool _proofDone;
     private bool _startPlayingSent;
-    private bool _approvedEarly;
     private bool _finishedSent;
     private int _lastSectionX = int.MinValue;
     private int _lastSectionY = int.MinValue;
@@ -106,6 +105,11 @@ internal sealed class Session
 
             _log.Info("conn.close", ("conn", _id), ("bytes", total), ("reason", "shutdown"));
         }
+        catch (ProofRejectedException)
+        {
+            _log.Warn("proof.rejected", ("conn", _id), ("note", "验证前收到非回执帧或回执不符，断开"));
+            _log.Info("conn.close", ("conn", _id), ("bytes", total), ("reason", "proof-rejected"));
+        }
         catch (OperationCanceledException)
         {
             _log.Info("conn.close", ("conn", _id), ("bytes", total), ("reason", "shutdown"));
@@ -149,75 +153,145 @@ internal sealed class Session
         }
     }
 
-    /// <summary>
-    /// 证明包字节。
-    ///
-    /// 官方文档（on_connection_open）：消息体 = 52 47 4E + "NingLauncher/1/server"，
-    /// 共 3+21 = 24 字节，带 2 字节长度头 18 00。
-    ///
-    /// 抓包（作者服务器，27 字节）：1b 00 | 52 | 7f b1 | 01 | 文本。
-    /// 两者冲突，默认按文档；PROOF_LEGACY_CAPTURE=true 可切回抓包形式。
-    /// </summary>
-    private byte[] BuildProofBytes()
+    /// <summary>文档规定的 26 字节证明：1A 00 | 52 | 47 4E | "NingLauncher/1/server"。</summary>
+    private static readonly byte[] ProofServer26 = BuildProof26();
+
+    private static byte[] BuildProof26()
     {
-        ProofSection proof = _config.Proof;
-        byte[] text = Encoding.ASCII.GetBytes(proof.ServerLine);
-
-        if (proof.LegacyCapture)
-        {
-            // 1b 00 52 7f b1 01 + 文本
-            byte[] legacy = new byte[2 + 1 + 2 + 1 + text.Length];
-            BinaryPrimitives.WriteUInt16LittleEndian(legacy.AsSpan(0, 2), (ushort)legacy.Length);
-            legacy[2] = MessageId.NetModules;
-            legacy[3] = 0x7F;
-            legacy[4] = 0xB1;
-            legacy[5] = 0x01;
-            text.CopyTo(legacy, 6);
-            return legacy;
-        }
-
-        // 18 00 52 47 4e + 文本
-        // 文档：消息体 52 47 4E + 21 字节文本 = 24 字节，长度头写 18 00（= 消息体长度）
-        byte[] frame = new byte[2 + 3 + text.Length];
-        BinaryPrimitives.WriteUInt16LittleEndian(frame.AsSpan(0, 2), (ushort)(frame.Length - 2));
-        frame[2] = MessageId.NetModules;
-        frame[3] = 0x47;   // 'G'
-        frame[4] = 0x4E;   // 'N'
+        byte[] text = Encoding.ASCII.GetBytes("NingLauncher/1/server");
+        byte[] frame = new byte[2 + 1 + 2 + text.Length];   // 26
+        BinaryPrimitives.WriteUInt16LittleEndian(frame.AsSpan(0, 2), (ushort)frame.Length);
+        frame[2] = MessageId.NetModules;   // 0x52
+        frame[3] = 0x47;                    // 'G'
+        frame[4] = 0x4E;                    // 'N'
         text.CopyTo(frame, 5);
         return frame;
     }
 
+    /// <summary>客户端回执的负载（不含长度头）：52 47 4E + "NingLauncher/1/client"。</summary>
+    private static readonly byte[] ProofClient24 = BuildProofClient();
+
+    private static byte[] BuildProofClient()
+    {
+        byte[] text = Encoding.ASCII.GetBytes("NingLauncher/1/client");
+        byte[] payload = new byte[3 + text.Length];        // 24
+        payload[0] = MessageId.NetModules;
+        payload[1] = 0x47;
+        payload[2] = 0x4E;
+        text.CopyTo(payload, 3);
+        return payload;
+    }
+
     /// <summary>
-    /// 连上就发证明包，然后**严格静默**，只等回执。
-    /// 回执验证通过才返回；否则断开。
+    /// 阶段一：连上立刻发 26 字节证明，然后绝对静默，只等回执。
+    /// 回执匹配 → 阶段二；其它任何帧 → 断开。
     /// </summary>
     private async Task ProveAsync(NetworkStream stream, List<byte> inbox, CancellationToken cancellationToken)
     {
-        ProofSection proof = _config.Proof;
-
-        if (proof.Mode == "off")
+        if (_config.Proof.Mode == "off")
         {
             _log.Info("proof.skipped", ("conn", _id), ("reason", "mode=off"));
             return;
         }
 
-        byte[] bytes = BuildProofBytes();
-        await stream.WriteAsync(bytes, cancellationToken);
-        _capture?.ToClient(bytes);
+        await stream.WriteAsync(ProofServer26, cancellationToken);
+        _capture?.ToClient(ProofServer26);
 
-        _log.Info("proof.sent",
+        _log.Info("proof.sent.26bytes",
             ("conn", _id),
-            ("text", proof.ServerLine),
-            ("bytes", bytes.Length),
-            ("hex", Codec.Hex(bytes, 32)),
-            ("format", proof.LegacyCapture ? "capture" : "doc"));
+            ("bytes", ProofServer26.Length),
+            ("hex", Codec.Hex(ProofServer26, 32)));
 
-        // 只发证明，然后严格闭嘴：不发 3、不发欢迎包、不发地图。
-        // 等客户端发 id:1 之后再回 3。
-        _log.Info("proof.silent-after",
-            ("conn", _id),
-            ("note", "证明已发，静默等 id:1"));
+        DateTime end = DateTime.UtcNow.AddSeconds(_config.Proof.TimeoutSeconds);
+
+        while (DateTime.UtcNow < end)
+        {
+            ProofState state = CheckProofStrict(inbox);
+            if (state == ProofState.Verified)
+            {
+                _log.Info("proof.verified", ("conn", _id), ("note", "回执匹配成功"));
+                await SendServerInfoAsync(stream, cancellationToken);
+                return;
+            }
+
+            if (state == ProofState.Rejected)
+                throw new ProofRejectedException();
+
+            await ReadIntoAsync(stream, inbox, cancellationToken, 200);
+        }
+
+        _log.Warn("proof.timeout", ("conn", _id), ("seconds", _config.Proof.TimeoutSeconds));
+        throw new ProofRejectedException();
     }
+
+    private enum ProofState { Pending, Verified, Rejected }
+
+    /// <summary>严格比对回执；任何不是回执的帧都判拒绝。</summary>
+    private ProofState CheckProofStrict(List<byte> inbox)
+    {
+        if (inbox.Count < 3)
+            return ProofState.Pending;
+
+        // 回执帧：[u16 长度][52 47 4e + "NingLauncher/1/client"]
+        int length = inbox[0] | (inbox[1] << 8);
+
+        if (inbox[2] != MessageId.NetModules)
+        {
+            _log.Warn("proof.rejected-other-frame",
+                ("conn", _id),
+                ("id", inbox[2]),
+                ("name", Messages.Name(inbox[2])));
+            return ProofState.Rejected;
+        }
+
+        if (length < 5 || length > 512)
+            return ProofState.Rejected;
+
+        if (inbox.Count < length)
+            return ProofState.Pending;
+
+        for (int i = 0; i < ProofClient24.Length; i++)
+        {
+            if (inbox[2 + i] != ProofClient24[i])
+            {
+                _log.Warn("proof.bad-receipt", ("conn", _id),
+                    ("got", Codec.Hex(inbox.GetRange(2, Math.Min(24, inbox.Count - 2)).ToArray(), 24)));
+                return ProofState.Rejected;
+            }
+        }
+
+        inbox.RemoveRange(0, length);
+        return ProofState.Verified;
+    }
+
+    /// <summary>阶段二：发移动版 ServerInfo（消息 163）。</summary>
+    private async Task SendServerInfoAsync(NetworkStream stream, CancellationToken cancellationToken)
+    {
+        byte[] payload = Array.Empty<byte>();
+        string hex = _config.Proof.ServerInfo163Hex;
+
+        if (!string.IsNullOrWhiteSpace(hex))
+        {
+            payload = Convert.FromHexString(hex.Replace(" ", "").Replace("-", ""));
+        }
+        else
+        {
+            _log.Warn("serverinfo.163.empty-payload",
+                ("conn", _id),
+                ("note", "文档未给字段布局，先用空负载；可用 SERVERINFO_163_HEX 覆盖"));
+        }
+
+        byte[] frame = Codec.Frame(163, payload);
+        await SendAsync(stream, frame, cancellationToken);
+
+        _log.Info("serverinfo.163.sent",
+            ("conn", _id),
+            ("bytes", frame.Length),
+            ("payloadLen", payload.Length),
+            ("hex", Codec.Hex(frame, 32)));
+    }
+
+    private sealed class ProofRejectedException : Exception { }
 
     private async Task ReadIntoAsync(NetworkStream stream, List<byte> inbox, CancellationToken outer, int milliseconds)
     {
@@ -270,7 +344,7 @@ internal sealed class Session
                 (string layout, bool specialFlag) = PickMsg3Variant();
                 string label = layout == "slot" ? "slot" : (specialFlag ? "flags+bool1" : "flags+bool0");
 
-                _log.Info("hello",
+                _log.Info("hello.received",
                     ("conn", _id),
                     ("version", version),
                     ("is326", version == "Terraria326"),
@@ -331,6 +405,13 @@ internal sealed class Session
                 }
 
                 await SendBundleAsync(stream, bundle, cancellationToken);
+
+                _log.Info("approved.sent",
+                    ("conn", _id),
+                    ("msg3", label),
+                    ("payload", Codec.Hex(bundle[0], 8)),
+                    ("note", "回复 id:3"));
+
                 await SendWorldOnHelloAsync(stream, cancellationToken);
                 break;
             }

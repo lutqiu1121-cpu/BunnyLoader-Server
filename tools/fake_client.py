@@ -38,7 +38,8 @@ from proto_ref import (  # noqa: E402
 FAILED = 0
 
 PCAP_PROOF = bytes.fromhex("1b00527fb101") + b"NingLauncher/1/server"
-DOC_PROOF = bytes.fromhex("180052474e") + b"NingLauncher/1/server"   # 长度字段=消息体长度
+DOC_PROOF = bytes.fromhex("1a0052474e") + b"NingLauncher/1/server"
+DOC_PROOF_REPLY = bytes.fromhex("1a0052474e") + b"NingLauncher/1/client"
 DOC_REPLY = bytes.fromhex("180052474e") + b"NingLauncher/1/client"
 
 EXPECTED_MSG3 = {
@@ -61,6 +62,7 @@ EXPECTED_MSG3 = {
     "proofpcap": b"\x01\x01",
     "proofsilent": b"\x01\x01",
     "proofdoc": b"\x01\x01",
+    "proofreject": b"\x01\x01",
 }
 
 ALLOWED = tuple(EXPECTED_MSG3)
@@ -251,23 +253,21 @@ def drain_world(sock: socket.socket, label: str, expect_start: bool = True, expe
 
 
 def pcap_flow(sock: socket.socket) -> int:
-    """抓包形式：proof(27) → 立刻 id:3 → 客户端 Hello → 68 → 欢迎 → 6 → 世界。"""
+    """严格状态机：26 字节证明 → 回执 → 163 → Hello → 3 → 68 → 欢迎 → 6 → 世界。"""
     sock.settimeout(6)
 
-    data = recv_exact(sock, len(PCAP_PROOF))
-    check("proof = 1b 00 52 7f b1 01 + 文本（27 字节）", data == PCAP_PROOF, data.hex())
+    data = recv_exact(sock, len(DOC_PROOF))
+    check("证明 = 1a 00 52 47 4e + 文本（26 字节）", data == DOC_PROOF, data.hex())
 
-    sock.settimeout(0.4)
-    try:
-        early = sock.recv(64)
-    except socket.timeout:
-        early = None
-    check("proof 之后静默（不发 id:3）", early is None, early[:16].hex() if early else None)
+    sock.sendall(DOC_PROOF_REPLY)
 
-    sock.settimeout(10)
+    ident, payload = recv_frame(sock)
+    check("验证后收到移动版 ServerInfo (163)", ident == 163, ident)
+    print(f"        163 负载 {len(payload)} 字节: {payload.hex()}")
+
     sock.sendall(frame(1, string("Terraria326")))
     ident, payload = recv_frame(sock)
-    check("发 id:1 之后收到 id=3", ident == 3, ident)
+    check("发 id:1 后收到 id=3", ident == 3, ident)
     check("消息 3 负载 = 01 01", payload == b"\x01\x01", payload.hex())
 
     sock.sendall(frame(68, string(HELLO_PREFIX + '{"mods":[],"textures":0}')))
@@ -284,36 +284,18 @@ def pcap_flow(sock: socket.socket) -> int:
     return 0 if FAILED == 0 else 1
 
 
-def proof_doc_flow(sock: socket.socket) -> int:
-    """文档形式：proof(26) → 立刻 id:3 → 客户端 Hello → 68 → 欢迎 → 6 → 世界。"""
+def reject_flow(sock: socket.socket) -> int:
+    """验证前发 Hello：服务端必须断开。"""
     sock.settimeout(6)
-
     data = recv_exact(sock, len(DOC_PROOF))
-    check("proof = 18 00 52 47 4e + 文本（26 字节）", data == DOC_PROOF, data.hex())
+    check("证明已收到", data == DOC_PROOF, data.hex())
 
-    sock.settimeout(0.4)
-    try:
-        early = sock.recv(64)
-    except socket.timeout:
-        early = None
-    check("proof 之后静默（不发 id:3）", early is None, early[:16].hex() if early else None)
-
-    sock.settimeout(10)
     sock.sendall(frame(1, string("Terraria326")))
-    ident, payload = recv_frame(sock)
-    check("发 id:1 之后收到 id=3", ident == 3, ident)
-    check("消息 3 负载 = 01 01", payload == b"\x01\x01", payload.hex())
-
-    sock.sendall(frame(68, string(HELLO_PREFIX + '{"mods":[],"textures":0}')))
-    ident, payload = recv_frame(sock)
-    check_welcome(ident, payload, "68 之后的欢迎包")
-
-    sock.sendall(frame(6, b""))
-    ident, payload = recv_frame(sock)
-    check("6 之后收到 id=7", ident == 7, ident)
-
-    drain_world(sock, "6 之后推分块", expect_start=False, expect_header=False)
-
+    try:
+        extra = sock.recv(64)
+    except socket.timeout:
+        extra = None
+    check("验证前发 Hello 被断开", extra == b"", extra[:16].hex() if extra else None)
     print()
     return 0 if FAILED == 0 else 1
 
@@ -325,11 +307,11 @@ def main(host: str, port: int, variant: str = "flags1") -> int:
 
     try:
         # ---------- 抓包复刻流程单独走 ----------
-        if variant == "proofdoc":
-            return proof_doc_flow(sock)
-
-        if variant == "proofpcap":
+        if variant in ("proofdoc", "proofpcap"):
             return pcap_flow(sock)
+
+        if variant == "proofreject":
+            return reject_flow(sock)
 
         if variant == "proofsilent":
             return proof_only_flow(sock)
