@@ -46,7 +46,6 @@ internal sealed class Session
     private bool _suppressOutbound;
     private bool _spawnCorrected;
     private bool _proofDone;
-    private bool _approvedEarly;
     private bool _startPlayingSent;
     private bool _finishedSent;
     private int _lastSectionX = int.MinValue;
@@ -106,6 +105,14 @@ internal sealed class Session
 
             _log.Info("conn.close", ("conn", _id), ("bytes", total), ("reason", "shutdown"));
         }
+        catch (ProofFailedException)
+        {
+            _log.Info("conn.close", ("conn", _id), ("reason", "proof-failed"));
+        }
+        catch (ProofFailedException)
+        {
+            _log.Info("conn.close", ("conn", _id), ("bytes", total), ("reason", "proof-failed"));
+        }
         catch (OperationCanceledException)
         {
             _log.Info("conn.close", ("conn", _id), ("bytes", total), ("reason", "shutdown"));
@@ -150,8 +157,45 @@ internal sealed class Session
     }
 
     /// <summary>
-    /// proof 握手（连上就做的那种）。时机/封装由配置决定：
-    ///   timing=before（默认）在这里做；timing=after-hello 推迟到收到 id:1 之后。
+    /// 证明包字节。
+    ///
+    /// 官方文档（on_connection_open）：消息体 = 52 47 4E + "NingLauncher/1/server"，
+    /// 共 3+21 = 24 字节，带 2 字节长度头 18 00。
+    ///
+    /// 抓包（作者服务器，27 字节）：1b 00 | 52 | 7f b1 | 01 | 文本。
+    /// 两者冲突，默认按文档；PROOF_LEGACY_CAPTURE=true 可切回抓包形式。
+    /// </summary>
+    private byte[] BuildProofBytes()
+    {
+        ProofSection proof = _config.Proof;
+        byte[] text = Encoding.ASCII.GetBytes(proof.ServerLine);
+
+        if (proof.LegacyCapture)
+        {
+            // 1b 00 52 7f b1 01 + 文本
+            byte[] legacy = new byte[2 + 1 + 2 + 1 + text.Length];
+            BinaryPrimitives.WriteUInt16LittleEndian(legacy.AsSpan(0, 2), (ushort)legacy.Length);
+            legacy[2] = MessageId.NetModules;
+            legacy[3] = 0x7F;
+            legacy[4] = 0xB1;
+            legacy[5] = 0x01;
+            text.CopyTo(legacy, 6);
+            return legacy;
+        }
+
+        // 18 00 52 47 4e + 文本
+        byte[] frame = new byte[2 + 3 + text.Length];
+        BinaryPrimitives.WriteUInt16LittleEndian(frame.AsSpan(0, 2), (ushort)frame.Length);
+        frame[2] = MessageId.NetModules;
+        frame[3] = 0x47;   // 'G'
+        frame[4] = 0x4E;   // 'N'
+        text.CopyTo(frame, 5);
+        return frame;
+    }
+
+    /// <summary>
+    /// 连上就发证明包，然后**严格静默**，只等回执。
+    /// 回执验证通过才返回；否则断开。
     /// </summary>
     private async Task ProveAsync(NetworkStream stream, List<byte> inbox, CancellationToken cancellationToken)
     {
@@ -160,12 +204,6 @@ internal sealed class Session
         if (proof.Mode == "off")
         {
             _log.Info("proof.skipped", ("conn", _id), ("reason", "mode=off"));
-            return;
-        }
-
-        if (proof.Timing == "after-hello")
-        {
-            _log.Info("proof.deferred", ("conn", _id), ("note", "等收到 id:1 之后再握手"));
             return;
         }
 
@@ -180,223 +218,115 @@ internal sealed class Session
                 _log.Info("proof.skipped",
                     ("conn", _id),
                     ("reason", "legacy-frame"),
-                    ("note", "老客户端直接发帧，不发文本"));
+                    ("note", "老客户端直接发帧，不发证明"));
                 return;
             }
         }
 
-        await SendProofAndApprovalAsync(stream, cancellationToken);
-    }
-
-    /// <summary>
-    /// 把 proof 和消息 3（以及可选的欢迎包）拼进**同一次 write** 发出。
-    /// 抓包证明客户端不会在明文层回执，所以不等；分开两次 write 在慢网络上可能被拆包。
-    /// </summary>
-    private async Task SendProofAndApprovalAsync(NetworkStream stream, CancellationToken cancellationToken)
-    {
-        ProofSection proof = _config.Proof;
-        ProofVariant variant = PickVariant();
-        byte[] proofBytes = BuildProofBytes(variant);
-
-        var frames = new List<byte[]> { proofBytes };
-
-        if (!_config.Handshake.SkipApproved)
-        {
-            (string layout, bool specialFlag) = PickMsg3Variant();
-            frames.Add(BuildMsg3(layout, specialFlag));
-        }
-
-        if (!_config.Handshake.NoWelcome && !_config.Handshake.SkipWelcomePack)
-            frames.Add(BuildWelcomeFrame());
-
-        await SendBundleAsync(stream, frames, cancellationToken);
-
-        _approvedEarly = !_config.Handshake.SkipApproved;
-
-        _log.Info("proof.sent",
-            ("conn", _id),
-            ("text", proof.ServerLine),
-            ("variant", variant.Name),
-            ("bytes", proofBytes.Length),
-            ("hex", Codec.Hex(proofBytes, 28)),
-            ("mergedFrames", frames.Count));
-
-        if (proofBytes.Length == 27 && proofBytes[2] == 82)
-            _log.Info("proof.matches-capture", ("conn", _id), ("note", "与 PCAP 样本一致"));
-
-        _log.Info("approved.early",
-            ("conn", _id),
-            ("welcome", !_config.Handshake.NoWelcome),
-            ("note", "proof + 3 同一次 write，不等 id:1"));
-    }
-
-    /// <summary>不等 id:1，直接发消息 3 与欢迎包（proof 之后用）。</summary>
-    private async Task SendApprovalAsync(NetworkStream stream, CancellationToken cancellationToken)
-    {
-        if (_config.Handshake.SkipApproved || _config.Handshake.SkipWelcomePack)
-        {
-            _log.Info("approved.early-skipped", ("conn", _id), ("reason", "SKIP_APPROVED / SKIP_WELCOME_PACK"));
-            return;
-        }
-
-        (string layout, bool specialFlag) = PickMsg3Variant();
-        string label = layout == "slot" ? "slot" : (specialFlag ? "flags+bool1" : "flags+bool0");
-
-        var bundle = new List<byte[]>
-        {
-            BuildMsg3(layout, specialFlag),
-            BuildWelcomeFrame(),
-        };
-
-        await SendBundleAsync(stream, bundle, cancellationToken);
-        _approvedEarly = true;
-
-        _log.Info("approved.early",
-            ("conn", _id),
-            ("msg3", label),
-            ("note", "proof 之后立刻发 3 + 欢迎，不等 id:1"));
-    }
-
-
-    /// <summary>一种 proof 组合。Sweep 模式按连接序号轮换。</summary>
-    private sealed record ProofVariant(string Name, string Suffix, string Framing, string Wrapper,
-                                       int ModuleId, int? Kind, int? MessageId);
-
-    /// <summary>
-    /// 内置扫描表。一次现场测试连 N 次就能把常见组合试完，
-    /// 日志 proof.variant 会写明本次用的是哪一种。
-    /// </summary>
-    private static readonly ProofVariant[] SweepVariants =
-    {
-        new("raw-none",       "none", "raw",   "plain",     0xB17F, null, null),
-        new("frame-none",     "none", "frame", "plain",     0xB17F, null, null),
-        new("netmod0",        "none", "raw",   "netmodule", 0,      null, null),
-        new("netmod0-kind1",  "none", "raw",   "netmodule", 0,      1,    null),
-        new("netmod-b17f",    "none", "raw",   "netmodule", 0xB17F, null, null),
-        new("netmod-b17f-k1", "none", "raw",   "netmodule", 0xB17F, 1,    null),
-        new("netmod-b17e",    "none", "raw",   "netmodule", 0xB17E, null, null),
-        new("msg9",           "none", "raw",   "plain",     0,      null, 9),
-        new("msg93",          "none", "raw",   "plain",     0,      null, 93),
-        new("raw-lf",         "lf",   "raw",   "plain",     0xB17F, null, null),
-    };
-
-    private ProofVariant PickVariant()
-    {
-        ProofSection proof = _config.Proof;
-        if (!proof.Sweep)
-        {
-            return new ProofVariant("config", proof.Suffix, proof.Framing, proof.Wrapper,
-                                    proof.NetModuleId, proof.NetModuleKind, proof.MessageId);
-        }
-
-        int index = (_sequence - 1) % SweepVariants.Length;
-        return SweepVariants[index];
-    }
-
-    /// <summary>按 variant 组出要发出去的 proof 字节。</summary>
-    private byte[] BuildProofBytes(ProofVariant variant)
-    {
-        string suffix = variant.Suffix switch
-        {
-            "crlf" => "\r\n",
-            "none" => "",
-            _ => "\n",
-        };
-
-        byte[] text = Encoding.ASCII.GetBytes(_config.Proof.ServerLine + suffix);
-
-        if (variant.MessageId.HasValue)
-            return Codec.Frame((byte)variant.MessageId.Value, text);
-
-        if (variant.Wrapper == "netmodule")
-        {
-            int head = 2 + (variant.Kind.HasValue ? 1 : 0);
-            byte[] payload = new byte[head + text.Length];
-            BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(0, 2), (ushort)variant.ModuleId);
-            if (variant.Kind.HasValue)
-                payload[2] = (byte)variant.Kind.Value;
-            text.CopyTo(payload, head);
-            return Codec.Frame(MessageId.NetModules, payload);
-        }
-
-        if (variant.Framing == "frame")
-        {
-            int total = text.Length + 2;
-            byte[] framed = new byte[total];
-            BinaryPrimitives.WriteUInt16LittleEndian(framed.AsSpan(0, 2), (ushort)total);
-            text.CopyTo(framed, 2);
-            return framed;
-        }
-
-        return text;
-    }
-
-    private async Task SendProofAsync(NetworkStream stream, CancellationToken cancellationToken)
-    {
-        ProofVariant variant = PickVariant();
-        byte[] bytes = BuildProofBytes(variant);
-
+        byte[] bytes = BuildProofBytes();
         await stream.WriteAsync(bytes, cancellationToken);
         _capture?.ToClient(bytes);
 
         _log.Info("proof.sent",
             ("conn", _id),
-            ("text", _config.Proof.ServerLine),
-            ("variant", variant.Name),
+            ("text", proof.ServerLine),
             ("bytes", bytes.Length),
-            ("hex", Codec.Hex(bytes, 28)));
+            ("hex", Codec.Hex(bytes, 32)),
+            ("format", proof.LegacyCapture ? "capture" : "doc"));
 
-        // 真机抓包样本：1b 00 52 7f b1 01 + "NingLauncher/1/server"
-        if (variant.Name == "config" && bytes.Length == 27 && bytes[0] == 0x1B && bytes[2] == 82)
-            _log.Info("proof.matches-capture", ("conn", _id), ("note", "与 PCAP 样本一致"));
+        // 文档：发完证明后绝对不能发任何东西，直到收到回执
+        bool verified = await AwaitVerifyAsync(stream, inbox, cancellationToken);
+        if (!verified)
+        {
+            _log.Warn("proof.rejected", ("conn", _id));
+            throw new ProofFailedException();
+        }
+
+        _proofDone = true;
+        _log.Info("proof.verified", ("conn", _id), ("note", "回执校验通过，进入正常协议"));
     }
 
-    private async Task AwaitProofAsync(NetworkStream stream, List<byte> inbox, CancellationToken cancellationToken)
+    private sealed class ProofFailedException : Exception { }
+
+    /// <summary>等客户端回执并校验；收到其它游戏帧直接判失败。</summary>
+    private async Task<bool> AwaitVerifyAsync(NetworkStream stream, List<byte> inbox, CancellationToken cancellationToken)
     {
         ProofSection proof = _config.Proof;
         DateTime end = DateTime.UtcNow.AddSeconds(proof.TimeoutSeconds);
 
         while (DateTime.UtcNow < end)
         {
-            if (TakeProof(inbox, proof.ClientLine))
-            {
-                _proofDone = true;
-                _log.Info("proof.accepted", ("conn", _id));
-                return;
-            }
+            ProofVerdict verdict = CheckProofReply(inbox, proof.ClientLine);
+            if (verdict == ProofVerdict.Accepted)
+                return true;
+            if (verdict == ProofVerdict.Rejected)
+                return false;
 
             await ReadIntoAsync(stream, inbox, cancellationToken, 200);
         }
 
         _log.Warn("proof.timeout", ("conn", _id), ("seconds", proof.TimeoutSeconds));
+        return false;
     }
 
-    /// <summary>在 inbox 里找客户端回执（裸文本/带帧头/封在 82 里都能搜到）。</summary>
-    private bool TakeProof(List<byte> inbox, string clientLine)
+    private enum ProofVerdict { Pending, Accepted, Rejected }
+
+    /// <summary>
+    /// 判定 inbox 开头是不是合法回执。
+    /// 文档形式：18 00 52 47 4e + "NingLauncher/1/client"
+    /// 也容忍不带长度头的 52 47 4e + 文本。
+    /// </summary>
+    private ProofVerdict CheckProofReply(List<byte> inbox, string clientLine)
     {
-        byte[] needle = Encoding.ASCII.GetBytes(clientLine);
+        if (inbox.Count < 3)
+            return ProofVerdict.Pending;
 
-        for (int i = 0; i + needle.Length <= inbox.Count; i++)
+        int start = -1;
+        int frameLength = -1;
+
+        if (inbox[2] == MessageId.NetModules)
         {
-            bool match = true;
-            for (int j = 0; j < needle.Length; j++)
-            {
-                if (inbox[i + j] != needle[j]) { match = false; break; }
-            }
-            if (!match) continue;
-
-            string found = Encoding.ASCII.GetString(inbox.GetRange(i, needle.Length).ToArray());
-
-            int cut = i + needle.Length;
-            while (cut < inbox.Count && (inbox[cut] == (byte)'\r' || inbox[cut] == (byte)'\n'))
-                cut++;
-            inbox.RemoveRange(0, cut);
-
-            _log.Info("proof.received", ("conn", _id), ("text", found));
-            return true;
+            frameLength = inbox[0] | (inbox[1] << 8);
+            if (frameLength < 5 || frameLength > 512)
+                return ProofVerdict.Rejected;
+            if (inbox.Count < frameLength)
+                return ProofVerdict.Pending;
+            start = 3;
+        }
+        else if (inbox[0] == MessageId.NetModules)
+        {
+            frameLength = inbox.Count;
+            start = 1;
+        }
+        else
+        {
+            return ProofVerdict.Rejected;
         }
 
-        return false;
+        if (inbox.Count < start + 2)
+            return ProofVerdict.Pending;
+
+        if (inbox[start] != 0x47 || inbox[start + 1] != 0x4E)
+        {
+            _log.Warn("proof.bad-prefix", ("conn", _id),
+                ("prefix", Codec.Hex(inbox.GetRange(start, Math.Min(2, inbox.Count - start)).ToArray(), 4)));
+            return ProofVerdict.Rejected;
+        }
+
+        string got = Encoding.ASCII.GetString(inbox.GetRange(start + 2, inbox.Count - (start + 2)).ToArray()).Trim('\r', '\n', '\0');
+        _log.Info("proof.received", ("conn", _id), ("text", got));
+
+        string want = clientLine.Trim('\r', '\n', '\0');
+        if (got == want)
+        {
+            inbox.RemoveRange(0, frameLength > 0 ? Math.Min(frameLength, inbox.Count) : inbox.Count);
+            return ProofVerdict.Accepted;
+        }
+
+        if (got.Length >= want.Length || want.StartsWith(got))
+            return ProofVerdict.Pending;
+
+        return ProofVerdict.Rejected;
     }
 
     private async Task ReadIntoAsync(NetworkStream stream, List<byte> inbox, CancellationToken outer, int milliseconds)
@@ -441,16 +371,6 @@ internal sealed class Session
             {
                 string version = TryReadString(payload) ?? "";
 
-                if (_approvedEarly)
-                {
-                    _log.Info("hello.after-early-approval",
-                        ("conn", _id),
-                        ("version", version),
-                        ("note", "3 已在 proof 之后发过，不重复"));
-
-                    await SendWorldOnHelloAsync(stream, cancellationToken);
-                    break;
-                }
                 (string layout, bool specialFlag) = PickMsg3Variant();
                 string label = layout == "slot" ? "slot" : (specialFlag ? "flags+bool1" : "flags+bool0");
 
@@ -460,22 +380,6 @@ internal sealed class Session
                     ("is326", version == "Terraria326"),
                     ("msg3", label),
                     ("connection", _sequence));
-
-                // PROOF_AFTER_HELLO：客户端可能是收到 Hello 之后才去处理 proof
-                if (!_proofDone && _config.Proof.Mode != "off" && _config.Proof.Timing == "after-hello")
-                {
-                    _log.Info("proof.now", ("conn", _id), ("note", "收到 id:1 之后再握手"));
-
-                    if (_config.Proof.WaitReply)
-                    {
-                        await SendProofAsync(stream, cancellationToken);
-                        await AwaitProofAsync(stream, inbox, cancellationToken);
-                        break;
-                    }
-
-                    await SendProofAndApprovalAsync(stream, cancellationToken);
-                    break;
-                }
 
                 if (_config.Handshake.SkipApproved)
                 {

@@ -522,6 +522,53 @@ sh -c 'WORLD_FILE=块状的小屋.wld NO_WELCOME=true sh start.sh'
 
 确认 82 是元凶后，下一轮再单独恢复它（`NO_WELCOME` 不设即恢复）。
 
+### 6.10.6 按官方文档重写（当前实现）
+
+《柠版独立服务端联机对接说明》给出的 `on_connection_open` 流程：
+
+```
+连接建立
+  → 发 [18 00][52][47 4E]["NingLauncher/1/server"]     共 24 字节
+  → 严格静默：不发 id:3、不发 id:82、什么都不发
+  → 等回执 [18 00][52][47 4E]["NingLauncher/1/client"]
+  → 校验通过才进入正常 Terraria 协议
+  → 验证前收到其它游戏帧（如 id:1）或错误回执：直接断开
+```
+
+日志：
+
+```json
+{"ev":"proof.sent","bytes":24,"format":"doc","hex":"18 00 52 47 4e 4e 69 6e 67 …"}
+{"ev":"proof.received","text":"NingLauncher/1/client"}
+{"ev":"proof.verified"}
+```
+
+### 与抓包的冲突（如实记录）
+
+我们自己抓到的真实联机包里，证明是 **27 字节**：
+
+```
+1b 00 52 7f b1 01 + "NingLauncher/1/server"
+```
+
+文档是 **24 字节**：
+
+```
+18 00 52 47 4e + "NingLauncher/1/server"
+```
+
+两者不一致。当前默认按**文档**实现；若要复现抓包那种形式：
+
+```bash
+PROOF_LEGACY_CAPTURE=true
+```
+
+### 启动命令
+
+```bash
+sh -c 'WORLD_FILE=块状的小屋.wld sh start.sh'
+```
+
 ## 7. 回传什么
 
 1. **控制台日志全文**（从 `server.start` 到最后一行）。

@@ -38,6 +38,8 @@ from proto_ref import (  # noqa: E402
 FAILED = 0
 
 PCAP_PROOF = bytes.fromhex("1b00527fb101") + b"NingLauncher/1/server"
+DOC_PROOF = bytes.fromhex("180052474e") + b"NingLauncher/1/server"
+DOC_REPLY = bytes.fromhex("180052474e") + b"NingLauncher/1/client"
 
 EXPECTED_MSG3 = {
     "flags1": b"\x01\x01",
@@ -58,6 +60,7 @@ EXPECTED_MSG3 = {
     "proofraw21": b"\x01\x01",
     "proofpcap": b"\x01\x01",
     "proofsilent": b"\x01\x01",
+    "proofdoc": b"\x01\x01",
 }
 
 ALLOWED = tuple(EXPECTED_MSG3)
@@ -225,6 +228,36 @@ def drain_world(sock: socket.socket, label: str) -> int:
     return sections
 
 
+def proof_doc_flow(sock: socket.socket) -> int:
+    """官方文档流程：发 24 字节证明 → 静默 → 客户端回执 → 正常协议。"""
+    sock.settimeout(6)
+
+    data = recv_exact(sock, len(DOC_PROOF))
+    check("证明包 = 18 00 52 47 4e + 文本（24 字节）", data == DOC_PROOF, data.hex())
+
+    # 文档要求：发完证明后绝对静默，不能有 3 或 82
+    sock.settimeout(0.5)
+    try:
+        extra = sock.recv(64)
+    except socket.timeout:
+        extra = None
+    check("证明之后严格静默（无 id:3 / id:82）", extra is None, extra[:16].hex() if extra else None)
+
+    sock.settimeout(6)
+    sock.sendall(DOC_REPLY)
+
+    sock.sendall(frame(1, string("Terraria326")))
+    ident, payload = recv_frame(sock)
+    check("回执通过后回复 id=3", ident == 3, ident)
+    ident, payload = recv_frame(sock)
+    check_welcome(ident, payload, "id:3 之后的欢迎包")
+
+    drain_world(sock, "Hello 之后主动推世界")
+
+    print()
+    return 0 if FAILED == 0 else 1
+
+
 def pcap_flow(sock: socket.socket) -> int:
     """复刻抓包顺序：proof → 3 + 欢迎 → 客户端 Hello → 服务端立刻推世界数据。"""
     sock.settimeout(6)
@@ -252,6 +285,9 @@ def main(host: str, port: int, variant: str = "flags1") -> int:
 
     try:
         # ---------- 抓包复刻流程单独走 ----------
+        if variant == "proofdoc":
+            return proof_doc_flow(sock)
+
         if variant == "proofpcap":
             return pcap_flow(sock)
 

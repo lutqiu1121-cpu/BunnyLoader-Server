@@ -156,6 +156,13 @@ public sealed class ServerConfig
             EnvNotes.Add($"PROOF_NETMODULE_KIND={kind}");
         }
 
+        string? legacyCapture = Env("PROOF_LEGACY_CAPTURE");
+        if (!string.IsNullOrWhiteSpace(legacyCapture))
+        {
+            Proof.LegacyCapture = ParseBool(legacyCapture, "PROOF_LEGACY_CAPTURE");
+            EnvNotes.Add($"PROOF_LEGACY_CAPTURE={Proof.LegacyCapture}");
+        }
+
         string? worldOnHello = Env("WORLD_ON_HELLO");
         if (!string.IsNullOrWhiteSpace(worldOnHello))
         {
@@ -698,6 +705,13 @@ public sealed class ProofSection
     /// <summary>"plain" = 直接发文本（默认）；"netmodule" = 封进 id:82 的 NetModule。</summary>
     [JsonPropertyName("wrapper")]
     public string Wrapper { get; set; } = "netmodule";
+
+    /// <summary>
+    /// true = 用抓包里那种 27 字节形式（82 + 0xB17F + kind 1），
+    /// false（默认）= 按官方文档的 24 字节形式（82 + "RGN" + 文本）。
+    /// </summary>
+    [JsonPropertyName("legacyCapture")]
+    public bool LegacyCapture { get; set; }
 
     /// <summary>
     /// true 时发完 proof 会等客户端回执（默认 false）。
