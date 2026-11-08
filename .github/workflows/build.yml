@@ -162,8 +162,14 @@ jobs:
           sys.path.insert(0, "tools")
           s = socket.create_connection(("127.0.0.1", 17798), timeout=6)
           s.settimeout(6)
-          proof = s.recv(24)
-          assert proof == bytes.fromhex("180052474e") + b"NingLauncher/1/server", proof.hex()
+          want = bytes.fromhex("180052474e") + b"NingLauncher/1/server"
+          proof = b""
+          while len(proof) < len(want):
+              chunk = s.recv(len(want) - len(proof))
+              if not chunk:
+                  break
+              proof += chunk
+          assert proof == want, proof.hex()
           # 不发回执，直接发 Hello：服务端必须断开
           s.sendall(b"\x0f\x00\x01\x0bTerraria326")
           try:
