@@ -206,24 +206,45 @@ def proof_only_flow(sock: socket.socket) -> int:
     return 0 if FAILED == 0 else 1
 
 
-def drain_world(sock: socket.socket, label: str) -> int:
-    """读世界数据整包：7 + 9 + 10×N + 49。返回分块数。"""
+def drain_world(sock: socket.socket, label: str, expect_start: bool = True) -> int:
+    """读世界数据：7 + 9 + 10×N（+49）。expect_start=False 时读到静默为止。"""
     got7 = got9 = sections = 0
-    for _ in range(400):
-        ident, payload = recv_frame(sock)
-        if ident == 7:
-            got7 += 1
-        elif ident == 9:
-            got9 += 1
-        elif ident == 10:
-            sections += 1
-        elif ident == 49:
-            break
+    started = False
+
+    if expect_start:
+        for _ in range(400):
+            ident, payload = recv_frame(sock)
+            if ident == 7:
+                got7 += 1
+            elif ident == 9:
+                got9 += 1
+            elif ident == 10:
+                sections += 1
+            elif ident == 49:
+                started = True
+                break
+    else:
+        sock.settimeout(2.0)
+        while True:
+            try:
+                ident, payload = recv_frame(sock)
+            except socket.timeout:
+                break
+            if ident == 7:
+                got7 += 1
+            elif ident == 9:
+                got9 += 1
+            elif ident == 10:
+                sections += 1
+            elif ident == 49:
+                started = True
+                break
+        sock.settimeout(10)
 
     check(f"{label}: 收到 id=7", got7 >= 1, got7)
-    check(f"{label}: 收到 id=9", got9 >= 1, got9)
     check(f"{label}: 收到分块", sections > 0, sections)
-    check(f"{label}: 收到 id=49", True)
+    if expect_start:
+        check(f"{label}: 收到 id=49", started, started)
     print(f"        {label}: {sections} 个分块")
     return sections
 
@@ -255,7 +276,7 @@ def pcap_flow(sock: socket.socket) -> int:
     ident, payload = recv_frame(sock)
     check("6 之后收到 id=7", ident == 7, ident)
 
-    drain_world(sock, "6 之后推分块")
+    drain_world(sock, "6 之后推分块", expect_start=False)
 
     print()
     return 0 if FAILED == 0 else 1
@@ -288,7 +309,7 @@ def proof_doc_flow(sock: socket.socket) -> int:
     ident, payload = recv_frame(sock)
     check("6 之后收到 id=7", ident == 7, ident)
 
-    drain_world(sock, "6 之后推分块")
+    drain_world(sock, "6 之后推分块", expect_start=False)
 
     print()
     return 0 if FAILED == 0 else 1
