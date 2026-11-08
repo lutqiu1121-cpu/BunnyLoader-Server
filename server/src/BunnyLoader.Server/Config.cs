@@ -156,6 +156,13 @@ public sealed class ServerConfig
             EnvNotes.Add($"PROOF_NETMODULE_KIND={kind}");
         }
 
+        string? proofSweep = Env("PROOF_SWEEP");
+        if (!string.IsNullOrWhiteSpace(proofSweep))
+        {
+            Proof.Sweep = ParseBool(proofSweep, "PROOF_SWEEP");
+            EnvNotes.Add($"PROOF_SWEEP={Proof.Sweep}");
+        }
+
         string? proofNetModuleId = Env("PROOF_NETMODULE_ID");
         if (!string.IsNullOrWhiteSpace(proofNetModuleId))
         {
@@ -653,6 +660,13 @@ public sealed class ProofSection
     /// <summary>"plain" = 直接发文本（默认）；"netmodule" = 封进 id:82 的 NetModule。</summary>
     [JsonPropertyName("wrapper")]
     public string Wrapper { get; set; } = "plain";
+
+    /// <summary>
+    /// true 时忽略上面各项，按连接序号轮换内置的 10 种组合，一次现场测试扫完。
+    /// 日志 proof.variant 会写明本次用的是哪一种。
+    /// </summary>
+    [JsonPropertyName("sweep")]
+    public bool Sweep { get; set; }
 
     /// <summary>wrapper=netmodule 时，模块号后是否再插一个 kind 字节；null = 不插。</summary>
     [JsonPropertyName("netModuleKind")]

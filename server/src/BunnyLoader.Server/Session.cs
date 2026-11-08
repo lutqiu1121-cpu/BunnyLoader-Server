@@ -187,37 +187,70 @@ internal sealed class Session
         await AwaitProofAsync(stream, inbox, cancellationToken);
     }
 
-    /// <summary>按 framing/wrapper 组出要发出去的 proof 字节。</summary>
-    private byte[] BuildProofBytes()
+
+    /// <summary>一种 proof 组合。Sweep 模式按连接序号轮换。</summary>
+    private sealed record ProofVariant(string Name, string Suffix, string Framing, string Wrapper,
+                                       int ModuleId, int? Kind, int? MessageId);
+
+    /// <summary>
+    /// 内置扫描表。一次现场测试连 N 次就能把常见组合试完，
+    /// 日志 proof.variant 会写明本次用的是哪一种。
+    /// </summary>
+    private static readonly ProofVariant[] SweepVariants =
+    {
+        new("raw-none",       "none", "raw",   "plain",     0xB17F, null, null),
+        new("frame-none",     "none", "frame", "plain",     0xB17F, null, null),
+        new("netmod0",        "none", "raw",   "netmodule", 0,      null, null),
+        new("netmod0-kind1",  "none", "raw",   "netmodule", 0,      1,    null),
+        new("netmod-b17f",    "none", "raw",   "netmodule", 0xB17F, null, null),
+        new("netmod-b17f-k1", "none", "raw",   "netmodule", 0xB17F, 1,    null),
+        new("netmod-b17e",    "none", "raw",   "netmodule", 0xB17E, null, null),
+        new("msg9",           "none", "raw",   "plain",     0,      null, 9),
+        new("msg93",          "none", "raw",   "plain",     0,      null, 93),
+        new("raw-lf",         "lf",   "raw",   "plain",     0xB17F, null, null),
+    };
+
+    private ProofVariant PickVariant()
     {
         ProofSection proof = _config.Proof;
-        string suffix = proof.Suffix switch
+        if (!proof.Sweep)
+        {
+            return new ProofVariant("config", proof.Suffix, proof.Framing, proof.Wrapper,
+                                    proof.NetModuleId, proof.NetModuleKind, proof.MessageId);
+        }
+
+        int index = (_sequence - 1) % SweepVariants.Length;
+        return SweepVariants[index];
+    }
+
+    /// <summary>按 variant 组出要发出去的 proof 字节。</summary>
+    private byte[] BuildProofBytes(ProofVariant variant)
+    {
+        string suffix = variant.Suffix switch
         {
             "crlf" => "\r\n",
             "none" => "",
             _ => "\n",
         };
 
-        byte[] text = Encoding.ASCII.GetBytes(proof.ServerLine + suffix);
+        byte[] text = Encoding.ASCII.GetBytes(_config.Proof.ServerLine + suffix);
 
-        // 直接把文本当某个顶层消息的负载：[u16][id][text]
-        if (proof.MessageId.HasValue)
-            return Codec.Frame((byte)proof.MessageId.Value, text);
+        if (variant.MessageId.HasValue)
+            return Codec.Frame((byte)variant.MessageId.Value, text);
 
-        if (proof.Wrapper == "netmodule")
+        if (variant.Wrapper == "netmodule")
         {
-            int head = 2 + (proof.NetModuleKind.HasValue ? 1 : 0);
+            int head = 2 + (variant.Kind.HasValue ? 1 : 0);
             byte[] payload = new byte[head + text.Length];
-            BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(0, 2), (ushort)proof.NetModuleId);
-            if (proof.NetModuleKind.HasValue)
-                payload[2] = (byte)proof.NetModuleKind.Value;
+            BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(0, 2), (ushort)variant.ModuleId);
+            if (variant.Kind.HasValue)
+                payload[2] = (byte)variant.Kind.Value;
             text.CopyTo(payload, head);
             return Codec.Frame(MessageId.NetModules, payload);
         }
 
-        if (proof.Framing == "frame")
+        if (variant.Framing == "frame")
         {
-            // [u16 总长][文本]：按用户给的形式，长度含自身 2 字节
             int total = text.Length + 2;
             byte[] framed = new byte[total];
             BinaryPrimitives.WriteUInt16LittleEndian(framed.AsSpan(0, 2), (ushort)total);
@@ -230,16 +263,18 @@ internal sealed class Session
 
     private async Task SendProofAsync(NetworkStream stream, CancellationToken cancellationToken)
     {
-        byte[] bytes = BuildProofBytes();
+        ProofVariant variant = PickVariant();
+        byte[] bytes = BuildProofBytes(variant);
+
         await stream.WriteAsync(bytes, cancellationToken);
         _capture?.ToClient(bytes);
+
         _log.Info("proof.sent",
             ("conn", _id),
             ("text", _config.Proof.ServerLine),
-            ("suffix", _config.Proof.Suffix),
-            ("framing", _config.Proof.Framing),
-            ("wrapper", _config.Proof.Wrapper),
-            ("bytes", bytes.Length));
+            ("variant", variant.Name),
+            ("bytes", bytes.Length),
+            ("hex", Codec.Hex(bytes, 28)));
     }
 
     private async Task AwaitProofAsync(NetworkStream stream, List<byte> inbox, CancellationToken cancellationToken)

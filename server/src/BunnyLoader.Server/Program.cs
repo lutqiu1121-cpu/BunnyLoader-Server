@@ -195,6 +195,7 @@ public static class Program
                 ("proofWrapper", config.Proof.Wrapper),
                 ("proofNetModuleId", config.Proof.NetModuleId),
                 ("proofMessageId", config.Proof.MessageId),
+                ("proofSweep", config.Proof.Sweep),
                 ("proofServerLine", config.Proof.ServerLine),
                 ("skipApproved", config.Handshake.SkipApproved),
                 ("sendMsg7After3", config.Handshake.SendMsg7After3),
@@ -406,5 +407,6 @@ public static class Program
         Console.WriteLine("  PROOF_NETMODULE_ID   封进 82 时用的模块号，默认 45439（0xB17F）");
         Console.WriteLine("  PROOF_AS_TEXT        true=预设：82 + 模块 0 + kind 1 + 文本");
         Console.WriteLine("  PROOF_MESSAGE_ID     把文本当某个顶层消息的负载：[u16][id][文本]");
+        Console.WriteLine("  PROOF_SWEEP          true=每次连接自动换一种 proof 组合（日志 proof.variant）");
     }
 }

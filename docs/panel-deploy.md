@@ -397,6 +397,46 @@ sh -c 'WORLD_FILE=块状的小屋.wld PROOF_MODE=on PROOF_IN_NETMODULE=true PROO
 sh -c 'WORLD_FILE=块状的小屋.wld PROOF_MODE=on PROOF_MESSAGE_ID=9 sh start.sh'
 ```
 
+### 6.10.2 反编译结论 + 自动扫描（PROOF_SWEEP）
+
+用作者提供的 68 个托管 DLL 做了全量搜索：**没有任何 `NingLauncher`**。
+它其实在 `libbunny.so`（原生）和 `classes.dex`（Kotlin）里。
+
+原生层定位到：
+
+```
+0x0705a2  NingLauncher/1/client
+0x0705b8  NingLauncher/1/server
+引用点 0x293328 / 0x293330，后续 MOVZ w10, #0x15（= 21）
+```
+
+**21 正好是 token 的长度，不含换行**。所以任何加 `\n` 的发送都会让长度对不上。
+
+包 ID / 模块号无法从机器码静态确定（原生库已 strip、本环境无反汇编器），
+所以改成**自动扫描**：
+
+```bash
+sh -c 'WORLD_FILE=块状的小屋.wld PROOF_MODE=on PROOF_SWEEP=true sh start.sh'
+```
+
+每次连接换一种组合，日志写明本次用的是哪种：
+
+| 第几次 | variant | 发送内容 |
+|---|---|---|
+| 1 | `raw-none` | 21 字节裸文本，无换行 |
+| 2 | `frame-none` | `[u16][文本]` |
+| 3 | `netmod0` | 82 + 模块 0 |
+| 4 | `netmod0-kind1` | 82 + 模块 0 + kind 1 |
+| 5 | `netmod-b17f` | 82 + 模块 0xB17F |
+| 6 | `netmod-b17f-k1` | 82 + 模块 0xB17F + kind 1 |
+| 7 | `netmod-b17e` | 82 + 模块 0xB17E（JS 引擎） |
+| 8 | `msg9` | 顶层消息 9 |
+| 9 | `msg93` | 顶层消息 93 |
+| 10 | `raw-lf` | 裸文本 + 换行 |
+| 11 | 回到第 1 种 | … |
+
+**连 10 次**，哪一次出现 `proof.received` 或不再秒断，就是它。
+
 ## 7. 回传什么
 
 1. **控制台日志全文**（从 `server.start` 到最后一行）。

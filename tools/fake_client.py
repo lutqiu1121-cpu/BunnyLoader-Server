@@ -143,6 +143,13 @@ def main(host: str, port: int, variant: str = "flags") -> int:
                       "prooftext": "module0"}.get(variant)
 
         # 0a. 连上就做的 proof（before-hello）
+        if variant == "proofraw21":
+            sock.settimeout(5)
+            data = recv_exact(sock, 21)
+            check("收到 21 字节 proof（无换行）", data == b"NingLauncher/1/server", data)
+            sock.sendall(b"NingLauncher/1/client")
+            sock.settimeout(10)
+
         if proof_kind and variant != "proofafter":
             sock.settimeout(5)
             got = read_proof(sock, proof_kind)
@@ -177,6 +184,7 @@ def main(host: str, port: int, variant: str = "flags") -> int:
             "proofframe": b"\x01\x01", # proof 带 2 字节长度头
             "proofmodule": b"\x01\x01",# proof 封在 82 里
             "prooftext": b"\x01\x01",  # proof 封在 82 的模块 0 + kind 1
+            "proofraw21": b"\x01\x01", # sweep 第一档：21 字节裸文本、无换行
             "proofworld": b"\x01\x01", # proof + 完整进世界
         }.get(variant) or (
             bytes.fromhex(variant[4:].replace(" ", "")) if variant.startswith("hex:") else None
@@ -273,7 +281,7 @@ if __name__ == "__main__":
     host = sys.argv[1]
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 7777
     variant = sys.argv[3] if len(sys.argv) > 3 else "flags1"
-    allowed = ("flags1", "flags0", "flags", "slot", "silent", "msg7", "msg7only", "world", "worldneg", "proof", "proofworld", "proofafter", "proofframe", "proofmodule", "prooftext")
+    allowed = ("flags1", "flags0", "flags", "slot", "silent", "msg7", "msg7only", "world", "worldneg", "proof", "proofworld", "proofafter", "proofframe", "proofmodule", "prooftext", "proofraw21")
     if variant not in allowed and not variant.startswith("hex:"):
         print("第三个参数只能是 " + " / ".join(allowed) + " / hex:XXXX")
         sys.exit(2)
