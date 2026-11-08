@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using BunnyLoader.Server.Protocol;
+using BunnyLoader.Server.World;
 
 namespace BunnyLoader.Server;
 
@@ -24,6 +25,8 @@ public static class Program
         bool printConfig = false;
         int? cliPort = null;
         string? cliMsg3 = null;
+        string? worldPath = null;
+        bool worldInfo = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -53,6 +56,15 @@ public static class Program
                         return 2;
                     }
                     cliMsg3 = msg3;
+                    break;
+                case "--world":
+                    if (!TryValue(args, ref i, out string worldArg)) return 2;
+                    worldPath = worldArg;
+                    break;
+                case "--world-info":
+                    if (!TryValue(args, ref i, out string infoPath)) return 2;
+                    worldPath = infoPath;
+                    worldInfo = true;
                     break;
                 case "--selftest":
                     selftest = true;
@@ -93,6 +105,66 @@ public static class Program
         }
 
         var log = new JsonLogger(config.Logging.Level);
+
+        worldPath ??= string.IsNullOrWhiteSpace(config.World.File) ? null : config.World.File;
+
+        WldWorld? world = null;
+        if (worldPath is not null)
+        {
+            try
+            {
+                world = WldReader.Load(worldPath);
+            }
+            catch (Exception e)
+            {
+                Console.Error.WriteLine($"世界文件读取失败: {e.Message}");
+                return 1;
+            }
+
+            foreach (string note in world.Notes)
+                log.Info("world.note", ("text", note));
+
+            log.Info("world.loaded",
+                ("file", Path.GetFullPath(worldPath)),
+                ("name", world.Name),
+                ("size", $"{world.MaxTilesX}x{world.MaxTilesY}"),
+                ("spawn", $"{world.SpawnTileX},{world.SpawnTileY}"),
+                ("surface", (int)world.WorldSurface),
+                ("version", world.Version));
+        }
+
+        if (worldInfo)
+        {
+            if (world is null)
+            {
+                Console.Error.WriteLine("--world-info 需要一个 .wld 路径");
+                return 2;
+            }
+
+            int active = 0, walls = 0;
+            foreach (Tile tile in world.Tiles)
+            {
+                if (tile.Active) active++;
+                if (tile.Wall != 0) walls++;
+            }
+
+            long total = (long)world.MaxTilesX * world.MaxTilesY;
+            log.Info("world.info",
+                ("file", Path.GetFullPath(worldPath!)),
+                ("version", world.Version),
+                ("name", world.Name),
+                ("seed", world.Seed),
+                ("size", $"{world.MaxTilesX}x{world.MaxTilesY}"),
+                ("spawn", $"{world.SpawnTileX},{world.SpawnTileY}"),
+                ("surface", (int)world.WorldSurface),
+                ("rockLayer", (int)world.RockLayer),
+                ("crimson", world.Crimson),
+                ("tiles", total),
+                ("active", active),
+                ("activePct", total == 0 ? 0 : Math.Round(active * 100.0 / total, 2)),
+                ("walls", walls));
+            return 0;
+        }
 
         if (printConfig)
         {
@@ -186,6 +258,7 @@ public static class Program
                 : $"{config.Handshake.Layout}+{config.Handshake.SpecialFlag}"),
             ("skipWelcomePack", config.Handshake.SkipWelcomePack),
             ("mods", config.Mods.Count),
+            ("worldFile", worldPath is null ? "(flat)" : _worldFileName(worldPath)),
             ("capture", captureDirectory ?? "(off)"),
             ("env", string.Join(",", config.EnvNotes)),
             ("note", "R2：握手 + 世界头；方块数据在 R3"));
@@ -217,7 +290,7 @@ public static class Program
                     ? null
                     : new CaptureWriter(captureDirectory, connectionId, log);
 
-                Session session = new(client, connectionId, counter, config, log, capture);
+                Session session = new(client, connectionId, counter, config, log, capture, world);
                 _ = Task.Run(async () =>
                 {
                     try
@@ -253,6 +326,18 @@ public static class Program
         return true;
     }
 
+    private static string _worldFileName(string path)
+    {
+        try
+        {
+            return Path.GetFileName(path);
+        }
+        catch
+        {
+            return "?";
+        }
+    }
+
     private static IPAddress ResolveBind(string host)
     {
         if (host is "0.0.0.0" or "*" or "")
@@ -276,6 +361,8 @@ public static class Program
         Console.WriteLine("  --testdata <path>    golden vectors 路径");
         Console.WriteLine("  --print-config       打印生效配置后退出");
         Console.WriteLine("  --selftest           配置 + 编解码自检后退出");
+        Console.WriteLine("  --world <path>       用原版 .wld 作为真实世界（否则用平坦世界）");
+        Console.WriteLine("  --world-info <path>  只解析 .wld 并打印摘要后退出");
         Console.WriteLine();
         Console.WriteLine("环境变量（面板只能改启动命令时用这些）:");
         Console.WriteLine("  SERVER_PORT / PORT   监听端口，默认 7777");
@@ -294,5 +381,6 @@ public static class Program
         Console.WriteLine("  CAPTURE_DIR          抓包目录，默认关闭");
         Console.WriteLine("  WORLD_NAME           世界名");
         Console.WriteLine("  SERVER_NAME          服务器名");
+        Console.WriteLine("  WORLD_FILE           原版 .wld 路径（等价 --world）");
     }
 }

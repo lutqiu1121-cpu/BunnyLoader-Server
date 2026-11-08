@@ -133,6 +133,31 @@ jobs:
           python3 tools/fake_client.py 127.0.0.1 17782 flags0
           docker rm -f panel-v3
 
+      - name: World file — 解析 .wld 并打印摘要
+        run: |
+          mkdir -p /tmp/wld
+          python3 tools/make_test_world.py /tmp/wld/test.wld
+          docker run --rm -v /tmp/wld:/wld -v "$PWD/server/dist:/app" -w /app \
+            -e LOG_LEVEL=info \
+            mcr.microsoft.com/dotnet/runtime:8.0 \
+            dotnet BunnyLoader.Server.dll --world-info /wld/test.wld | tee /tmp/wld/info.txt
+          grep -q '"size":"400x300"' /tmp/wld/info.txt
+          grep -q '"name":"TestWorld"' /tmp/wld/info.txt
+
+      - name: World file — 用 .wld 起服务并进世界
+        run: |
+          docker run -d --name panel-wld --restart=no -e MSG3_VARIANT=flags1 \
+            -p 17789:7777 -v /tmp/wld:/wld -v "$PWD/server/dist:/app" -w /app \
+            mcr.microsoft.com/dotnet/runtime:8.0 \
+            dotnet BunnyLoader.Server.dll --port 7777 --world /wld/test.wld
+          for i in $(seq 1 30); do
+            docker logs panel-wld 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
+          done
+          docker logs panel-wld | head -5
+          python3 tools/fake_client.py 127.0.0.1 17789 world
+          docker logs panel-wld | grep -E 'world.loaded|spawn.fallback|world.sections' | head -5
+          docker rm -f panel-wld
+
       - name: World — 平坦世界分块（8 -> 7/9/10×N/49）
         run: |
           docker run -d --name panel-world --restart=no \

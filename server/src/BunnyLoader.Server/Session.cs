@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Net.Sockets;
 using BunnyLoader.Server.Protocol;
+using BunnyLoader.Server.World;
 
 namespace BunnyLoader.Server;
 
@@ -40,6 +41,7 @@ internal sealed class Session
     private readonly ServerConfig _config;
     private readonly JsonLogger _log;
     private readonly CaptureWriter? _capture;
+    private readonly WldWorld? _wld;
     private bool _suppressOutbound;
     private bool _spawnCorrected;
     private bool _finishedSent;
@@ -47,7 +49,8 @@ internal sealed class Session
     private int _lastSectionY = int.MinValue;
     private DateTime _lastSectionAt = DateTime.MinValue;
 
-    public Session(TcpClient client, string id, int sequence, ServerConfig config, JsonLogger log, CaptureWriter? capture)
+    public Session(TcpClient client, string id, int sequence, ServerConfig config, JsonLogger log,
+                   CaptureWriter? capture, WldWorld? worldFile)
     {
         _client = client;
         _id = id;
@@ -55,6 +58,7 @@ internal sealed class Session
         _config = config;
         _log = log;
         _capture = capture;
+        _wld = worldFile;
     }
 
     public async Task RunAsync(CancellationToken cancellationToken)
@@ -239,10 +243,10 @@ internal sealed class Session
                     reqY = BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(4, 4));
                 }
 
-                short spawnX = _config.World.SpawnTileX;
-                short spawnY = _config.World.SpawnTileY;
+                int spawnX = WorldSpawnX;
+                int spawnY = WorldSpawnY;
                 bool outOfRange = reqX < 0 || reqY < 0
-                    || reqX >= _config.World.MaxTilesX || reqY >= _config.World.MaxTilesY;
+                    || reqX >= WorldMaxX || reqY >= WorldMaxY;
 
                 if (outOfRange)
                 {
@@ -302,7 +306,7 @@ internal sealed class Session
                 }
 
                 bool invalid = px < 0 || py < 0
-                    || px >= _config.World.MaxTilesX || py >= _config.World.MaxTilesY;
+                    || px >= WorldMaxX || py >= WorldMaxY;
 
                 _log.Info("player.spawn", ("conn", _id), ("x", px), ("y", py), ("valid", !invalid));
 
@@ -312,13 +316,13 @@ internal sealed class Session
                     _spawnCorrected = true;
                     await SendBundleAsync(stream, new List<byte[]>
                     {
-                        Messages.PlayerSpawnPacket(PlayerSlot, _config.World.SpawnTileX, _config.World.SpawnTileY),
+                        Messages.PlayerSpawnPacket(PlayerSlot, (short)WorldSpawnX, (short)WorldSpawnY),
                         Messages.FinishedConnectingPacket(),
                     }, cancellationToken);
                     _log.Info("spawn.corrected",
                         ("conn", _id),
-                        ("x", _config.World.SpawnTileX),
-                        ("y", _config.World.SpawnTileY));
+                        ("x", WorldSpawnX),
+                        ("y", WorldSpawnY));
                 }
                 else if (!invalid && !_finishedSent)
                 {
@@ -509,8 +513,16 @@ internal sealed class Session
     /// 平坦世界：地表以上空气，地表那一层草地，往下泥土，岩层以下石头。
     /// 只够给客户端画图与站人，不做地形生成。
     /// </summary>
+    private int WorldMaxX => _wld?.MaxTilesX ?? _config.World.MaxTilesX;
+    private int WorldMaxY => _wld?.MaxTilesY ?? _config.World.MaxTilesY;
+    private int WorldSpawnX => _wld?.SpawnTileX ?? _config.World.SpawnTileX;
+    private int WorldSpawnY => _wld?.SpawnTileY ?? _config.World.SpawnTileY;
+
     private Tile GetTile(int x, int y)
     {
+        if (_wld is not null)
+            return _wld.Get(x, y);
+
         if (x < 0 || y < 0 || x >= _config.World.MaxTilesX || y >= _config.World.MaxTilesY)
             return default;
 
@@ -535,8 +547,8 @@ internal sealed class Session
     /// </summary>
     private IEnumerable<(int X, int Y)> SectionBlock(int tileX, int tileY)
     {
-        int sectionsX = (int)Math.Ceiling(_config.World.MaxTilesX / (double)TileSection.SectionWidth);
-        int sectionsY = (int)Math.Ceiling(_config.World.MaxTilesY / (double)TileSection.SectionHeight);
+        int sectionsX = (int)Math.Ceiling(WorldMaxX / (double)TileSection.SectionWidth);
+        int sectionsY = (int)Math.Ceiling(WorldMaxY / (double)TileSection.SectionHeight);
 
         int cx = Math.Clamp(tileX / TileSection.SectionWidth, 0, sectionsX - 1);
         int cy = Math.Clamp(tileY / TileSection.SectionHeight, 0, sectionsY - 1);
@@ -555,6 +567,27 @@ internal sealed class Session
 
     private WorldData BuildWorld()
     {
+        if (_wld is not null)
+        {
+            return new WorldData
+            {
+                Release326 = true,
+                WorldName = _wld.Name,
+                MaxTilesX = (short)_wld.MaxTilesX,
+                MaxTilesY = (short)_wld.MaxTilesY,
+                SpawnTileX = (short)_wld.SpawnTileX,
+                SpawnTileY = (short)_wld.SpawnTileY,
+                WorldSurface = (short)_wld.WorldSurface,
+                RockLayer = (short)_wld.RockLayer,
+                GameMode = (byte)_wld.GameMode,
+                WorldId = _config.World.Seed,
+                Time = 0,
+                DayTime = _wld.DayTime,
+                Crimson = _wld.Crimson,
+                Guid = DeterministicGuid(_config.World.Seed),
+            };
+        }
+
         WorldSection settings = _config.World;
         var world = new WorldData
         {

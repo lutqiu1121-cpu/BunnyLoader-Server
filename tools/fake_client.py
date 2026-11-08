@@ -181,7 +181,7 @@ def main(host: str, port: int, variant: str = "flags") -> int:
             check("世界名可解析", bool(world["worldName"]), world["worldName"])
             check("负载被完整消费", world["_consumed"] == len(payload),
                   f"{world['_consumed']}/{len(payload)}")
-            check("尺寸自洽", world["maxTilesX"] == 4200 and world["maxTilesY"] == 1200,
+            check("尺寸有效", world["maxTilesX"] > 0 and world["maxTilesY"] > 0,
                   f"{world['maxTilesX']}x{world['maxTilesY']}")
             check("出生点在界内",
                   0 <= world["spawnTileX"] <= world["maxTilesX"]

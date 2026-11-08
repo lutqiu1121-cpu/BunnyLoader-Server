@@ -109,6 +109,13 @@ public sealed class ServerConfig
             EnvNotes.Add($"LOG_LEVEL={Logging.Level}");
         }
 
+        string? worldFile = Env("WORLD_FILE");
+        if (!string.IsNullOrWhiteSpace(worldFile))
+        {
+            World.File = worldFile.Trim();
+            EnvNotes.Add("WORLD_FILE=<set>");
+        }
+
         string? worldName = Env("WORLD_NAME");
         if (!string.IsNullOrWhiteSpace(worldName))
         {
@@ -280,7 +287,8 @@ public sealed class ServerConfig
             throw new InvalidDataException($"world.spawnTileY 越界，当前 {World.SpawnTileY}");
 
         // 出生点若在地表以上，玩家会悬空下坠。贴到地表上一格（站着而不是埋进地里）。
-        if (World.SpawnTileY < World.WorldSurface)
+        // 有 .wld 时这些值会被文件覆盖，这里只对平坦世界生效。
+        if (string.IsNullOrWhiteSpace(World.File) && World.SpawnTileY < World.WorldSurface)
             World.SpawnTileY = (short)(World.WorldSurface - 1);
 
         string variant = Handshake.Layout.Trim().ToLowerInvariant();
@@ -401,6 +409,13 @@ public sealed class WorldSection
     /// <summary>世界 ID 的来源，决定 worldId 与 GUID，保证重连是同一个世界。</summary>
     [JsonPropertyName("seed")]
     public int Seed { get; set; } = 1;
+
+    /// <summary>
+    /// 原版 .wld 路径。设置后世界尺寸/出生点/地表高度/瓦片全部以该文件为准，
+    /// 手写的平坦世界不再使用。留空 = 用平坦世界。
+    /// </summary>
+    [JsonPropertyName("file")]
+    public string File { get; set; } = "";
 }
 
 /// <summary>
