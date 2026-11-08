@@ -262,7 +262,7 @@ def pcap_flow(sock: socket.socket) -> int:
 
 
 def proof_doc_flow(sock: socket.socket) -> int:
-    """文档形式：26 字节 proof → 客户端直接发 id:1 → 3 + 欢迎 + 世界。"""
+    """文档形式：26 字节 proof → 客户端发 id:1 → 3 → 68 → 欢迎 → 6 → 世界。"""
     sock.settimeout(6)
 
     data = recv_exact(sock, len(DOC_PROOF))
@@ -270,14 +270,14 @@ def proof_doc_flow(sock: socket.socket) -> int:
 
     sock.sendall(frame(1, string("Terraria326")))
     ident, payload = recv_frame(sock)
-    check("发 id:1 后立刻收到 id=3", ident == 3, ident)
+    check("发 id:1 后收到 id=3", ident == 3, ident)
 
     sock.settimeout(0.4)
     try:
         early = sock.recv(64)
     except socket.timeout:
         early = None
-    check("id:3 之后静默（不发欢迎包/世界）", early is None, early[:16].hex() if early else None)
+    check("id:3 之后静默", early is None, early[:16].hex() if early else None)
     sock.settimeout(10)
 
     sock.sendall(frame(68, string(HELLO_PREFIX + '{"mods":[],"textures":0}')))
