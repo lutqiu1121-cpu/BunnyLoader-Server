@@ -38,7 +38,7 @@ jobs:
       # 端到端：起真实容器，用假 BL 客户端走一遍 1→3→68→200→6→7。
       - name: Start server
         run: |
-          docker run -d --name bls --restart=no -p 17777:7777 -e WORLD_ON_HELLO=off \
+          docker run -d --name bls --restart=no -p 17777:7777 -e WORLD_ON_HELLO=off -e PROOF_MODE=off \
             bunny-loader-server:ci --config config/server.json --capture captures
 
           ready=0
@@ -98,7 +98,7 @@ jobs:
       # 模拟面板：runtime 镜像里没有 SDK，只有运行时；启动方式与面板一致。
       - name: Variant flags+bool1
         run: |
-          docker run -d --name panel-v1 --restart=no -e MSG3_VARIANT=flags1 -e WORLD_ON_HELLO=off \
+          docker run -d --name panel-v1 --restart=no -e MSG3_VARIANT=flags1 -e WORLD_ON_HELLO=off -e PROOF_MODE=off \
             -p 17780:7777 -v "$PWD/server/dist:/app" -w /app \
             mcr.microsoft.com/dotnet/runtime:8.0 \
             dotnet BunnyLoader.Server.dll --port 7777
@@ -111,7 +111,7 @@ jobs:
 
       - name: Variant slot (1 byte)
         run: |
-          docker run -d --name panel-v2 --restart=no -e MSG3_VARIANT=slot -e WORLD_ON_HELLO=off \
+          docker run -d --name panel-v2 --restart=no -e MSG3_VARIANT=slot -e WORLD_ON_HELLO=off -e PROOF_MODE=off \
             -p 17781:7777 -v "$PWD/server/dist:/app" -w /app \
             mcr.microsoft.com/dotnet/runtime:8.0 \
             dotnet BunnyLoader.Server.dll --port 7777
@@ -123,7 +123,7 @@ jobs:
 
       - name: Variant flags+bool0
         run: |
-          docker run -d --name panel-v3 --restart=no -e MSG3_VARIANT=flags0 -e WORLD_ON_HELLO=off \
+          docker run -d --name panel-v3 --restart=no -e MSG3_VARIANT=flags0 -e WORLD_ON_HELLO=off -e PROOF_MODE=off \
             -p 17782:7777 -v "$PWD/server/dist:/app" -w /app \
             mcr.microsoft.com/dotnet/runtime:8.0 \
             dotnet BunnyLoader.Server.dll --port 7777
@@ -161,10 +161,10 @@ jobs:
           docker logs panel-cap | grep -E 'proof\.(sent|no-receipt|verified|first-frame)' | head -3
           docker rm -f panel-cap
 
-      - name: Proof auto — 老客户端直接发帧，不应收到文本
+      - name: Proof off — 老客户端直接发帧（legacy 兼容）
         run: |
           docker run -d --name panel-auto --restart=no \
-            -e PROOF_MODE=auto -e MSG3_VARIANT=flags1 \
+            -e PROOF_MODE=off -e MSG3_VARIANT=flags1 \
             -e WORLD_ON_HELLO=off \
             -p 17791:7777 -v "$PWD/server/dist:/app" -w /app \
             mcr.microsoft.com/dotnet/runtime:8.0 \
@@ -199,7 +199,7 @@ jobs:
 
       - name: World file — 用 .wld 起服务并进世界
         run: |
-          docker run -d --name panel-wld --restart=no -e MSG3_VARIANT=flags1 -e WORLD_ON_HELLO=off \
+          docker run -d --name panel-wld --restart=no -e MSG3_VARIANT=flags1 -e WORLD_ON_HELLO=off -e PROOF_MODE=off \
             -p 17789:7777 -v /tmp/wld:/wld -v "$PWD/server/dist:/app" -w /app \
             mcr.microsoft.com/dotnet/runtime:8.0 \
             dotnet BunnyLoader.Server.dll --port 7777 --world /wld/test.wld
@@ -213,7 +213,7 @@ jobs:
 
       - name: World — 平坦世界分块（8 -> 7/9/10×N/49）
         run: |
-          docker run -d --name panel-world --restart=no \
+          docker run -d --name panel-world --restart=no -e PROOF_MODE=off \
             -e MSG3_VARIANT=flags1 \
             -e WORLD_ON_HELLO=off \
             -p 17787:7777 -v "$PWD/server/dist:/app" -w /app \
@@ -229,7 +229,7 @@ jobs:
 
       - name: World fallback — 客户端发 (-1,-1) 时应回退到出生点
         run: |
-          docker run -d --name panel-wneg --restart=no \
+          docker run -d --name panel-wneg --restart=no -e PROOF_MODE=off \
             -e MSG3_VARIANT=flags1 \
             -e WORLD_ON_HELLO=off \
             -p 17788:7777 -v "$PWD/server/dist:/app" -w /app \
@@ -244,7 +244,7 @@ jobs:
 
       - name: Bundle — 消息3 + 欢迎 + 7（同一次 write）
         run: |
-          docker run -d --name panel-b7 --restart=no \
+          docker run -d --name panel-b7 --restart=no -e PROOF_MODE=off \
             -e SEND_MSG7_AFTER_3=true -e MSG7_INCLUDE_WELCOME=true -e MSG3_VARIANT=flags1 \
             -e WORLD_ON_HELLO=off \
             -p 17785:7777 -v "$PWD/server/dist:/app" -w /app \
@@ -258,7 +258,7 @@ jobs:
 
       - name: Bundle — 消息3 + 7（无欢迎，用于对照）
         run: |
-          docker run -d --name panel-b7o --restart=no \
+          docker run -d --name panel-b7o --restart=no -e PROOF_MODE=off \
             -e SEND_MSG7_AFTER_3=true -e MSG7_INCLUDE_WELCOME=false -e MSG3_VARIANT=flags1 \
             -e WORLD_ON_HELLO=off \
             -p 17786:7777 -v "$PWD/server/dist:/app" -w /app \
@@ -272,7 +272,7 @@ jobs:
 
       - name: Candidates rotation — MSG3_CANDIDATES=auto（第1次应为 16 字节补零）
         run: |
-          docker run -d --name panel-cand --restart=no -e WORLD_ON_HELLO=off \
+          docker run -d --name panel-cand --restart=no -e WORLD_ON_HELLO=off -e PROOF_MODE=off \
             -e MSG3_CANDIDATES=auto \
             -p 17784:7777 -v "$PWD/server/dist:/app" -w /app \
             mcr.microsoft.com/dotnet/runtime:8.0 \
@@ -286,7 +286,7 @@ jobs:
 
       - name: Isolation — SKIP_WELCOME_PACK=true（消息3后必须零字节）
         run: |
-          docker run -d --name panel-silent --restart=no -e WORLD_ON_HELLO=off \
+          docker run -d --name panel-silent --restart=no -e WORLD_ON_HELLO=off -e PROOF_MODE=off \
             -e SKIP_WELCOME_PACK=true -e MSG3_VARIANT=flags1 \
             -e WORLD_ON_HELLO=off \
             -p 17783:7777 -v "$PWD/server/dist:/app" -w /app \

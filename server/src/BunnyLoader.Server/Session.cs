@@ -200,22 +200,6 @@ internal sealed class Session
             return;
         }
 
-        if (proof.Mode == "auto")
-        {
-            DateTime deadline = DateTime.UtcNow.AddMilliseconds(200);
-            while (DateTime.UtcNow < deadline && inbox.Count < 3)
-                await ReadIntoAsync(stream, inbox, cancellationToken, 100);
-
-            if (inbox.Count >= 3 && LooksLikeFrame(inbox))
-            {
-                _log.Info("proof.skipped",
-                    ("conn", _id),
-                    ("reason", "legacy-frame"),
-                    ("note", "老客户端直接发帧，不发证明"));
-                return;
-            }
-        }
-
         byte[] bytes = BuildProofBytes();
         await stream.WriteAsync(bytes, cancellationToken);
         _capture?.ToClient(bytes);

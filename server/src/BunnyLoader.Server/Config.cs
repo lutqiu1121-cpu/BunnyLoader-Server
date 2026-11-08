@@ -424,7 +424,7 @@ public sealed class ServerConfig
 
         string proofModeValue = Proof.Mode.Trim().ToLowerInvariant();
         if (proofModeValue is not ("auto" or "on" or "off"))
-            throw new InvalidDataException($"proof.mode 只能是 auto/on/off，当前: {Proof.Mode}");
+            throw new InvalidDataException($"proof.mode 只能是 on/off（auto 已废弃，等同 on），当前: {Proof.Mode}");
         Proof.Mode = proofModeValue;
 
         string suffix = Proof.Suffix.Trim().ToLowerInvariant();
@@ -692,7 +692,7 @@ public sealed class ProofSection
 {
     /// <summary>auto = 先探测；on = 总是发；off = 完全不发。</summary>
     [JsonPropertyName("mode")]
-    public string Mode { get; set; } = "auto";
+    public string Mode { get; set; } = "on";
 
     [JsonPropertyName("serverLine")]
     public string ServerLine { get; set; } = "NingLauncher/1/server";
