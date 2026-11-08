@@ -38,7 +38,7 @@ from proto_ref import (  # noqa: E402
 FAILED = 0
 
 PCAP_PROOF = bytes.fromhex("1b00527fb101") + b"NingLauncher/1/server"
-DOC_PROOF = bytes.fromhex("180052474e") + b"NingLauncher/1/server"
+DOC_PROOF = bytes.fromhex("180052474e") + b"NingLauncher/1/server"   # 长度字段=消息体长度
 DOC_REPLY = bytes.fromhex("180052474e") + b"NingLauncher/1/client"
 
 EXPECTED_MSG3 = {

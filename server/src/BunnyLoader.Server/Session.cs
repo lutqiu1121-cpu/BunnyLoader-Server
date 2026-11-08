@@ -180,8 +180,9 @@ internal sealed class Session
         }
 
         // 18 00 52 47 4e + 文本
+        // 文档：消息体 52 47 4E + 21 字节文本 = 24 字节，长度头写 18 00（= 消息体长度）
         byte[] frame = new byte[2 + 3 + text.Length];
-        BinaryPrimitives.WriteUInt16LittleEndian(frame.AsSpan(0, 2), (ushort)frame.Length);
+        BinaryPrimitives.WriteUInt16LittleEndian(frame.AsSpan(0, 2), (ushort)(frame.Length - 2));
         frame[2] = MessageId.NetModules;
         frame[3] = 0x47;   // 'G'
         frame[4] = 0x4E;   // 'N'
@@ -277,52 +278,46 @@ internal sealed class Session
         if (inbox.Count < 3)
             return ProofVerdict.Pending;
 
-        int start = -1;
-        int frameLength = -1;
+        byte[] needle = Encoding.ASCII.GetBytes(clientLine.Trim('\r', '\n', '\0'));
 
-        if (inbox[2] == MessageId.NetModules)
+        int idx = -1;
+        for (int i = 0; i + needle.Length <= inbox.Count; i++)
         {
-            frameLength = inbox[0] | (inbox[1] << 8);
-            if (frameLength < 5 || frameLength > 512)
-                return ProofVerdict.Rejected;
-            if (inbox.Count < frameLength)
-                return ProofVerdict.Pending;
-            start = 3;
-        }
-        else if (inbox[0] == MessageId.NetModules)
-        {
-            frameLength = inbox.Count;
-            start = 1;
-        }
-        else
-        {
-            return ProofVerdict.Rejected;
+            bool match = true;
+            for (int j = 0; j < needle.Length; j++)
+            {
+                if (inbox[i + j] != needle[j]) { match = false; break; }
+            }
+            if (match) { idx = i; break; }
         }
 
-        if (inbox.Count < start + 2)
-            return ProofVerdict.Pending;
-
-        if (inbox[start] != 0x47 || inbox[start + 1] != 0x4E)
+        if (idx >= 3 && inbox[idx - 1] == 0x4E && inbox[idx - 2] == 0x47 && inbox[idx - 3] == MessageId.NetModules)
         {
-            _log.Warn("proof.bad-prefix", ("conn", _id),
-                ("prefix", Codec.Hex(inbox.GetRange(start, Math.Min(2, inbox.Count - start)).ToArray(), 4)));
-            return ProofVerdict.Rejected;
-        }
-
-        string got = Encoding.ASCII.GetString(inbox.GetRange(start + 2, inbox.Count - (start + 2)).ToArray()).Trim('\r', '\n', '\0');
-        _log.Info("proof.received", ("conn", _id), ("text", got));
-
-        string want = clientLine.Trim('\r', '\n', '\0');
-        if (got == want)
-        {
-            inbox.RemoveRange(0, frameLength > 0 ? Math.Min(frameLength, inbox.Count) : inbox.Count);
+            string got = Encoding.ASCII.GetString(inbox.GetRange(idx, needle.Length).ToArray());
+            _log.Info("proof.received", ("conn", _id), ("text", got), ("bytes", idx + needle.Length));
+            inbox.RemoveRange(0, idx + needle.Length);
             return ProofVerdict.Accepted;
         }
 
-        if (got.Length >= want.Length || want.StartsWith(got))
+        // 还没凑齐
+        if (idx >= 0 && idx < 3)
             return ProofVerdict.Pending;
 
-        return ProofVerdict.Rejected;
+        // 判断开头是不是证明帧：52 开头，或长度之后是 52
+        bool looksProof = inbox[0] == MessageId.NetModules
+                          || inbox[2] == MessageId.NetModules;
+
+        if (!looksProof)
+        {
+            _log.Warn("proof.bad-frame", ("conn", _id), ("head", Codec.Hex(inbox.GetRange(0, Math.Min(6, inbox.Count)).ToArray(), 6)));
+            return ProofVerdict.Rejected;
+        }
+
+        // 是证明帧但内容不对（凑齐一段后仍不匹配）
+        if (inbox.Count > 96)
+            return ProofVerdict.Rejected;
+
+        return ProofVerdict.Pending;
     }
 
     private async Task ReadIntoAsync(NetworkStream stream, List<byte> inbox, CancellationToken outer, int milliseconds)
