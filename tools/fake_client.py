@@ -79,10 +79,27 @@ def main(host: str, port: int, variant: str = "flags") -> int:
             "flags": b"\x01\x00",    # 旧名，等价 flags0
             "slot": b"\x01",          # 1 字节，只有槽位
             "silent": b"\x01\x01",   # 隔离测试：消息 3 用 flags+bool1
+            "msg7": b"\x01\x01",     # 3 之后跟 欢迎包 + 7
+            "msg7only": b"\x01\x01", # 3 之后直接跟 7
         }.get(variant) or (
             bytes.fromhex(variant[4:].replace(" ", "")) if variant.startswith("hex:") else None
         )
         check(f"消息 3 负载（{variant}）", payload == expected, payload.hex())
+
+        # SEND_MSG7_AFTER_3：消息 3 之后同一个 write 里跟欢迎包和/或消息 7
+        if variant in ("msg7", "msg7only"):
+            if variant == "msg7":
+                ident, payload = recv_frame(sock)
+                check_welcome(ident, payload, "消息7之前的欢迎包")
+            ident, payload = recv_frame(sock)
+            check("紧接着收到 id = 7 (WorldData)", ident == 7, ident)
+            if ident == 7:
+                world = decode_world_data(payload)
+                check("世界头可解析", bool(world["worldName"]), world["worldName"])
+                check("世界头被完整消费", world["_consumed"] == len(payload),
+                      f"{world['_consumed']}/{len(payload)}")
+            print()
+            return 0 if FAILED == 0 else 1
 
         # 隔离测试：SKIP_WELCOME_PACK=true 时，消息 3 之后必须一个字节都不发
         if variant == "silent":
@@ -148,7 +165,8 @@ if __name__ == "__main__":
     host = sys.argv[1]
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 7777
     variant = sys.argv[3] if len(sys.argv) > 3 else "flags1"
-    if variant not in ("flags1", "flags0", "flags", "slot", "silent") and not variant.startswith("hex:"):
-        print("第三个参数只能是 flags1 / flags0 / flags / slot / silent / hex:XXXX")
+    allowed = ("flags1", "flags0", "flags", "slot", "silent", "msg7", "msg7only")
+    if variant not in allowed and not variant.startswith("hex:"):
+        print("第三个参数只能是 " + " / ".join(allowed) + " / hex:XXXX")
         sys.exit(2)
     sys.exit(main(host, port, variant))

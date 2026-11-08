@@ -111,6 +111,8 @@ public static class Program
                 ("welcomeHex", config.Handshake.WelcomeHex),
                 ("candidates", config.Handshake.Candidates),
                 ("skipApproved", config.Handshake.SkipApproved),
+                ("sendMsg7After3", config.Handshake.SendMsg7After3),
+                ("msg7IncludeWelcome", config.Handshake.Msg7IncludeWelcome),
                 ("mods", config.Mods.Count),
                 ("env", string.Join(",", config.EnvNotes)));
             return 0;
@@ -286,6 +288,8 @@ public static class Program
         Console.WriteLine("  SKIP_WELCOME_PACK    true=消息 3 之后不再发送任何包（隔离测试用）");
         Console.WriteLine("  MSG3_CANDIDATES      候选负载列表，逗号分隔；auto=内置 6 个候选，按连接轮换");
         Console.WriteLine("  SKIP_APPROVED        true=连消息 3 都不发（控制组）");
+        Console.WriteLine("  SEND_MSG7_AFTER_3    true=消息 3 之后同一次 write 里紧接消息 7");
+        Console.WriteLine("  MSG7_INCLUDE_WELCOME 配合上一条：是否先补欢迎包（默认 true，必需）");
         Console.WriteLine("  LOG_LEVEL            debug / info / warn / error");
         Console.WriteLine("  CAPTURE_DIR          抓包目录，默认关闭");
         Console.WriteLine("  WORLD_NAME           世界名");

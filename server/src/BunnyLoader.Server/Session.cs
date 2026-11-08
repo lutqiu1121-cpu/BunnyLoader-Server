@@ -157,10 +157,10 @@ internal sealed class Session
                 }
 
                 byte[] approved = BuildMsg3(layout, specialFlag);
-                await SendAsync(stream, approved, cancellationToken);
 
                 if (_config.Handshake.SkipWelcomePack)
                 {
+                    await SendAsync(stream, approved, cancellationToken);
                     _suppressOutbound = true;
                     _log.Warn("outbound.suppressed",
                         ("conn", _id),
@@ -168,10 +168,31 @@ internal sealed class Session
                     break;
                 }
 
-                // BL 客户端在等待「欢迎包」；发完消息 3 立刻补一条。
-                // 注意：客户端发送消息 6 时会把 welcomed 复位（ModNet.cpp:179），
-                // 所以 68 分支里还会再发一次——少了那次，7 到达时会被自踢。
-                await SendWelcomeAsync(stream, cancellationToken);
+                var bundle = new List<byte[]> { approved };
+
+                if (_config.Handshake.SendMsg7After3)
+                {
+                    // 假设：客户端处理完消息 3 立刻需要世界头。
+                    // ⚠ 若不带欢迎包就发 7，BL 客户端会主动自踢并显示
+                    //   "只能与柠版互通"（ModNet.cpp:249-253），那会被误当成崩溃。
+                    //   所以默认先补欢迎包。
+                    if (_config.Handshake.Msg7IncludeWelcome)
+                        bundle.Add(BuildWelcomeFrame());
+
+                    bundle.Add(Messages.WorldDataPacket(BuildWorld()));
+
+                    _log.Info("bundle.msg3_msg7",
+                        ("conn", _id),
+                        ("frames", bundle.Count),
+                        ("withWelcome", _config.Handshake.Msg7IncludeWelcome),
+                        ("note", "消息 3 与 7 在同一次 write 里发出"));
+                }
+                else
+                {
+                    bundle.Add(BuildWelcomeFrame());
+                }
+
+                await SendBundleAsync(stream, bundle, cancellationToken);
                 break;
             }
 
@@ -287,20 +308,58 @@ internal sealed class Session
         };
     }
 
-    private async Task SendWelcomeAsync(NetworkStream stream, CancellationToken cancellationToken)
+    private byte[] BuildWelcomeFrame()
     {
         byte rules = (byte)(_config.Rules.AllowCheats ? 1 : 0);
         string hex = _config.Handshake.WelcomeHex;
 
-        byte[] frame = string.IsNullOrWhiteSpace(hex)
+        return string.IsNullOrWhiteSpace(hex)
             ? Messages.WelcomePacket(rules)
             : Codec.Frame(MessageId.NetModules, ParseHex(hex));
+    }
 
+    private async Task SendWelcomeAsync(NetworkStream stream, CancellationToken cancellationToken)
+    {
+        byte[] frame = BuildWelcomeFrame();
         await SendAsync(stream, frame, cancellationToken);
-        _log.Info("welcome.sent",
-            ("conn", _id),
-            ("rules", rules),
-            ("payload", Codec.Hex(frame.AsSpan(3), 16)));
+        _log.Info("welcome.sent", ("conn", _id), ("payload", Codec.Hex(frame.AsSpan(3), 16)));
+    }
+
+    /// <summary>把多个帧拼进同一个缓冲区、一次 write 发出。</summary>
+    private async Task SendBundleAsync(NetworkStream stream, List<byte[]> frames, CancellationToken cancellationToken)
+    {
+        int total = 0;
+        foreach (byte[] frame in frames)
+            total += frame.Length;
+
+        byte[] buffer = new byte[total];
+        int offset = 0;
+        foreach (byte[] frame in frames)
+        {
+            frame.CopyTo(buffer, offset);
+            offset += frame.Length;
+        }
+
+        if (_suppressOutbound)
+        {
+            _log.Warn("frame.send.suppressed", ("conn", _id), ("frames", frames.Count), ("len", total));
+            return;
+        }
+
+        await stream.WriteAsync(buffer.AsMemory(), cancellationToken);
+        _capture?.ToClient(buffer);
+
+        foreach (byte[] frame in frames)
+        {
+            _log.Info("frame.send",
+                ("conn", _id),
+                ("id", frame[2]),
+                ("name", Messages.Name(frame[2])),
+                ("len", frame.Length),
+                ("hex", Codec.Hex(frame.AsSpan(3), 24)));
+        }
+
+        _log.Info("frame.bundle", ("conn", _id), ("frames", frames.Count), ("bytes", total), ("note", "同一次 write"));
     }
 
     /// <summary>消息 3 的负载：MSG3_HEX 优先，否则按 layout/specialFlag 生成。</summary>

@@ -133,6 +133,32 @@ jobs:
           python3 tools/fake_client.py 127.0.0.1 17782 flags0
           docker rm -f panel-v3
 
+      - name: Bundle — 消息3 + 欢迎 + 7（同一次 write）
+        run: |
+          docker run -d --name panel-b7 --restart=no \
+            -e SEND_MSG7_AFTER_3=true -e MSG7_INCLUDE_WELCOME=true -e MSG3_VARIANT=flags1 \
+            -p 17785:7777 -v "$PWD/server/dist:/app" -w /app \
+            mcr.microsoft.com/dotnet/runtime:8.0 \
+            dotnet BunnyLoader.Server.dll --port 7777
+          for i in $(seq 1 30); do
+            docker logs panel-b7 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
+          done
+          python3 tools/fake_client.py 127.0.0.1 17785 msg7
+          docker rm -f panel-b7
+
+      - name: Bundle — 消息3 + 7（无欢迎，用于对照）
+        run: |
+          docker run -d --name panel-b7o --restart=no \
+            -e SEND_MSG7_AFTER_3=true -e MSG7_INCLUDE_WELCOME=false -e MSG3_VARIANT=flags1 \
+            -p 17786:7777 -v "$PWD/server/dist:/app" -w /app \
+            mcr.microsoft.com/dotnet/runtime:8.0 \
+            dotnet BunnyLoader.Server.dll --port 7777
+          for i in $(seq 1 30); do
+            docker logs panel-b7o 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1
+          done
+          python3 tools/fake_client.py 127.0.0.1 17786 msg7only
+          docker rm -f panel-b7o
+
       - name: Candidates rotation — MSG3_CANDIDATES=auto（第1次应为槽位 0）
         run: |
           docker run -d --name panel-cand --restart=no \

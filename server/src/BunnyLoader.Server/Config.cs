@@ -160,6 +160,20 @@ public sealed class ServerConfig
             EnvNotes.Add($"SKIP_APPROVED={Handshake.SkipApproved}");
         }
 
+        string? sendMsg7 = Env("SEND_MSG7_AFTER_3");
+        if (!string.IsNullOrWhiteSpace(sendMsg7))
+        {
+            Handshake.SendMsg7After3 = ParseBool(sendMsg7, "SEND_MSG7_AFTER_3");
+            EnvNotes.Add($"SEND_MSG7_AFTER_3={Handshake.SendMsg7After3}");
+        }
+
+        string? msg7Welcome = Env("MSG7_INCLUDE_WELCOME");
+        if (!string.IsNullOrWhiteSpace(msg7Welcome))
+        {
+            Handshake.Msg7IncludeWelcome = ParseBool(msg7Welcome, "MSG7_INCLUDE_WELCOME");
+            EnvNotes.Add($"MSG7_INCLUDE_WELCOME={Handshake.Msg7IncludeWelcome}");
+        }
+
         string? welcomeHex = Env("WELCOME_HEX");
         if (!string.IsNullOrWhiteSpace(welcomeHex))
         {
@@ -443,4 +457,19 @@ public sealed class HandshakeSection
     /// <summary>控制组：为 true 时连接建立后什么都不发（连消息 3 也不发）。</summary>
     [JsonPropertyName("skipApproved")]
     public bool SkipApproved { get; set; }
+
+    /// <summary>
+    /// 为 true 时，在消息 3 之后**同一次写入里**紧接着发消息 7（世界头），
+    /// 用于验证「客户端处理完 3 之后立刻需要 7」这个假设。
+    /// </summary>
+    [JsonPropertyName("sendMsg7After3")]
+    public bool SendMsg7After3 { get; set; }
+
+    /// <summary>
+    /// SEND_MSG7_AFTER_3 时是否先补欢迎包（默认 true）。
+    /// 必须为 true：BL 客户端收到「无欢迎包的消息 7」会主动自踢并显示
+    /// "只能与柠版互通"，那会被误当成崩溃。（ModNet.cpp:249-253）
+    /// </summary>
+    [JsonPropertyName("msg7IncludeWelcome")]
+    public bool Msg7IncludeWelcome { get; set; } = true;
 }

@@ -209,6 +209,66 @@ sh -c 'MSG3_CANDIDATES=00,0000,0001 sh start.sh'
 sh -c 'SKIP_APPROVED=true sh start.sh'
 ```
 
+## 6.7 消息 3 + 7 同帧测试（本轮）
+
+长度与槽位假设已被排除，改用「3 之后立刻给世界头」这条假设：
+
+```bash
+sh -c 'SEND_MSG7_AFTER_3=true sh start.sh'
+```
+
+消息 3、欢迎包、消息 7 会被拼进**同一个 TCP write**发出（日志里有 `frame.bundle`）。
+
+> ⚠ 必须保留欢迎包。BL 客户端收到**没有欢迎包的消息 7** 会主动自踢，
+> 并显示"只能与柠版互通"（`ModNet.cpp:249-253`）——那和崩溃长得一样，
+> 会被误判。所以默认 `MSG7_INCLUDE_WELCOME=true`。
+
+想做「只有 3+7、不带欢迎」的对照（**预期客户端会自踢**）：
+
+```bash
+sh -c 'SEND_MSG7_AFTER_3=true MSG7_INCLUDE_WELCOME=false sh start.sh'
+```
+
+| 这次的结果 | 含义 |
+|---|---|
+| 3+欢迎+7 后客户端回 `id:4` / `id:68` | ✅ 假设成立：处理完 3 需要世界头 |
+| 仍然 60ms `eof` | ❌ 不是世界头缺失 |
+| 只有 `MSG7_INCLUDE_WELCOME=false` 时出现"只能与柠版互通" | ✅ 说明**欢迎包机制本身是对的**，对照实验有效 |
+
+## 6.8 拿客户端异常（下一步的关键）
+
+如果 3+7 仍崩，需要手机端的异常信息。三种取法，任选其一：
+
+**A. 游戏内错误面板（最省事，不用电脑）**
+
+BL 设置里打开「详细日志」和「在游戏内显示错误」，复现一次连接，
+游戏里会弹出错误面板——把面板上的文字（尤其 `Exception` 那几行）发我。
+
+**B. 有电脑时用 logcat**
+
+```bash
+adb logcat -c
+# 手机上点一次连接
+adb logcat -d > bl-log.txt
+```
+
+然后把 `bl-log.txt` 里含 `BunnyLoader` / `Terraria` / `Exception` / `AndroidRuntime` 的行发我。
+
+**C. BL 的日志文件**
+
+BL 设置里的详细日志会把日志写到文件，用面板/文件管理器导出即可。
+
+我要找的是这类字样：
+
+```
+EndOfStreamException
+IndexOutOfRangeException
+NullReferenceException
+MessageBuffer.GetData
+```
+
+`EndOfStream` → 客户端读得比我们写得多；`NullReference` → 某个静态变量没初始化（通常是世界/玩家对象）。
+
 ## 7. 回传什么
 
 1. **控制台日志全文**（从 `server.start` 到最后一行）。
