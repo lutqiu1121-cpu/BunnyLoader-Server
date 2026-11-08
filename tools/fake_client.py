@@ -218,7 +218,7 @@ def main(host: str, port: int, variant: str = "flags1") -> int:
             sock.settimeout(5)
             data = recv_exact(sock, 21)
             check("收到 21 字节 proof（无换行）", data == b"NingLauncher/1/server", data)
-            sock.sendall(b"NingLauncher/1/client")
+            # 服务端不再等回执，客户端也不回（与真实抓包一致）
             sock.settimeout(10)
 
         elif variant in ("proof", "proofworld", "proofframe", "proofmodule", "prooftext"):
@@ -243,7 +243,6 @@ def main(host: str, port: int, variant: str = "flags1") -> int:
             sock.settimeout(5)
             data = recv_exact(sock, len(PCAP_PROOF))
             check("Hello 之后收到 proof（同 PCAP 样本）", data == PCAP_PROOF, data.hex())
-            sock.sendall(bytes.fromhex("1b00527fb101") + b"NingLauncher/1/client")
             sock.settimeout(10)
 
         ident, payload = recv_frame(sock)
