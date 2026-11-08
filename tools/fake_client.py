@@ -65,11 +65,11 @@ def check_welcome(ident: int, payload: bytes, label: str) -> None:
     check(f"{label}: 长度 4（含 rules）", len(payload) == 4, len(payload))
 
 
-def world_flow(sock: socket.socket) -> int:
+def world_flow(sock: socket.socket, req_x: int = 2100, req_y: int = 349, min_x: int | None = None) -> int:
     """R3：发 8（SpawnTileData），期望 7 / 9 / 10×N / 49。"""
     import struct as _struct
 
-    sock.sendall(frame(8, _struct.pack("<iiB", 2100, 349, 0)))
+    sock.sendall(frame(8, _struct.pack("<iiB", req_x, req_y, 0)))
     got7 = got9 = sections = 0
     started = False
     first = None
@@ -94,6 +94,9 @@ def world_flow(sock: socket.socket) -> int:
     check("首个分块头 = 200x150",
           bool(first) and first["width"] == 200 and first["height"] == 150, first)
     check("收到 id=49 开始游戏", started, started)
+    if min_x is not None:
+        check(f"分块没发到世界左上角（xStart >= {min_x}）",
+              bool(first) and first["xStart"] >= min_x, first)
     if first:
         print(f"        首个分块 xStart={first['xStart']} yStart={first['yStart']} "
               f"raw={first['rawLen']} bytes, 共 {sections} 块")
@@ -119,6 +122,7 @@ def main(host: str, port: int, variant: str = "flags") -> int:
             "msg7": b"\x01\x01",     # 3 之后跟 欢迎包 + 7
             "msg7only": b"\x01\x01", # 3 之后直接跟 7
             "world": b"\x01\x01",     # 完整进世界流程
+            "worldneg": b"\x01\x01",  # 客户端发 (-1,-1) 时应回退到出生点
         }.get(variant) or (
             bytes.fromhex(variant[4:].replace(" ", "")) if variant.startswith("hex:") else None
         )
@@ -190,6 +194,9 @@ def main(host: str, port: int, variant: str = "flags") -> int:
 
         if variant == "world":
             return world_flow(sock)
+
+        if variant == "worldneg":
+            return world_flow(sock, -1, -1, 1000)
     finally:
         sock.close()
 
@@ -208,7 +215,7 @@ if __name__ == "__main__":
     host = sys.argv[1]
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 7777
     variant = sys.argv[3] if len(sys.argv) > 3 else "flags1"
-    allowed = ("flags1", "flags0", "flags", "slot", "silent", "msg7", "msg7only", "world")
+    allowed = ("flags1", "flags0", "flags", "slot", "silent", "msg7", "msg7only", "world", "worldneg")
     if variant not in allowed and not variant.startswith("hex:"):
         print("第三个参数只能是 " + " / ".join(allowed) + " / hex:XXXX")
         sys.exit(2)

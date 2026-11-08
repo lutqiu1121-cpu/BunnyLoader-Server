@@ -279,6 +279,10 @@ public sealed class ServerConfig
         if (World.SpawnTileY < 0 || World.SpawnTileY > World.MaxTilesY)
             throw new InvalidDataException($"world.spawnTileY 越界，当前 {World.SpawnTileY}");
 
+        // 出生点若在地表以上，玩家会悬空下坠。贴到地表上一格（站着而不是埋进地里）。
+        if (World.SpawnTileY < World.WorldSurface)
+            World.SpawnTileY = (short)(World.WorldSurface - 1);
+
         string variant = Handshake.Layout.Trim().ToLowerInvariant();
         if (variant is not ("flags" or "slot"))
             throw new InvalidDataException($"handshake.layout 只能是 flags / slot，当前: {Handshake.Layout}");
@@ -369,7 +373,7 @@ public sealed class WorldSection
     public short SpawnTileX { get; set; } = 2100;
 
     [JsonPropertyName("spawnTileY")]
-    public short SpawnTileY { get; set; } = 300;
+    public short SpawnTileY { get; set; } = 349;
 
     [JsonPropertyName("worldSurface")]
     public short WorldSurface { get; set; } = 350;

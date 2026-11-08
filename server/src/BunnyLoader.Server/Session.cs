@@ -41,6 +41,11 @@ internal sealed class Session
     private readonly JsonLogger _log;
     private readonly CaptureWriter? _capture;
     private bool _suppressOutbound;
+    private bool _spawnCorrected;
+    private bool _finishedSent;
+    private int _lastSectionX = int.MinValue;
+    private int _lastSectionY = int.MinValue;
+    private DateTime _lastSectionAt = DateTime.MinValue;
 
     public Session(TcpClient client, string id, int sequence, ServerConfig config, JsonLogger log, CaptureWriter? capture)
     {
@@ -234,7 +239,33 @@ internal sealed class Session
                     reqY = BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(4, 4));
                 }
 
+                short spawnX = _config.World.SpawnTileX;
+                short spawnY = _config.World.SpawnTileY;
+                bool outOfRange = reqX < 0 || reqY < 0
+                    || reqX >= _config.World.MaxTilesX || reqY >= _config.World.MaxTilesY;
+
+                if (outOfRange)
+                {
+                    // 客户端在知道自己位置之前会发 (-1,-1)。按它算会把分块发到世界左上角，
+                    // 玩家脚下就没有方块。这里一律回退到服务端出生点。
+                    _log.Warn("spawn.fallback", ("conn", _id), ("requested", $"{reqX},{reqY}"), ("using", $"{spawnX},{spawnY}"));
+                    reqX = spawnX;
+                    reqY = spawnY;
+                }
+
                 _log.Info("spawn.request", ("conn", _id), ("x", reqX), ("y", reqY));
+
+                // 同一个坐标 1.5 秒内只发一次，避免客户端下坠时刷屏
+                DateTime now = DateTime.UtcNow;
+                if (reqX == _lastSectionX && reqY == _lastSectionY
+                    && (now - _lastSectionAt).TotalMilliseconds < 1500)
+                {
+                    _log.Info("sections.skipped", ("conn", _id), ("x", reqX), ("y", reqY));
+                    break;
+                }
+                _lastSectionX = reqX;
+                _lastSectionY = reqY;
+                _lastSectionAt = now;
 
                 var frames = new List<byte[]>
                 {
@@ -263,13 +294,42 @@ internal sealed class Session
 
             case MessageId.PlayerSpawn:
             {
-                _log.Info("player.spawn", ("conn", _id), ("len", payload.Length));
-                await SendBundleAsync(stream, new List<byte[]>
+                short px = -1, py = -1;
+                if (payload.Length >= 5)
                 {
-                    Messages.PlayerSpawnPacket(PlayerSlot, _config.World.SpawnTileX, _config.World.SpawnTileY),
-                    Messages.FinishedConnectingPacket(),
-                }, cancellationToken);
-                _log.Info("world.entered", ("conn", _id));
+                    px = BinaryPrimitives.ReadInt16LittleEndian(payload.AsSpan(1, 2));
+                    py = BinaryPrimitives.ReadInt16LittleEndian(payload.AsSpan(3, 2));
+                }
+
+                bool invalid = px < 0 || py < 0
+                    || px >= _config.World.MaxTilesX || py >= _config.World.MaxTilesY;
+
+                _log.Info("player.spawn", ("conn", _id), ("x", px), ("y", py), ("valid", !invalid));
+
+                // 只在坐标无效时纠正一次；否则会和客户端形成 12 <-> 12 的乒乓循环。
+                if (invalid && !_spawnCorrected)
+                {
+                    _spawnCorrected = true;
+                    await SendBundleAsync(stream, new List<byte[]>
+                    {
+                        Messages.PlayerSpawnPacket(PlayerSlot, _config.World.SpawnTileX, _config.World.SpawnTileY),
+                        Messages.FinishedConnectingPacket(),
+                    }, cancellationToken);
+                    _log.Info("spawn.corrected",
+                        ("conn", _id),
+                        ("x", _config.World.SpawnTileX),
+                        ("y", _config.World.SpawnTileY));
+                }
+                else if (!invalid && !_finishedSent)
+                {
+                    _finishedSent = true;
+                    await SendAsync(stream, Messages.FinishedConnectingPacket(), cancellationToken);
+                    _log.Info("world.entered", ("conn", _id), ("x", px), ("y", py));
+                }
+                else
+                {
+                    _log.Info("player.spawn.ignored", ("conn", _id));
+                }
                 break;
             }
 
