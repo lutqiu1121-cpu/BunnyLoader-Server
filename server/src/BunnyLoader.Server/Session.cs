@@ -448,12 +448,14 @@ internal sealed class Session
             case MessageId.RequestWorldData:
             {
                 WorldData world = BuildWorld();
-                await SendAsync(stream, Messages.WorldDataPacket(world), cancellationToken);
                 _log.Info("world.sent",
                     ("conn", _id),
                     ("name", world.WorldName),
                     ("size", $"{world.MaxTilesX}x{world.MaxTilesY}"),
                     ("spawn", $"{world.SpawnTileX},{world.SpawnTileY}"));
+
+                // 客户端主动要世界：7 + 9 + 分块（此时不发 49，等它发 8）
+                await SendWorldBundleAsync(stream, WorldSpawnX, WorldSpawnY, cancellationToken, includeStart: false);
                 break;
             }
 
