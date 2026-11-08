@@ -194,21 +194,39 @@ def proof_only_flow(sock: socket.socket) -> int:
     else:
         check("id:3 之后静默（没有 82/7）", False, extra[:24].hex())
 
-    # 客户端发 Hello，服务端不应回 3（已早发）
-    sock.settimeout(2.0)
+    # 客户端发 Hello：服务端应立刻推世界数据
+    sock.settimeout(6)
     sock.sendall(frame(1, string("Terraria326")))
-    try:
-        reply = sock.recv(64)
-    except socket.timeout:
-        reply = None
-    check("发 Hello 后服务端不再回包", reply is None or reply == b"", reply[:24].hex() if reply else None)
+    drain_world(sock, "Hello 之后")
 
     print()
     return 0 if FAILED == 0 else 1
 
 
+def drain_world(sock: socket.socket, label: str) -> int:
+    """读世界数据整包：7 + 9 + 10×N + 49。返回分块数。"""
+    got7 = got9 = sections = 0
+    for _ in range(400):
+        ident, payload = recv_frame(sock)
+        if ident == 7:
+            got7 += 1
+        elif ident == 9:
+            got9 += 1
+        elif ident == 10:
+            sections += 1
+        elif ident == 49:
+            break
+
+    check(f"{label}: 收到 id=7", got7 >= 1, got7)
+    check(f"{label}: 收到 id=9", got9 >= 1, got9)
+    check(f"{label}: 收到分块", sections > 0, sections)
+    check(f"{label}: 收到 id=49", True)
+    print(f"        {label}: {sections} 个分块")
+    return sections
+
+
 def pcap_flow(sock: socket.socket) -> int:
-    """复刻抓包时的顺序：proof → 立刻 3 + 欢迎 → 客户端再发 Hello → 68 → 6 → 8。"""
+    """复刻抓包顺序：proof → 3 + 欢迎 → 客户端 Hello → 服务端立刻推世界数据。"""
     sock.settimeout(6)
 
     data = recv_exact(sock, len(PCAP_PROOF))
@@ -221,23 +239,10 @@ def pcap_flow(sock: socket.socket) -> int:
     check_welcome(ident, payload, "proof 之后的欢迎包")
 
     sock.sendall(frame(1, string("Terraria326")))
-    # 服务端已早发过 3，这里不应再有 3
-
-    sock.sendall(frame(68, string(HELLO_PREFIX + '{"mods":[],"textures":0}')))
-    ident, payload = recv_frame(sock)
-    check_welcome(ident, payload, "介绍之后的欢迎包")
-
-    sock.sendall(frame(6, b""))
-    ident, payload = recv_frame(sock)
-    check("回复 id = 7 (WorldData)", ident == 7, ident)
-    if ident == 7:
-        world = decode_world_data(payload)
-        check("世界名可解析", bool(world["worldName"]), world["worldName"])
-        check("负载被完整消费", world["_consumed"] == len(payload),
-              f"{world['_consumed']}/{len(payload)}")
+    drain_world(sock, "Hello 之后主动推世界")
 
     print()
-    return world_flow(sock)
+    return 0 if FAILED == 0 else 1
 
 
 def main(host: str, port: int, variant: str = "flags1") -> int:

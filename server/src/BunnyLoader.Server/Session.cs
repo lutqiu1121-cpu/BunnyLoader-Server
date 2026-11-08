@@ -47,6 +47,7 @@ internal sealed class Session
     private bool _spawnCorrected;
     private bool _proofDone;
     private bool _approvedEarly;
+    private bool _startPlayingSent;
     private bool _finishedSent;
     private int _lastSectionX = int.MinValue;
     private int _lastSectionY = int.MinValue;
@@ -446,6 +447,8 @@ internal sealed class Session
                         ("conn", _id),
                         ("version", version),
                         ("note", "3 已在 proof 之后发过，不重复"));
+
+                    await SendWorldOnHelloAsync(stream, cancellationToken);
                     break;
                 }
                 (string layout, bool specialFlag) = PickMsg3Variant();
@@ -520,6 +523,7 @@ internal sealed class Session
                 }
 
                 await SendBundleAsync(stream, bundle, cancellationToken);
+                await SendWorldOnHelloAsync(stream, cancellationToken);
                 break;
             }
 
@@ -567,8 +571,6 @@ internal sealed class Session
 
                 if (outOfRange)
                 {
-                    // 客户端在知道自己位置之前会发 (-1,-1)。按它算会把分块发到世界左上角，
-                    // 玩家脚下就没有方块。这里一律回退到服务端出生点。
                     _log.Warn("spawn.fallback", ("conn", _id), ("requested", $"{reqX},{reqY}"), ("using", $"{spawnX},{spawnY}"));
                     reqX = spawnX;
                     reqY = spawnY;
@@ -576,7 +578,6 @@ internal sealed class Session
 
                 _log.Info("spawn.request", ("conn", _id), ("x", reqX), ("y", reqY));
 
-                // 同一个坐标 1.5 秒内只发一次，避免客户端下坠时刷屏
                 DateTime now = DateTime.UtcNow;
                 if (reqX == _lastSectionX && reqY == _lastSectionY
                     && (now - _lastSectionAt).TotalMilliseconds < 1500)
@@ -588,28 +589,7 @@ internal sealed class Session
                 _lastSectionY = reqY;
                 _lastSectionAt = now;
 
-                var frames = new List<byte[]>
-                {
-                    Messages.WorldDataPacket(BuildWorld()),          // 7：按规范再发一次
-                    Messages.StatusTextPacket(0, "Bunny Loader", 0), // 9：加载界面状态文本
-                };
-
-                int sections = 0;
-                foreach ((int sx, int sy) in SectionBlock(reqX, reqY))
-                {
-                    byte[] compressed = TileSection.Encode(sx, sy, GetTile, IsFrameImportant);
-                    frames.Add(Messages.TileSectionPacket(compressed));
-                    sections++;
-                }
-
-                frames.Add(Messages.StartPlayingPacket());            // 49：可以开始了
-                await SendBundleAsync(stream, frames, cancellationToken);
-
-                _log.Info("world.sections",
-                    ("conn", _id),
-                    ("sections", sections),
-                    ("frames", frames.Count),
-                    ("bytes", frames.Sum(f => f.Length)));
+                await SendWorldBundleAsync(stream, reqX, reqY, cancellationToken);
                 break;
             }
 
@@ -888,6 +868,57 @@ internal sealed class Session
                 yield return (sx, sy);
             }
         }
+    }
+
+    /// <summary>
+    /// 把世界数据整包发出去：7（世界头）+ 9（状态文本）+ 10×N（分块）+ 49（可以开始）。
+    /// 49 只发一次。
+    /// </summary>
+    /// <summary>收到 id:1 之后按配置主动发世界数据。</summary>
+    private async Task SendWorldOnHelloAsync(NetworkStream stream, CancellationToken cancellationToken)
+    {
+        string mode = _config.Handshake.WorldOnHello;
+        if (mode == "off")
+        {
+            _log.Info("world.on-hello-skipped", ("conn", _id), ("mode", mode));
+            return;
+        }
+
+        _log.Info("world.on-hello", ("conn", _id), ("mode", mode));
+        await SendWorldBundleAsync(stream, WorldSpawnX, WorldSpawnY, cancellationToken, headerOnly: mode == "header");
+    }
+
+    private async Task SendWorldBundleAsync(NetworkStream stream, int centerX, int centerY,
+                                            CancellationToken cancellationToken, bool headerOnly = false)
+    {
+        var frames = new List<byte[]> { Messages.WorldDataPacket(BuildWorld()) };
+
+        int sections = 0;
+        if (!headerOnly)
+        {
+            frames.Add(Messages.StatusTextPacket(0, "Bunny Loader", 0));
+
+            foreach ((int sx, int sy) in SectionBlock(centerX, centerY))
+            {
+                frames.Add(Messages.TileSectionPacket(TileSection.Encode(sx, sy, GetTile, IsFrameImportant)));
+                sections++;
+            }
+
+            if (!_startPlayingSent)
+            {
+                frames.Add(Messages.StartPlayingPacket());
+                _startPlayingSent = true;
+            }
+        }
+
+        await SendBundleAsync(stream, frames, cancellationToken);
+
+        _log.Info("world.sections",
+            ("conn", _id),
+            ("center", $"{centerX},{centerY}"),
+            ("sections", sections),
+            ("frames", frames.Count),
+            ("bytes", frames.Sum(f => f.Length)));
     }
 
     private WorldData BuildWorld()

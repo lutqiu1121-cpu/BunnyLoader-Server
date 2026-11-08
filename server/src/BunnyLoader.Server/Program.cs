@@ -411,5 +411,6 @@ public static class Program
         Console.WriteLine("  PROOF_SWEEP          true=每次连接自动换一种 proof 组合（日志 proof.variant）");
         Console.WriteLine("  PROOF_WAIT_REPLY     true=发完 proof 等回执（默认 false：立刻发 id:3）");
         Console.WriteLine("  NO_WELCOME           true=完全不发欢迎包 82/200（隔离测试）");
+        Console.WriteLine("  WORLD_ON_HELLO       full（默认）=收到 Hello 就推 7+9+分块+49");
     }
 }
