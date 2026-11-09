@@ -528,6 +528,9 @@ internal sealed class Session : ISessionTicker
                         ("y", WorldSpawnY),
                         ("note", "分块发完后发 id:12"));
                 }
+
+                // 关键：客户端要收到 129 才结束加载、解锁摇杆
+                await EnsureFinishedAsync(stream, cancellationToken);
                 break;
             }
 
@@ -551,8 +554,14 @@ internal sealed class Session : ISessionTicker
                     reqX = spawnX;
                     reqY = spawnY;
 
-                    // 客户端还在 (-1,-1)：整张初始区域再砸一遍
-                    await SendFullAreaAsync(stream, spawnX, spawnY, cancellationToken, force: true);
+                    // 客户端还在 (-1,-1)：补发 12 + 129，不重发区块
+                    await SendAsync(stream,
+                        Messages.PlayerSpawnPacket(PlayerSlot, (short)spawnX, (short)spawnY),
+                        cancellationToken);
+
+                    _log.Info("spawn.resent", ("conn", _id), ("x", spawnX), ("y", spawnY));
+
+                    await EnsureFinishedAsync(stream, cancellationToken);
                 }
 
                 _log.Info("spawn.request", ("conn", _id), ("x", reqX), ("y", reqY));
@@ -934,6 +943,18 @@ internal sealed class Session : ISessionTicker
             ("skipped", skipped),
             ("force", force),
             ("total", _chunks.SentCount));
+    }
+
+    /// <summary>发一次 id:129（FinishedConnecting）；只发一次。</summary>
+    private async Task EnsureFinishedAsync(NetworkStream stream, CancellationToken cancellationToken)
+    {
+        if (_finishedSent)
+            return;
+
+        _finishedSent = true;
+        await SendAsync(stream, Messages.FinishedConnectingPacket(), cancellationToken);
+
+        _log.Info("finished.sent", ("conn", _id), ("note", "客户端收到后结束加载、解锁摇杆"));
     }
 
     /// <summary>发一次 id:49（开始游戏）；只发一次。</summary>

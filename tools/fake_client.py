@@ -322,10 +322,10 @@ def pcap_flow(sock: socket.socket) -> int:
     check("分块数 >= 40", sections >= 40, sections)
     check("收到 id=49", 49 in ids, ids[:20])
     check("收到 id=12", 12 in ids, ids[:20])
-    if 49 in ids and 12 in ids:
-        check("49 在最后一块之后、12 之前",
-              ids.index(49) >= len([i for i in ids if i == 10]) - 1 and ids.index(12) > ids.index(49),
-              ids[:24])
+    check("收到 id=129", 129 in ids, ids[:24])
+    if 49 in ids and 12 in ids and 129 in ids:
+        check("顺序 49 -> 12 -> 129",
+              ids.index(49) < ids.index(12) < ids.index(129), ids[:24])
     print(f"        序列: 分块={sections} ids={ids[:12]}…")
 
     # R5：控制包只更新内存（节流广播），不再无脑回显
