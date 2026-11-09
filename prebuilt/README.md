@@ -7,7 +7,7 @@
 
 - 构建方式：Docker 里 `dotnet publish -c Release`（框架依赖，面板自带 .NET 8 即可）
 - 重新构建：`./server/build-panel.sh`
-- SHA-256（本目录这一份）：`74dca0e21009ff8a648fbc49d07f15750b89d314691f29213569a21704c4f17e`
+- SHA-256（本目录这一份）：`2b30cf17e85b388ce4f88b92b1b4b4ba7007669e51e852648ffe8ccc95e459f9`
 - 部署说明：[../docs/panel-deploy.md](../docs/panel-deploy.md)
 
 ## 包内文件
