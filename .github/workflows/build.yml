@@ -236,6 +236,7 @@ jobs:
           docker logs panel-wld | head -5
           python3 tools/fake_client.py 127.0.0.1 17789 world
           docker logs panel-wld | grep -E 'world.loaded|spawn.fallback|world.sections' | head -5
+          docker logs panel-wld | grep -E 'chunks\.|frame.recv|frame.send' | head -30
           docker rm -f panel-wld
 
       - name: World — 平坦世界分块（8 -> 7/9/10×N/49）
