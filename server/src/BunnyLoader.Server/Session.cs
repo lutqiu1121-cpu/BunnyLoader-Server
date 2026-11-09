@@ -75,7 +75,7 @@ internal sealed class Session : ISessionTicker
         _log = log;
         _capture = capture;
 
-        _player = new PlayerState { Slot = 0, TileX = 0, TileY = 0 };
+        _player = new PlayerState { Slot = 0, TileX = WorldSpawnX, TileY = WorldSpawnY };
         _wld = worldFile;
     }
 
@@ -917,6 +917,10 @@ internal sealed class Session : ISessionTicker
         // _world.Update(nowMs);
 
         if (!_worldReady || _stream is null || _suppressOutbound)
+            return;
+
+        // 客户端还没上报过任何位置时，不要以 (0,0) 为中心乱发
+        if (_player.LastSeenMs <= 0)
             return;
 
         // 5Hz 检查一次窗口，避免每帧都算
