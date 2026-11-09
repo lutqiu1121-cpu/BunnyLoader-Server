@@ -56,6 +56,9 @@ internal sealed class Session : ISessionTicker
     private long _lastSendMs;
     private long _lastWindowCheckMs;
     private int _controlsReceived;
+    private int _chunksNoneCount;
+    private int _chunksNoneX = int.MinValue;
+    private int _chunksNoneY = int.MinValue;
     private bool _suppressOutbound;
     private bool _spawnCorrected;
     private bool _proofDone;
@@ -505,6 +508,17 @@ internal sealed class Session : ISessionTicker
                 }, cancellationToken);
 
                 await SendWindowAsync(stream, WorldSpawnX, WorldSpawnY, cancellationToken);
+
+                // 主动告诉客户端「你的角色出生在这里」，否则它一直发 (-1,-1)
+                await SendAsync(stream,
+                    Messages.PlayerSpawnPacket(PlayerSlot, (short)WorldSpawnX, (short)WorldSpawnY),
+                    cancellationToken);
+
+                _log.Info("spawn.proactive",
+                    ("conn", _id),
+                    ("x", WorldSpawnX),
+                    ("y", WorldSpawnY),
+                    ("note", "世界数据发完后主动发 id:12"));
                 break;
             }
 
@@ -527,6 +541,17 @@ internal sealed class Session : ISessionTicker
                     _log.Warn("spawn.fallback", ("conn", _id), ("requested", $"{reqX},{reqY}"), ("using", $"{spawnX},{spawnY}"));
                     reqX = spawnX;
                     reqY = spawnY;
+
+                    // 客户端还不知道自己在哪：补发 id:12 打破「-1,-1 死循环」
+                    await SendAsync(stream,
+                        Messages.PlayerSpawnPacket(PlayerSlot, (short)spawnX, (short)spawnY),
+                        cancellationToken);
+
+                    _log.Info("spawn.resent",
+                        ("conn", _id),
+                        ("x", spawnX),
+                        ("y", spawnY),
+                        ("note", "客户端请求 (-1,-1)，补发 id:12"));
                 }
 
                 _log.Info("spawn.request", ("conn", _id), ("x", reqX), ("y", reqY));
@@ -859,7 +884,22 @@ internal sealed class Session : ISessionTicker
 
         if (frames.Count == 0)
         {
-            _log.Info("chunks.none", ("conn", _id), ("x", tileX), ("y", tileY), ("sent", _chunks.SentCount), ("skipped", skipped));
+            _chunksNoneCount++;
+
+            bool samePlace = tileX == _chunksNoneX && tileY == _chunksNoneY;
+            if (!samePlace || _chunksNoneCount % 50 == 0)
+            {
+                _chunksNoneX = tileX;
+                _chunksNoneY = tileY;
+                _log.Info("chunks.none",
+                    ("conn", _id),
+                    ("x", tileX),
+                    ("y", tileY),
+                    ("sent", _chunks.SentCount),
+                    ("count", _chunksNoneCount),
+                    ("note", "窗口都已发送过，跳过"));
+            }
+
             return;
         }
 
