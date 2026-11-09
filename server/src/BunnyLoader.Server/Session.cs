@@ -75,8 +75,10 @@ internal sealed class Session : ISessionTicker
         _log = log;
         _capture = capture;
 
-        _player = new PlayerState { Slot = 0, TileX = WorldSpawnX, TileY = WorldSpawnY };
         _wld = worldFile;
+
+        // 注意：这里不能用 WorldSpawnX 初始化——_wld 刚赋值，SafeSpawn 要延迟到真正需要时再算。
+        _player = new PlayerState { Slot = 0 };
     }
 
     public async Task RunAsync(CancellationToken cancellationToken)
