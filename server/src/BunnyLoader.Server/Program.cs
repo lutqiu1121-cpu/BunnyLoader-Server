@@ -197,6 +197,7 @@ public static class Program
                 ("proofMessageId", config.Proof.MessageId),
                 ("proofSweep", config.Proof.Sweep),
                 ("proofWaitReply", config.Proof.WaitReply),
+                ("echoControls", config.R5.EchoControls),
                 ("proofServerLine", config.Proof.ServerLine),
                 ("skipApproved", config.Handshake.SkipApproved),
                 ("sendMsg7After3", config.Handshake.SendMsg7After3),

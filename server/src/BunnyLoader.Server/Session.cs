@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Text;
 using System.Net.Sockets;
 using BunnyLoader.Server.Protocol;
@@ -43,6 +44,18 @@ internal sealed class Session
     private readonly JsonLogger _log;
     private readonly CaptureWriter? _capture;
     private readonly WldWorld? _wld;
+
+    private readonly SemaphoreSlim _sendGate = new(1, 1);
+    private readonly Stopwatch _clock = Stopwatch.StartNew();
+    private readonly ChunkManager _chunks = new();
+    private readonly PlayerState _player;
+
+    private NetworkStream? _stream;
+    private TickEngine? _tick;
+    private bool _worldReady;
+    private long _lastSendMs;
+    private long _lastWindowCheckMs;
+    private int _controlsReceived;
     private bool _suppressOutbound;
     private bool _spawnCorrected;
     private bool _proofDone;
@@ -61,6 +74,8 @@ internal sealed class Session
         _config = config;
         _log = log;
         _capture = capture;
+
+        _player = new PlayerState { Slot = 0, TileX = 0, TileY = 0 };
         _wld = worldFile;
     }
 
@@ -78,9 +93,13 @@ internal sealed class Session
         try
         {
             using NetworkStream stream = _client.GetStream();
+            _stream = stream;
 
             // 纯文本 proof 握手（二开版 "protocol 1"）。必须在帧协议之前。
             await ProveAsync(stream, inbox, cancellationToken);
+
+            _tick = new TickEngine(this, _log);
+            _tick.Start();
 
             // proof 阶段可能已经把第一批帧一起读进来了，先处理掉。
             if (inbox.Count > 0)
@@ -124,6 +143,9 @@ internal sealed class Session
         }
         finally
         {
+            if (_tick is not null)
+                await _tick.StopAsync();
+
             _client.Dispose();
         }
     }
@@ -472,8 +494,15 @@ internal sealed class Session
                     ("size", $"{world.MaxTilesX}x{world.MaxTilesY}"),
                     ("spawn", $"{world.SpawnTileX},{world.SpawnTileY}"));
 
-                // 客户端主动要世界：7 + 9 + 分块（此时不发 49，等它发 8）
-                await SendWorldBundleAsync(stream, WorldSpawnX, WorldSpawnY, cancellationToken, includeStart: false);
+                _worldReady = true;
+
+                await SendBundleAsync(stream, new List<byte[]>
+                {
+                    Messages.WorldDataPacket(world),
+                    Messages.StatusTextPacket(0, "Bunny Loader", 0),
+                }, cancellationToken);
+
+                await SendWindowAsync(stream, WorldSpawnX, WorldSpawnY, cancellationToken);
                 break;
             }
 
@@ -500,18 +529,12 @@ internal sealed class Session
 
                 _log.Info("spawn.request", ("conn", _id), ("x", reqX), ("y", reqY));
 
-                DateTime now = DateTime.UtcNow;
-                if (reqX == _lastSectionX && reqY == _lastSectionY
-                    && (now - _lastSectionAt).TotalMilliseconds < 200)
-                {
-                    _log.Info("sections.skipped", ("conn", _id), ("x", reqX), ("y", reqY));
-                    break;
-                }
-                _lastSectionX = reqX;
-                _lastSectionY = reqY;
-                _lastSectionAt = now;
+                _player.TileX = reqX;
+                _player.TileY = reqY;
+                _player.LastSeenMs = (long)_clock.Elapsed.TotalMilliseconds;
+                _worldReady = true;
 
-                await SendWorldBundleAsync(stream, reqX, reqY, cancellationToken);
+                await SendWindowAsync(stream, reqX, reqY, cancellationToken);
                 break;
             }
 
@@ -575,18 +598,34 @@ internal sealed class Session
 
             case MessageId.PlayerControls:
             {
-                // 单人：原样回显，让客户端收到自己的位置确认，避免判定网络阻塞。
-                if (_config.R5.EchoControls)
-                    await SendAsync(stream, Codec.Frame(MessageId.PlayerControls, payload), cancellationToken);
-                else
-                    _log.Info("controls.ignored", ("conn", _id));
+                // 只更新内存里的状态，**不立刻回发**；由 TickEngine 统一节流广播。
+                _player.LastControls = payload;
+                _player.LastSeenMs = (long)_clock.Elapsed.TotalMilliseconds;
+
+                if (payload.Length >= 9)
+                {
+                    _player.TileX = Math.Abs(BinaryPrimitives.ReadInt16LittleEndian(payload.AsSpan(1, 2)));
+                    _player.TileY = Math.Abs(BinaryPrimitives.ReadInt16LittleEndian(payload.AsSpan(3, 2)));
+                }
+
+                _controlsReceived++;
+
+                if (_controlsReceived % 60 == 1)
+                {
+                    _log.Info("controls.update",
+                        ("conn", _id),
+                        ("x", _player.TileX),
+                        ("y", _player.TileY),
+                        ("count", _controlsReceived));
+                }
                 break;
             }
 
             case MessageId.PlayerActive:
             {
-                if (_config.R5.EchoActive)
-                    await SendAsync(stream, Codec.Frame(MessageId.PlayerActive, payload), cancellationToken);
+                _player.Active = payload.Length >= 2 && payload[1] != 0;
+                _player.LastSeenMs = (long)_clock.Elapsed.TotalMilliseconds;
+                _log.Info("player.active", ("conn", _id), ("active", _player.Active));
                 break;
             }
 
@@ -640,7 +679,17 @@ internal sealed class Session
             return;
         }
 
-        await stream.WriteAsync(frame.AsMemory(), cancellationToken);
+        await _sendGate.WaitAsync(cancellationToken);
+        try
+        {
+            await stream.WriteAsync(frame.AsMemory(), cancellationToken);
+        }
+        finally
+        {
+            _sendGate.Release();
+        }
+
+        _lastSendMs = (long)_clock.Elapsed.TotalMilliseconds;
         _capture?.ToClient(frame);
         _log.Info("frame.send",
             ("conn", _id),
@@ -717,7 +766,17 @@ internal sealed class Session
             return;
         }
 
-        await stream.WriteAsync(buffer.AsMemory(), cancellationToken);
+        await _sendGate.WaitAsync(cancellationToken);
+        try
+        {
+            await stream.WriteAsync(buffer.AsMemory(), cancellationToken);
+        }
+        finally
+        {
+            _sendGate.Release();
+        }
+
+        _lastSendMs = (long)_clock.Elapsed.TotalMilliseconds;
         _capture?.ToClient(buffer);
 
         foreach (byte[] frame in frames)
@@ -776,6 +835,98 @@ internal sealed class Session
     /// 平坦世界：地表以上空气，地表那一层草地，往下泥土，岩层以下石头。
     /// 只够给客户端画图与站人，不做地形生成。
     /// </summary>
+    /// <summary>只发玩家窗口里「还没发过」的分块。</summary>
+    private async Task SendWindowAsync(NetworkStream stream, int tileX, int tileY, CancellationToken cancellationToken)
+    {
+        var frames = new List<byte[]>();
+        int skipped = 0;
+
+        foreach ((int sx, int sy) in _chunks.WindowFor(tileX, tileY))
+        {
+            if (sx * ChunkManager.SectionWidth >= WorldMaxX || sy * ChunkManager.SectionHeight >= WorldMaxY)
+                continue;
+
+            if (!_chunks.MarkSent(sx, sy))
+            {
+                skipped++;
+                continue;
+            }
+
+            frames.Add(Messages.TileSectionPacket(TileSection.Encode(sx, sy, GetTile, IsFrameImportant)));
+        }
+
+        if (frames.Count == 0)
+        {
+            _log.Info("chunks.none", ("conn", _id), ("x", tileX), ("y", tileY), ("sent", _chunks.SentCount), ("skipped", skipped));
+            return;
+        }
+
+        await SendBundleAsync(stream, frames, cancellationToken);
+
+        _log.Info("chunks.sent",
+            ("conn", _id),
+            ("x", tileX),
+            ("y", tileY),
+            ("new", frames.Count),
+            ("skipped", skipped),
+            ("total", _chunks.SentCount));
+    }
+
+    // ---------------- ISessionTicker ----------------
+
+    /// <summary>20Hz：广播其他玩家的最新坐标。单人时什么都不发。</summary>
+    public Task OnBroadcastTickAsync(CancellationToken cancellationToken)
+    {
+        // 目前服务端只有一个玩家，没有接收方；等房间/多人落地后再真正广播。
+        // 这里保留结构：拿到 _room.Others(_player.Slot) 后逐个 SendAsync。
+        return Task.CompletedTask;
+    }
+
+    /// <summary>500ms：太久没发东西就补一个保活包（用最近一次的控制帧）。</summary>
+    public async Task OnKeepAliveTickAsync(CancellationToken cancellationToken)
+    {
+        if (_suppressOutbound || _stream is null)
+            return;
+
+        long now = (long)_clock.Elapsed.TotalMilliseconds;
+        if (now - _lastSendMs < TickEngine.KeepAliveMs - 20)
+            return;
+
+        if (_player.LastControls is null)
+            return;
+
+        await SendAsync(_stream, Codec.Frame(MessageId.PlayerControls, _player.LastControls), cancellationToken);
+        _log.Info("keepalive.sent", ("conn", _id), ("gapMs", now - _lastSendMs));
+    }
+
+    /// <summary>60Hz：超时判定 + 区块窗口跟随 + 实体/世界钩子。</summary>
+    public async Task OnGameTickAsync(double nowMs, CancellationToken cancellationToken)
+    {
+        long now = (long)nowMs;
+
+        // 超时判定：30 秒没有任何上行就断开
+        if (_player.LastSeenMs > 0 && now - _player.LastSeenMs > TickEngine.TimeoutMs)
+        {
+            _log.Warn("player.timeout", ("conn", _id), ("silentMs", now - _player.LastSeenMs));
+            try { _client.Close(); } catch { }
+            return;
+        }
+
+        // 预留钩子
+        // _room.UpdateEntities(nowMs);
+        // _world.Update(nowMs);
+
+        if (!_worldReady || _stream is null || _suppressOutbound)
+            return;
+
+        // 5Hz 检查一次窗口，避免每帧都算
+        if (now - _lastWindowCheckMs < 200)
+            return;
+
+        _lastWindowCheckMs = now;
+        await SendWindowAsync(_stream, _player.TileX, _player.TileY, cancellationToken);
+    }
+
     private int? _safeSpawnX;
     private int? _safeSpawnY;
 

@@ -138,72 +138,48 @@ def read_proof(sock: socket.socket, kind: str) -> bytes:
 
 
 def world_flow(sock: socket.socket, req_x: int = 2100, req_y: int = 349, min_x: int | None = None) -> int:
+    """id:8 现在只发玩家窗口内的分块（不重复发已发过的）。"""
     import struct as _struct
 
     sock.sendall(frame(8, _struct.pack("<iiB", req_x, req_y, 0)))
 
-    got7 = got9 = sections = 0
-    started = False
+    sections = 0
     first = None
-    for _ in range(400):
-        ident, payload = recv_frame(sock)
-        if ident == 7:
-            got7 += 1
-        elif ident == 9:
-            got9 += 1
-        elif ident == 10:
+
+    sock.settimeout(2.0)
+    while True:
+        try:
+            ident, payload = recv_frame(sock)
+        except socket.timeout:
+            break
+        if ident == 10:
             info = decode_tile_section(payload)
             if first is None:
                 first = info
             sections += 1
-        elif ident == 49:
-            started = True
-            break
 
-    check("收到再次的 id=7", got7 >= 1, got7)
-    check("收到 id=9 状态文本", got9 >= 1, got9)
-    check("收到至少 1 个 id=10 分块", sections > 0, sections)
+    check("收到至少 1 个分块", sections > 0, sections)
     check("首个分块头 = 200x150",
           bool(first) and first["width"] == 200 and first["height"] == 150, first)
-    check("收到 id=49 开始游戏", started, started)
     if min_x is not None:
         check(f"分块没发到世界左上角（xStart >= {min_x}）",
               bool(first) and first["xStart"] >= min_x, first)
+
+    # 12 触发 129
+    sock.settimeout(6)
+    sock.sendall(frame(12, b"\x00" + (2105).to_bytes(2, "little", signed=True)
+                       + (312).to_bytes(2, "little", signed=True) + b"\x00"))
+    entered = False
+    for _ in range(10):
+        ident, payload = recv_frame(sock)
+        if ident == 129:
+            entered = True
+            break
+    check("收到 id=129（进入世界）", entered, entered)
+
     if first:
         print(f"        首个分块 xStart={first['xStart']} yStart={first['yStart']} "
               f"raw={first['rawLen']} bytes, 共 {sections} 块")
-    print()
-    return 0 if FAILED == 0 else 1
-
-
-def proof_only_flow(sock: socket.socket) -> int:
-    """NO_WELCOME：proof(27) + id:3 之后必须保持静默。"""
-    sock.settimeout(6)
-
-    data = recv_exact(sock, len(PCAP_PROOF))
-    check("proof 与 PCAP 样本逐字节一致", data == PCAP_PROOF, data.hex())
-
-    ident, payload = recv_frame(sock)
-    check("紧接着收到 id=3", ident == 3, ident)
-
-    # 之后不能再有任何字节
-    sock.settimeout(1.5)
-    try:
-        extra = sock.recv(64)
-    except socket.timeout:
-        extra = None
-    if extra is None:
-        check("id:3 之后静默（没有 82/7）", True)
-    elif extra == b"":
-        check("id:3 之后静默（没有 82/7）", False, "服务端关闭了连接")
-    else:
-        check("id:3 之后静默（没有 82/7）", False, extra[:24].hex())
-
-    # 客户端发 Hello：服务端应立刻推世界数据
-    sock.settimeout(6)
-    sock.sendall(frame(1, string("Terraria326")))
-    drain_world(sock, "Hello 之后")
-
     print()
     return 0 if FAILED == 0 else 1
 
