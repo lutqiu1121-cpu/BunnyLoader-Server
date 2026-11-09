@@ -26,12 +26,12 @@ public sealed class TickEngine
     public const int TimeoutMs = 30_000;
 
     private readonly ISessionTicker _session;
-    private readonly ILogger _log;
+    private readonly JsonLogger _log;
 
     private CancellationTokenSource? _cts;
     private Task? _loop;
 
-    public TickEngine(ISessionTicker session, ILogger log)
+    public TickEngine(ISessionTicker session, JsonLogger log)
     {
         _session = session;
         _log = log;
