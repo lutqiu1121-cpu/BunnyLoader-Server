@@ -286,30 +286,39 @@ def pcap_flow(sock: socket.socket) -> int:
     ident, payload = recv_frame(sock)
     check_welcome(ident, payload, "68 之后的欢迎包")
 
-    sock.sendall(frame(6, b""))
-    ident, payload = recv_frame(sock)
-    check("6 之后收到 id=7", ident == 7, ident)
-
-    # 按原版协议：客户端上报角色(id:4)，服务端回显 4 -> 12 -> 49
+    # 先上报角色：只应收到 id:4 回显，不应有 12/49
     sync_payload = b"\x00" + string("Tester") + b"\x00\x00\x00\x00"
     sock.sendall(frame(4, sync_payload))
 
-    ids = []
+    ident, payload = recv_frame(sock)
+    check("id:4 被回显", ident == 4, ident)
+
+    sock.settimeout(0.4)
+    try:
+        early = sock.recv(64)
+    except socket.timeout:
+        early = None
+    check("回显 4 之后不抢跑 12/49", early is None, early[:16].hex() if early else None)
+
+    # 再请求世界：7 -> 9 -> 10×N -> 49 -> 12
     sock.settimeout(6)
-    for _ in range(80):
+    sock.sendall(frame(6, b""))
+
+    ids = []
+    for _ in range(120):
         ident, payload = recv_frame(sock)
         ids.append(ident)
-        if ident == 49:
+        if ident == 12:
             break
 
-    check("收到 id:4 回显", 4 in ids, ids[:20])
-    if 4 in ids:
-        i4 = ids.index(4)
-        rest = ids[i4:]
-        check("4 之后收到 id:12", 12 in rest, rest[:20])
-        if 12 in rest:
-            i12 = rest.index(12)
-            check("12 之后收到 id:49", 49 in rest[i12:], rest[i12:][:20])
+    check("6 之后收到 id=7", 7 in ids, ids[:10])
+    check("收到分块", 10 in ids, ids[:10])
+    check("收到 id=49", 49 in ids, ids[:20])
+    check("收到 id=12", 12 in ids, ids[:20])
+
+    if 49 in ids and 12 in ids:
+        check("49 在分块之后、12 之前", ids.index(49) > ids.index(10) and ids.index(12) > ids.index(49), ids[:24])
+
     print(f"        握手序列: {ids[:24]}")
 
     # R5：控制包只更新内存（节流广播），不再无脑回显

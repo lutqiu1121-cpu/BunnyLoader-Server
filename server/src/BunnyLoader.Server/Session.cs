@@ -510,9 +510,22 @@ internal sealed class Session : ISessionTicker
 
                 await SendWindowAsync(stream, WorldSpawnX, WorldSpawnY, cancellationToken);
 
-                _log.Info("world.wait-sync",
-                    ("conn", _id),
-                    ("note", "7 已发，等客户端 id:4 再发 12/49"));
+                // 所有初始分块发完之后，才发 49，再发 12
+                await EnsureStartPlayingAsync(stream, cancellationToken);
+
+                if (!_spawnSent)
+                {
+                    _spawnSent = true;
+                    await SendAsync(stream,
+                        Messages.PlayerSpawnPacket(PlayerSlot, (short)WorldSpawnX, (short)WorldSpawnY),
+                        cancellationToken);
+
+                    _log.Info("spawn.proactive",
+                        ("conn", _id),
+                        ("x", WorldSpawnX),
+                        ("y", WorldSpawnY),
+                        ("note", "分块发完后发 id:12"));
+                }
                 break;
             }
 
@@ -628,21 +641,10 @@ internal sealed class Session : ISessionTicker
                     ("len", payload.Length),
                     ("hex", Codec.Hex(payload, 24)));
 
-                // 原样回显，客户端据此激活自己的角色实体
+                // 只回显，别的什么都不发（12/49 要等世界数据发完）
                 await SendAsync(stream, Codec.Frame(MessageId.SyncPlayer, payload), cancellationToken);
 
-                await SendAsync(stream,
-                    Messages.PlayerSpawnPacket(PlayerSlot, (short)WorldSpawnX, (short)WorldSpawnY),
-                    cancellationToken);
-
-                _spawnSent = true;
-                _log.Info("spawn.proactive",
-                    ("conn", _id),
-                    ("x", WorldSpawnX),
-                    ("y", WorldSpawnY),
-                    ("note", "收到 id:4 之后发 id:12"));
-
-                await EnsureStartPlayingAsync(stream, cancellationToken);
+                _log.Info("player.sync.echoed", ("conn", _id), ("note", "已回显 id:4，等客户端发 id:6"));
                 break;
             }
 
