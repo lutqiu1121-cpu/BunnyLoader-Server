@@ -56,6 +56,7 @@ internal sealed class Session : ISessionTicker
     private long _lastSendMs;
     private long _lastWindowCheckMs;
     private int _controlsReceived;
+    private bool _spawnSent;
     private int _chunksNoneCount;
     private int _chunksNoneX = int.MinValue;
     private int _chunksNoneY = int.MinValue;
@@ -509,19 +510,9 @@ internal sealed class Session : ISessionTicker
 
                 await SendWindowAsync(stream, WorldSpawnX, WorldSpawnY, cancellationToken);
 
-                // 主动告诉客户端「你的角色出生在这里」，否则它一直发 (-1,-1)
-                await SendAsync(stream,
-                    Messages.PlayerSpawnPacket(PlayerSlot, (short)WorldSpawnX, (short)WorldSpawnY),
-                    cancellationToken);
-
-                _log.Info("spawn.proactive",
+                _log.Info("world.wait-sync",
                     ("conn", _id),
-                    ("x", WorldSpawnX),
-                    ("y", WorldSpawnY),
-                    ("note", "世界数据发完后主动发 id:12"));
-
-                // 关键：客户端要收到 id:49 才会解锁 UI 与摇杆，之后才会发 id:13。
-                await EnsureStartPlayingAsync(stream, cancellationToken);
+                    ("note", "7 已发，等客户端 id:4 再发 12/49"));
                 break;
             }
 
@@ -545,16 +536,19 @@ internal sealed class Session : ISessionTicker
                     reqX = spawnX;
                     reqY = spawnY;
 
-                    // 客户端还不知道自己在哪：补发 id:12 打破「-1,-1 死循环」
-                    await SendAsync(stream,
-                        Messages.PlayerSpawnPacket(PlayerSlot, (short)spawnX, (short)spawnY),
-                        cancellationToken);
+                    if (!_spawnSent)
+                    {
+                        await SendAsync(stream,
+                            Messages.PlayerSpawnPacket(PlayerSlot, (short)spawnX, (short)spawnY),
+                            cancellationToken);
 
-                    _log.Info("spawn.resent",
-                        ("conn", _id),
-                        ("x", spawnX),
-                        ("y", spawnY),
-                        ("note", "客户端请求 (-1,-1)，补发 id:12"));
+                        _spawnSent = true;
+                        _log.Info("spawn.resent",
+                            ("conn", _id),
+                            ("x", spawnX),
+                            ("y", spawnY),
+                            ("note", "还没发过 12，补发一次"));
+                    }
                 }
 
                 _log.Info("spawn.request", ("conn", _id), ("x", reqX), ("y", reqY));
@@ -606,7 +600,7 @@ internal sealed class Session : ISessionTicker
                 }
                 else
                 {
-                    _log.Info("player.spawn.ignored", ("conn", _id));
+                    _log.Info("player.spawn.ignored", ("conn", _id), ("note", "已有正确坐标，忽略"));
                 }
                 break;
             }
@@ -624,6 +618,31 @@ internal sealed class Session : ISessionTicker
             {
                 _log.Info("player.mana", ("conn", _id), ("hex", Codec.Hex(payload, 12)));
                 await SendAsync(stream, Codec.Frame(MessageId.PlayerMana, payload), cancellationToken);
+                break;
+            }
+
+            case MessageId.SyncPlayer:
+            {
+                _log.Info("player.sync",
+                    ("conn", _id),
+                    ("len", payload.Length),
+                    ("hex", Codec.Hex(payload, 24)));
+
+                // 原样回显，客户端据此激活自己的角色实体
+                await SendAsync(stream, Codec.Frame(MessageId.SyncPlayer, payload), cancellationToken);
+
+                await SendAsync(stream,
+                    Messages.PlayerSpawnPacket(PlayerSlot, (short)WorldSpawnX, (short)WorldSpawnY),
+                    cancellationToken);
+
+                _spawnSent = true;
+                _log.Info("spawn.proactive",
+                    ("conn", _id),
+                    ("x", WorldSpawnX),
+                    ("y", WorldSpawnY),
+                    ("note", "收到 id:4 之后发 id:12"));
+
+                await EnsureStartPlayingAsync(stream, cancellationToken);
                 break;
             }
 

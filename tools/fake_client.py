@@ -290,7 +290,27 @@ def pcap_flow(sock: socket.socket) -> int:
     ident, payload = recv_frame(sock)
     check("6 之后收到 id=7", ident == 7, ident)
 
-    drain_world(sock, "6 之后推分块", expect_start=True, expect_header=False)
+    # 按原版协议：客户端上报角色(id:4)，服务端回显 4 -> 12 -> 49
+    sync_payload = b"\x00" + string("Tester") + b"\x00\x00\x00\x00"
+    sock.sendall(frame(4, sync_payload))
+
+    ids = []
+    sock.settimeout(6)
+    for _ in range(80):
+        ident, payload = recv_frame(sock)
+        ids.append(ident)
+        if ident == 49:
+            break
+
+    check("收到 id:4 回显", 4 in ids, ids[:20])
+    if 4 in ids:
+        i4 = ids.index(4)
+        rest = ids[i4:]
+        check("4 之后收到 id:12", 12 in rest, rest[:20])
+        if 12 in rest:
+            i12 = rest.index(12)
+            check("12 之后收到 id:49", 49 in rest[i12:], rest[i12:][:20])
+    print(f"        握手序列: {ids[:24]}")
 
     # R5：控制包只更新内存（节流广播），不再无脑回显
     sock.settimeout(6)
