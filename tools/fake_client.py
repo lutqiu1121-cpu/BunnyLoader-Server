@@ -97,6 +97,17 @@ def recv_frame(sock: socket.socket) -> tuple[int, bytes]:
     return body[0], body[1:]
 
 
+def expect_frame(sock: socket.socket, want: int, tries: int = 8) -> tuple[int, bytes]:
+    """读最多 tries 帧，跳过保活/广播，返回第一个 id == want 的帧。"""
+    last = (-1, b"")
+    for _ in range(tries):
+        ident, payload = recv_frame(sock)
+        last = (ident, payload)
+        if ident == want:
+            return last
+    return last
+
+
 def check_welcome(ident: int, payload: bytes, label: str) -> None:
     check(f"{label}: id = 82 (NetModules)", ident == 82, ident)
     check(f"{label}: 模块 0xB17F", payload[:2] == b"\x7f\xb1", payload[:2].hex())
@@ -281,31 +292,21 @@ def pcap_flow(sock: socket.socket) -> int:
 
     drain_world(sock, "6 之后推分块", expect_start=False, expect_header=False)
 
-    # R5：移动与活动状态必须有来有回
+    # R5：控制包只更新内存（节流广播），不再无脑回显
     sock.settimeout(6)
     controls = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00"
     sock.sendall(frame(13, controls))
-    ident, payload = recv_frame(sock)
-    check("id:13 被原样回显", ident == 13 and payload == controls, f"{ident} {payload.hex()}")
-
     sock.sendall(frame(14, b"\x00\x01"))
-    ident, payload = recv_frame(sock)
-    check("id:14 被原样回显", ident == 14 and payload == b"\x00\x01", f"{ident} {payload.hex()}")
 
     # 血量由客户端决定：只回显，不覆盖
     hp = b"\x00" + (400).to_bytes(2, "little") + (400).to_bytes(2, "little") + (200).to_bytes(2, "little") + (200).to_bytes(2, "little")
     sock.sendall(frame(16, hp))
-    ident, payload = recv_frame(sock)
+    ident, payload = expect_frame(sock, 16)
     check("id:16 被原样回显（不覆盖 400 血）", ident == 16 and payload == hp, f"{ident} {payload.hex()}")
 
     sock.sendall(frame(12, b"\x00" + (2105).to_bytes(2, "little", signed=True) + (312).to_bytes(2, "little", signed=True) + b"\x00"))
-    seen = []
-    for _ in range(8):
-        ident, payload = recv_frame(sock)
-        seen.append(ident)
-        if ident == 129:
-            break
-    check("收到 129", 129 in seen, seen)
+    ident, payload = expect_frame(sock, 129)
+    check("收到 129", ident == 129, ident)
 
     print()
     return 0 if FAILED == 0 else 1
