@@ -510,9 +510,9 @@ internal sealed class Session : ISessionTicker
                     Messages.StatusTextPacket(0, "Bunny Loader", 0),
                 }, cancellationToken);
 
-                await SendWindowAsync(stream, WorldSpawnX, WorldSpawnY, cancellationToken);
+                await SendFullAreaAsync(stream, WorldSpawnX, WorldSpawnY, cancellationToken);
 
-                // 所有初始分块发完之后，才发 49，再发 12
+                // 40 块发完之后，才发 49，再发 12
                 await EnsureStartPlayingAsync(stream, cancellationToken);
 
                 if (!_spawnSent)
@@ -551,19 +551,8 @@ internal sealed class Session : ISessionTicker
                     reqX = spawnX;
                     reqY = spawnY;
 
-                    if (!_spawnSent)
-                    {
-                        await SendAsync(stream,
-                            Messages.PlayerSpawnPacket(PlayerSlot, (short)spawnX, (short)spawnY),
-                            cancellationToken);
-
-                        _spawnSent = true;
-                        _log.Info("spawn.resent",
-                            ("conn", _id),
-                            ("x", spawnX),
-                            ("y", spawnY),
-                            ("note", "还没发过 12，补发一次"));
-                    }
+                    // 客户端还在 (-1,-1)：整张初始区域再砸一遍
+                    await SendFullAreaAsync(stream, spawnX, spawnY, cancellationToken, force: true);
                 }
 
                 _log.Info("spawn.request", ("conn", _id), ("x", reqX), ("y", reqY));
@@ -661,19 +650,7 @@ internal sealed class Session : ISessionTicker
                 await SendAsync(stream, Codec.Frame(MessageId.PlayerActive, new[] { PlayerSlot, (byte)1 }), cancellationToken);
                 _log.Info("player.active.sent", ("conn", _id), ("slot", PlayerSlot));
 
-                if (!_config.Handshake.DeferSpawnToWorld)
-                {
-                    if (!_spawnSent)
-                    {
-                        _spawnSent = true;
-                        await SendAsync(stream,
-                            Messages.PlayerSpawnPacket(PlayerSlot, (short)WorldSpawnX, (short)WorldSpawnY),
-                            cancellationToken);
-                        _log.Info("spawn.proactive", ("conn", _id), ("x", WorldSpawnX), ("y", WorldSpawnY));
-                    }
-
-                    await EnsureStartPlayingAsync(stream, cancellationToken);
-                }
+                // 之后闭嘴：世界数据、49、12 全部等 id:6
                 break;
             }
 
@@ -916,6 +893,49 @@ internal sealed class Session : ISessionTicker
     /// 平坦世界：地表以上空气，地表那一层草地，往下泥土，岩层以下石头。
     /// 只够给客户端画图与站人，不做地形生成。
     /// </summary>
+    /// <summary>
+    /// 初始加载：8×5 = 40 个分块一次发完（约 305KB）。
+    /// force=true 时不看「已发送」集合，整片重发。
+    /// </summary>
+    private async Task SendFullAreaAsync(NetworkStream stream, int tileX, int tileY,
+                                         CancellationToken cancellationToken, bool force = false)
+    {
+        var frames = new List<byte[]>();
+        int skipped = 0;
+
+        foreach ((int sx, int sy) in _chunks.FullAreaFor(tileX, tileY))
+        {
+            if (sx * ChunkManager.SectionWidth >= WorldMaxX || sy * ChunkManager.SectionHeight >= WorldMaxY)
+                continue;
+
+            if (!force && !_chunks.MarkSent(sx, sy))
+            {
+                skipped++;
+                continue;
+            }
+
+            _chunks.MarkSent(sx, sy);
+            frames.Add(Messages.TileSectionPacket(TileSection.Encode(sx, sy, GetTile, IsFrameImportant)));
+        }
+
+        if (frames.Count == 0)
+        {
+            _log.Warn("chunks.full-empty", ("conn", _id), ("x", tileX), ("y", tileY));
+            return;
+        }
+
+        await SendBundleAsync(stream, frames, cancellationToken);
+
+        _log.Info("chunks.full",
+            ("conn", _id),
+            ("x", tileX),
+            ("y", tileY),
+            ("sections", frames.Count),
+            ("skipped", skipped),
+            ("force", force),
+            ("total", _chunks.SentCount));
+    }
+
     /// <summary>发一次 id:49（开始游戏）；只发一次。</summary>
     private async Task EnsureStartPlayingAsync(NetworkStream stream, CancellationToken cancellationToken)
     {
