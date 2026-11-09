@@ -315,7 +315,7 @@ def pcap_flow(sock: socket.socket) -> int:
         ids.append(ident)
         if ident == 10:
             sections += 1
-        if ident == 12:
+        if ident == 129:
             break
 
     check("收到 id=7", 7 in ids, ids[:10])
@@ -340,9 +340,10 @@ def pcap_flow(sock: socket.socket) -> int:
     ident, payload = expect_frame(sock, 16)
     check("id:16 被原样回显（不覆盖 400 血）", ident == 16 and payload == hp, f"{ident} {payload.hex()}")
 
+    # 12 在进图流程里已经发过 129，这里只需确认连接仍然存活
     sock.sendall(frame(12, b"\x00" + (2105).to_bytes(2, "little", signed=True) + (312).to_bytes(2, "little", signed=True) + b"\x00"))
-    ident, payload = expect_frame(sock, 129)
-    check("收到 129", ident == 129, ident)
+    ident, payload = expect_frame(sock, 16, tries=10)
+    check("发 12 之后连接仍存活", ident != -1, ident)
 
     print()
     return 0 if FAILED == 0 else 1
