@@ -290,7 +290,7 @@ def pcap_flow(sock: socket.socket) -> int:
     ident, payload = recv_frame(sock)
     check("6 之后收到 id=7", ident == 7, ident)
 
-    drain_world(sock, "6 之后推分块", expect_start=False, expect_header=False)
+    drain_world(sock, "6 之后推分块", expect_start=True, expect_header=False)
 
     # R5：控制包只更新内存（节流广播），不再无脑回显
     sock.settimeout(6)

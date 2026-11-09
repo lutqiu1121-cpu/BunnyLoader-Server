@@ -519,6 +519,9 @@ internal sealed class Session : ISessionTicker
                     ("x", WorldSpawnX),
                     ("y", WorldSpawnY),
                     ("note", "世界数据发完后主动发 id:12"));
+
+                // 关键：客户端要收到 id:49 才会解锁 UI 与摇杆，之后才会发 id:13。
+                await EnsureStartPlayingAsync(stream, cancellationToken);
                 break;
             }
 
@@ -562,6 +565,7 @@ internal sealed class Session : ISessionTicker
                 _worldReady = true;
 
                 await SendWindowAsync(stream, reqX, reqY, cancellationToken);
+                await EnsureStartPlayingAsync(stream, cancellationToken);
                 break;
             }
 
@@ -862,6 +866,20 @@ internal sealed class Session : ISessionTicker
     /// 平坦世界：地表以上空气，地表那一层草地，往下泥土，岩层以下石头。
     /// 只够给客户端画图与站人，不做地形生成。
     /// </summary>
+    /// <summary>发一次 id:49（开始游戏）；只发一次。</summary>
+    private async Task EnsureStartPlayingAsync(NetworkStream stream, CancellationToken cancellationToken)
+    {
+        if (_startPlayingSent)
+            return;
+
+        _startPlayingSent = true;
+        await SendAsync(stream, Messages.StartPlayingPacket(), cancellationToken);
+
+        _log.Info("startplaying.sent",
+            ("conn", _id),
+            ("note", "客户端收到后才会解锁 UI 与摇杆"));
+    }
+
     /// <summary>只发玩家窗口里「还没发过」的分块。</summary>
     private async Task SendWindowAsync(NetworkStream stream, int tileX, int tileY, CancellationToken cancellationToken)
     {
