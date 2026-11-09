@@ -224,6 +224,13 @@ public sealed class ServerConfig
             EnvNotes.Add($"WELCOME_AFTER_3={Handshake.WelcomeAfter3}");
         }
 
+        string? deferSpawn = Env("DEFER_SPAWN_TO_WORLD");
+        if (!string.IsNullOrWhiteSpace(deferSpawn))
+        {
+            Handshake.DeferSpawnToWorld = ParseBool(deferSpawn, "DEFER_SPAWN_TO_WORLD");
+            EnvNotes.Add($"DEFER_SPAWN_TO_WORLD={Handshake.DeferSpawnToWorld}");
+        }
+
         string? worldOnHello = Env("WORLD_ON_HELLO");
         if (!string.IsNullOrWhiteSpace(worldOnHello))
         {
@@ -697,6 +704,13 @@ public sealed class HandshakeSection
     ///   "header"      = 只发 7；
     ///   "off"         = 等客户端发 6/8 再发。
     /// </summary>
+    /// <summary>
+    /// true = id:12/49 推迟到 id:6（世界数据）发完之后。
+    /// false（默认）= 收到 id:4 并激活实体后立刻发。
+    /// </summary>
+    [JsonPropertyName("deferSpawnToWorld")]
+    public bool DeferSpawnToWorld { get; set; }
+
     [JsonPropertyName("worldOnHello")]
     public string WorldOnHello { get; set; } = "off";
 

@@ -57,6 +57,8 @@ internal sealed class Session : ISessionTicker
     private long _lastWindowCheckMs;
     private int _controlsReceived;
     private bool _spawnSent;
+    private byte[]? _lastHealth;
+    private byte[]? _lastMana;
     private int _chunksNoneCount;
     private int _chunksNoneX = int.MinValue;
     private int _chunksNoneY = int.MinValue;
@@ -622,6 +624,7 @@ internal sealed class Session : ISessionTicker
             {
                 // 客户端上报的血量与上限：只记录 + 原样回显，绝不覆盖（生命水晶/死亡重连都要尊重）
                 string hex = Codec.Hex(payload, 12);
+                _lastHealth = payload;
                 _log.Info("player.health", ("conn", _id), ("hex", hex));
                 await SendAsync(stream, Codec.Frame(MessageId.PlayerHealth, payload), cancellationToken);
                 break;
@@ -629,6 +632,7 @@ internal sealed class Session : ISessionTicker
 
             case MessageId.PlayerMana:
             {
+                _lastMana = payload;
                 _log.Info("player.mana", ("conn", _id), ("hex", Codec.Hex(payload, 12)));
                 await SendAsync(stream, Codec.Frame(MessageId.PlayerMana, payload), cancellationToken);
                 break;
@@ -641,10 +645,35 @@ internal sealed class Session : ISessionTicker
                     ("len", payload.Length),
                     ("hex", Codec.Hex(payload, 24)));
 
-                // 只回显，别的什么都不发（12/49 要等世界数据发完）
-                await SendAsync(stream, Codec.Frame(MessageId.SyncPlayer, payload), cancellationToken);
+                // 把 whoAmI 从 255 改写成分配到的槽位，再回显
+                byte[] echo = (byte[])payload.Clone();
+                byte original = echo.Length > 0 ? echo[0] : (byte)0xFF;
+                if (echo.Length > 0)
+                    echo[0] = PlayerSlot;
 
-                _log.Info("player.sync.echoed", ("conn", _id), ("note", "已回显 id:4，等客户端发 id:6"));
+                await SendAsync(stream, Codec.Frame(MessageId.SyncPlayer, echo), cancellationToken);
+
+                _log.Info("player.sync.echoed",
+                    ("conn", _id),
+                    ("whoAmI", $"0x{original:X2} -> 0x{PlayerSlot:X2}"));
+
+                // 激活实体
+                await SendAsync(stream, Codec.Frame(MessageId.PlayerActive, new[] { PlayerSlot, (byte)1 }), cancellationToken);
+                _log.Info("player.active.sent", ("conn", _id), ("slot", PlayerSlot));
+
+                if (!_config.Handshake.DeferSpawnToWorld)
+                {
+                    if (!_spawnSent)
+                    {
+                        _spawnSent = true;
+                        await SendAsync(stream,
+                            Messages.PlayerSpawnPacket(PlayerSlot, (short)WorldSpawnX, (short)WorldSpawnY),
+                            cancellationToken);
+                        _log.Info("spawn.proactive", ("conn", _id), ("x", WorldSpawnX), ("y", WorldSpawnY));
+                    }
+
+                    await EnsureStartPlayingAsync(stream, cancellationToken);
+                }
                 break;
             }
 
@@ -958,8 +987,9 @@ internal sealed class Session : ISessionTicker
     /// <summary>20Hz：广播其他玩家的最新坐标。单人时什么都不发。</summary>
     public Task OnBroadcastTickAsync(CancellationToken cancellationToken)
     {
-        // 目前服务端只有一个玩家，没有接收方；等房间/多人落地后再真正广播。
-        // 这里保留结构：拿到 _room.Others(_player.Slot) 后逐个 SendAsync。
+        // 单人：房间里没有「其他人」，按原版逻辑一个字节都不发。
+        // 多人落地后：遍历 room.Others(_player.Slot)，逐个 SendAsync(13, 该玩家最新控制帧)。
+        // 绝不回发给发送者本身——那会让客户端反复应用自己的输入。
         return Task.CompletedTask;
     }
 
@@ -973,11 +1003,20 @@ internal sealed class Session : ISessionTicker
         if (now - _lastSendMs < TickEngine.KeepAliveMs - 20)
             return;
 
-        if (_player.LastControls is null)
+        // 用合法的状态包保活，绝不伪造 id:13。
+        // 客户端上报过血量就回放它自己的血量；否则尝试世界时间。
+        if (_lastHealth is not null)
+        {
+            await SendAsync(_stream, Codec.Frame(MessageId.PlayerHealth, _lastHealth), cancellationToken);
+            _log.Info("keepalive.health", ("conn", _id), ("gapMs", now - _lastSendMs));
             return;
+        }
 
-        await SendAsync(_stream, Codec.Frame(MessageId.PlayerControls, _player.LastControls), cancellationToken);
-        _log.Info("keepalive.sent", ("conn", _id), ("gapMs", now - _lastSendMs));
+        if (_lastMana is not null)
+        {
+            await SendAsync(_stream, Codec.Frame(MessageId.PlayerMana, _lastMana), cancellationToken);
+            _log.Info("keepalive.mana", ("conn", _id), ("gapMs", now - _lastSendMs));
+        }
     }
 
     /// <summary>60Hz：超时判定 + 区块窗口跟随 + 实体/世界钩子。</summary>

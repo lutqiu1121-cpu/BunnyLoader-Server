@@ -286,40 +286,35 @@ def pcap_flow(sock: socket.socket) -> int:
     ident, payload = recv_frame(sock)
     check_welcome(ident, payload, "68 之后的欢迎包")
 
-    # 先上报角色：只应收到 id:4 回显，不应有 12/49
-    sync_payload = b"\x00" + string("Tester") + b"\x00\x00\x00\x00"
+    # 上报角色（whoAmI=255），服务端应改写为槽位并回显，随后激活/出生/开始
+    sync_payload = b"\xff" + string("Tester") + b"\x00\x00\x00\x00"
     sock.sendall(frame(4, sync_payload))
 
-    ident, payload = recv_frame(sock)
-    check("id:4 被回显", ident == 4, ident)
-
-    sock.settimeout(0.4)
-    try:
-        early = sock.recv(64)
-    except socket.timeout:
-        early = None
-    check("回显 4 之后不抢跑 12/49", early is None, early[:16].hex() if early else None)
-
-    # 再请求世界：7 -> 9 -> 10×N -> 49 -> 12
-    sock.settimeout(6)
-    sock.sendall(frame(6, b""))
-
     ids = []
-    for _ in range(120):
+    echo_payload = None
+    sock.settimeout(6)
+    for _ in range(40):
         ident, payload = recv_frame(sock)
         ids.append(ident)
-        if ident == 12:
+        if ident == 4:
+            echo_payload = payload
+        if ident == 49:
             break
 
-    check("6 之后收到 id=7", 7 in ids, ids[:10])
-    check("收到分块", 10 in ids, ids[:10])
-    check("收到 id=49", 49 in ids, ids[:20])
-    check("收到 id=12", 12 in ids, ids[:20])
+    check("收到 id:4 回显", 4 in ids, ids[:12])
+    check("whoAmI 被改写为槽位 1", bool(echo_payload) and echo_payload[0] == 1,
+          echo_payload[:2].hex() if echo_payload else None)
+    check("收到 id:14 激活", 14 in ids, ids[:12])
+    check("收到 id:12", 12 in ids, ids[:16])
+    check("收到 id:49", 49 in ids, ids[:16])
+    print(f"        激活序列: {ids[:16]}")
 
-    if 49 in ids and 12 in ids:
-        check("49 在分块之后、12 之前", ids.index(49) > ids.index(10) and ids.index(12) > ids.index(49), ids[:24])
-
-    print(f"        握手序列: {ids[:24]}")
+    # 再请求世界
+    sock.settimeout(6)
+    sock.sendall(frame(6, b""))
+    ident, payload = recv_frame(sock)
+    check("6 之后收到 id=7", ident == 7, ident)
+    drain_world(sock, "6 之后推分块", expect_start=False, expect_header=False)
 
     # R5：控制包只更新内存（节流广播），不再无脑回显
     sock.settimeout(6)
