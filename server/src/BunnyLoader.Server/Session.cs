@@ -11,7 +11,7 @@ namespace BunnyLoader.Server;
 /// 单个连接的帧循环与会话逻辑（R2 范围：握手 + 世界头，方块数据留到 R3）。
 /// 未识别的消息按长度安全跳过——因为帧自带长度，跳过是可靠的。
 /// </summary>
-internal sealed class Session
+internal sealed class Session : ISessionTicker
 {
     private const byte PlayerSlot = 1;
 
