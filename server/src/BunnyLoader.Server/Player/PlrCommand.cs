@@ -653,6 +653,16 @@ public static class PlrCommand
             hairRow is not null && hairRow.Value.Offset == 16 && hairRow.Value.Confirmed,
             hairRow is null ? "缺少 hairColor 行" : $"offset={hairRow.Value.Offset} confirmed={hairRow.Value.Confirmed}");
 
+        // 端到端：把人类真正会敲的 CLI 路径（--parse-plr --sync-raw）跑一遍，
+        // 断言退出码 0、且物品栏日志文件确实写出来了。
+        string knownPayloadHex =
+            "010702d0cc4c3ec40343757000000000ffffffffbba9695a" + new string('0', 32);
+        int cliCode = Run(path, knownPayloadHex, log);
+        ok &= Check(log, "CLI 自检：--parse-plr --sync-raw 退出码 0", cliCode == 0, cliCode);
+
+        string invLog = Path.Combine(AppContext.BaseDirectory, "debug", $"plr-inventory-{SafeName(data.Name)}.log");
+        ok &= Check(log, "CLI 自检：物品栏日志已写出", File.Exists(invLog), invLog);
+
         return ok;
     }
 
