@@ -653,6 +653,73 @@ public static class PlrCommand
             hairRow is not null && hairRow.Value.Offset == 16 && hairRow.Value.Confirmed,
             hairRow is null ? "缺少 hairColor 行" : $"offset={hairRow.Value.Offset} confirmed={hairRow.Value.Confirmed}");
 
+        // 有真实样本时：跑一遍完整 CLI 输出（7 个颜色的 hex 与 RGB 都会打出来），
+        // 若同目录放有 id:4 的 payload（debug/syncplayer-40.txt），再用真实颜色做对照。
+        if (real.Count > 0)
+        {
+            ok &= Check(log, "真实样本：--parse-plr 退出码 0", Run(real[0], null, log) == 0, real[0]);
+
+            string? rawFile = null;
+            foreach (string d in searchDirs)
+            {
+                string candidate = Path.Combine(d, "syncplayer-40.txt");
+                if (File.Exists(candidate))
+                {
+                    rawFile = candidate;
+                    break;
+                }
+            }
+
+            if (rawFile is null)
+            {
+                log.Info("plr.selftest.real",
+                    ("status", "no-payload"),
+                    ("hint", "没有 debug/syncplayer-40.txt，跳过颜色对照"));
+            }
+            else
+            {
+                byte[] payload;
+                try
+                {
+                    payload = ParseHex(File.ReadAllText(rawFile));
+                }
+                catch (Exception e)
+                {
+                    payload = Array.Empty<byte>();
+                    ok &= Check(log, "真实样本：syncplayer-40.txt 是合法 hex", false, e.Message);
+                }
+
+                if (payload.Length > 0)
+                {
+                    PlayerFileData sample = PlayerFileReader.ReadFromFile(real[0]);
+                    Id4Comparison c = CompareId4(payload, sample);
+
+                    foreach (string line in c.Details)
+                        log.Info("plr.id4.match", ("source", "real"), ("detail", line));
+
+                    foreach (var row in c.Table)
+                    {
+                        log.Info("plr.id4.field",
+                            ("source", "real"),
+                            ("offset", row.Offset),
+                            ("field", row.Field),
+                            ("len", row.Length),
+                            ("confirmed", row.Confirmed));
+                    }
+
+                    log.Info("plr.id4.conclusion",
+                        ("source", "real"),
+                        ("answer", c.Answer),
+                        ("hypotheses", c.HypothesisSummary),
+                        ("confirmedRows", c.Table.Count(r => r.Confirmed)),
+                        ("totalRows", c.Table.Count));
+
+                    ok &= Check(log, "真实样本：颜色起点 = 16", c.ColorStart == 16, c.ColorStart);
+                    ok &= Check(log, "真实样本：与 .plr 颜色命中 >= 2/7", c.MatchedColors >= 2, c.MatchedColors);
+                }
+            }
+        }
+
         // 端到端：把人类真正会敲的 CLI 路径（--parse-plr --sync-raw）跑一遍，
         // 断言退出码 0、且物品栏日志文件确实写出来了。
         string knownPayloadHex =

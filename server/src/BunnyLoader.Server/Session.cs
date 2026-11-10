@@ -414,12 +414,15 @@ internal sealed class Session : ISessionTicker
     {
         _framesIn[id]++;
 
+        // id:4 是诊断重点：整帧打印，不截断；其它消息保持 24 字节（大帧如 10 会刷屏）
+        int recvHexCap = id == MessageId.SyncPlayer ? payload.Length : 24;
+
         _log.Info("frame.recv",
             ("conn", _id),
             ("id", id),
             ("name", Messages.Name(id)),
             ("len", payload.Length),
-            ("hex", Codec.Hex(payload, 24)));
+            ("hex", Codec.Hex(payload, recvHexCap)));
 
         switch (id)
         {
@@ -761,6 +764,7 @@ internal sealed class Session : ISessionTicker
                     ("conn", _id),
                     ("recvLen", payload.Length),
                     ("sendLen", echo.Length),
+                    ("hex", Codec.Hex(echo, echo.Length)),
                     ("count", _syncRecvCount),
                     ("note", "立即回显 + 立即 14；不写入任何缓存，world.tail 不重放 id:4"));
                 break;
