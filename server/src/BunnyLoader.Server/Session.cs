@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
 using System.Net.Sockets;
 using BunnyLoader.Server.Protocol;
@@ -57,8 +58,10 @@ internal sealed class Session : ISessionTicker
     private long _lastWindowCheckMs;
     private int _controlsReceived;
     private bool _spawnSent;
+    private byte[]? _syncEcho;
     private byte[]? _lastHealth;
     private byte[]? _lastMana;
+    private long _lastTimeoutLogMs;
     private int _chunksNoneCount;
     private int _chunksNoneX = int.MinValue;
     private int _chunksNoneY = int.MinValue;
@@ -504,33 +507,46 @@ internal sealed class Session : ISessionTicker
 
                 _worldReady = true;
 
-                await SendBundleAsync(stream, new List<byte[]>
+                // 1. 世界头
+                await SendAsync(stream, Messages.WorldDataPacket(world), cancellationToken);
+
+                // 2. 全量 40 个分块，不做任何拦截
+                await SendFullAreaAsync(stream, WorldSpawnX, WorldSpawnY, cancellationToken, force: true);
+
+                // 3. 开始游戏 -> 4 -> 14 -> 12 -> 129
+                var tail = new List<byte[]>();
+
+                if (!_startPlayingSent)
                 {
-                    Messages.WorldDataPacket(world),
-                    Messages.StatusTextPacket(0, "Bunny Loader", 0),
-                }, cancellationToken);
+                    _startPlayingSent = true;
+                    tail.Add(Messages.StartPlayingPacket());
+                }
 
-                await SendFullAreaAsync(stream, WorldSpawnX, WorldSpawnY, cancellationToken);
+                if (_syncEcho is not null)
+                    tail.Add(Codec.Frame(MessageId.SyncPlayer, _syncEcho));
 
-                // 40 块发完之后，才发 49，再发 12
-                await EnsureStartPlayingAsync(stream, cancellationToken);
+                tail.Add(Codec.Frame(MessageId.PlayerActive, new[] { PlayerSlot, (byte)1 }));
 
                 if (!_spawnSent)
                 {
                     _spawnSent = true;
-                    await SendAsync(stream,
-                        Messages.PlayerSpawnPacket(PlayerSlot, (short)WorldSpawnX, (short)WorldSpawnY),
-                        cancellationToken);
-
-                    _log.Info("spawn.proactive",
-                        ("conn", _id),
-                        ("x", WorldSpawnX),
-                        ("y", WorldSpawnY),
-                        ("note", "分块发完后发 id:12"));
+                    tail.Add(Messages.PlayerSpawnPacket(PlayerSlot, (short)WorldSpawnX, (short)WorldSpawnY));
                 }
 
-                // 关键：客户端要收到 129 才结束加载、解锁摇杆
-                await EnsureFinishedAsync(stream, cancellationToken);
+                if (!_finishedSent)
+                {
+                    _finishedSent = true;
+                    tail.Add(Messages.FinishedConnectingPacket());
+                }
+
+                if (tail.Count > 0)
+                    await SendBundleAsync(stream, tail, cancellationToken);
+
+                _log.Info("world.tail",
+                    ("conn", _id),
+                    ("frames", tail.Count),
+                    ("ids", string.Join(",", tail.Select(f => f[2]))),
+                    ("note", "49 -> 4 -> 14 -> 12 -> 129"));
                 break;
             }
 
@@ -648,6 +664,8 @@ internal sealed class Session : ISessionTicker
                 byte original = echo.Length > 0 ? echo[0] : (byte)0xFF;
                 if (echo.Length > 0)
                     echo[0] = PlayerSlot;
+
+                _syncEcho = echo;
 
                 await SendAsync(stream, Codec.Frame(MessageId.SyncPlayer, echo), cancellationToken);
 
@@ -1065,12 +1083,14 @@ internal sealed class Session : ISessionTicker
     {
         long now = (long)nowMs;
 
-        // 超时判定：30 秒没有任何上行就断开
+        // 超时踢人已按要求关闭：只记日志，不断开连接。
         if (_player.LastSeenMs > 0 && now - _player.LastSeenMs > TickEngine.TimeoutMs)
         {
-            _log.Warn("player.timeout", ("conn", _id), ("silentMs", now - _player.LastSeenMs));
-            try { _client.Close(); } catch { }
-            return;
+            if (now - _lastTimeoutLogMs > 60_000)
+            {
+                _lastTimeoutLogMs = now;
+                _log.Warn("player.idle", ("conn", _id), ("silentMs", now - _player.LastSeenMs), ("note", "超时踢人已关闭"));
+            }
         }
 
         // 预留钩子
@@ -1148,8 +1168,12 @@ internal sealed class Session : ISessionTicker
 
     private int WorldMaxX => _wld?.MaxTilesX ?? _config.World.MaxTilesX;
     private int WorldMaxY => _wld?.MaxTilesY ?? _config.World.MaxTilesY;
-    private int WorldSpawnX => SafeSpawn().X;
-    private int WorldSpawnY => SafeSpawn().Y;
+    /// <summary>世界文件里的原始出生点，不做任何修正（id:12 用它）。</summary>
+    private int RawSpawnX => _wld?.SpawnTileX ?? _config.World.SpawnTileX;
+    private int RawSpawnY => _wld?.SpawnTileY ?? _config.World.SpawnTileY;
+
+    private int WorldSpawnX => RawSpawnX;
+    private int WorldSpawnY => RawSpawnY;
 
     private Tile GetTile(int x, int y)
     {
