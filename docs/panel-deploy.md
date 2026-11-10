@@ -821,3 +821,25 @@ dotnet BunnyLoader.Server.dll --plr-selftest
 ```
 
 `debug/` 下若存在真实 `.plr`，自检会自动带上它（断言名字非空、颜色有值、至少 1 个非空物品）。
+
+### 11.5 真实文件实测结论（Cup.plr，v319，4000 字节）
+
+7 个颜色（文件偏移 86..106，值与独立 Python 参考实现完全一致）：
+
+| # | 字段 | hex | RGB |
+|---|---|---|---|
+| 1 | hairColor | `#ffffff` | 255,255,255 |
+| 2 | skinColor | `#ffbba9` | 255,187,169 |
+| 3 | eyeColor | `#695a4b` | 105,90,75 |
+| 4 | shirtColor | `#ffffff` | 255,255,255 |
+| 5 | underShirtColor | `#ffffff` | 255,255,255 |
+| 6 | pantsColor | `#abc0ab` | 171,192,171 |
+| 7 | shoeColor | `#ffffff` | 255,255,255 |
+
+id:4 对照：颜色起点 **16**；`payload[16..18]=ff ff ff`=hairColor，`[19..21]=ff bb a9`=skinColor，
+`[22..23]=69 5a`=eyeColor 前两字节。`ff ff ff ff` = hairColor 三字节 + skinColor 首字节，**不是坐标**。
+
+> 判据说明：`#ffbba9`（肤色）是有辨识度的值，它出现在 19..21 ⇒ 颜色序列从 16 开始且为标准顺序；
+> 若 16 是 underShirt，则按标准顺序它只能位于 28 —— 与实测冲突。
+
+未识别部分：`parsedOffset=3703` / 明文 4000，尾部约 297 字节尚未建模（含重复的 30 字节块）。

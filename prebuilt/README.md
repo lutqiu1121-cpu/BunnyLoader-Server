@@ -7,11 +7,11 @@
 
 - 构建方式：Docker 里 `dotnet publish -c Release`（框架依赖，面板自带 .NET 8 即可）
 - 重新构建：`./server/build-panel.sh`
-- 对应提交：`d3aed11`（分支 `main`，CI 全绿；本次只同步产物，未再改代码）
-- ZIP 大小 / SHA-256（本目录这一份，112935 字节）：
-  `9e5f32dea87fca237709709e4b2321535e78b06cbc6da8072f2143a6d08c77c1`
-- 包内 `BunnyLoader.Server.dll` 大小 / SHA-256：`192512` 字节 /
-  `ccdd7c9d62369ed34ad0c63f690aa680c789f0ade2b07b06567bf69d3aa8ab2b`
+- 对应提交：`19cf712`（分支 `main`，CI 全绿）
+- ZIP 大小 / SHA-256（本目录这一份，113349 字节）：
+  `20724a77e4d5aa7e01fc157548a439cd333a5443534cd3b173edfbf40c299af8`
+- 包内 `BunnyLoader.Server.dll` 大小 / SHA-256：`193536` 字节 /
+  `26fe19dc80419773ad57fb922d315c99261bf995e7a10813cff7e439f841091d`
   —— 这是**确定性构建**，与 Releases 里最新资产内的 DLL 逐字节相同（已实测核对）；
   ZIP 因内部时间戳每次重新打包都会变哈希，**认 DLL 的哈希**，不要认 ZIP 的。
 - 部署说明：[../docs/panel-deploy.md](../docs/panel-deploy.md)
@@ -47,6 +47,9 @@ start.sh                             R10 才允许用的入口脚本
 - 给 `--sync-raw` 时把 id:4 的 40 字节 payload 与 .plr 的权威颜色逐字节对照，
   产出 `plr.id4.field` 字段表（`confirmed:true` = 与该颜色逐字节一致）与 `plr.id4.conclusion` 结论。
 - 服务端运行行为**零变化**：id:4 仍原样回显、不改写、不重放。
+- 日志补全：`frame.recv` 对 id:4 **不再截断到 24 字节**；`syncplayer.echoed` 新增 `hex`，
+  把实际发出的 40 字节完整打印。（`syncplayer.raw` 原本就打印满 40 字节。）
+- `debug/` 内置真实 `Cup.plr` 与 id:4 前缀文件，CI 会对其做回归断言。
 
 ## 注意
 

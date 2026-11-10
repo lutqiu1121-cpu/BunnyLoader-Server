@@ -102,3 +102,49 @@
 真实 `.plr`（手机端导出）与 id:4 的**完整 40 字节**。拿到后：
 `dotnet BunnyLoader.Server.dll --parse-plr debug/<name>.plr --sync-raw "<40 字节 hex>"`，
 即可产出「ff ff ff ff 属于哪个字段」的最终结论。
+
+---
+
+## 2026-11-10 | R6-2：接入真实 Cup.plr（真实颜色到手，布局确定）
+
+### 真实文件解析结果（`--parse-plr debug/Cup.plr`，4000 字节）
+
+版本 319 / `relogic` / fileType 3 / 名字 `Cup` / 难度 0 / 发色染料 0 /
+hideVisibleAccessory `0,0` / hideMisc 0 / skinVariant 7 / 生命 100·100 / 魔力 20·20。
+
+| # | 颜色字段 | hex | RGB | 文件偏移 |
+|---|---|---|---|---|
+| 1 | hairColor | `#ffffff` | 255,255,255 | 86 |
+| 2 | skinColor | `#ffbba9` | 255,187,169 | 89 |
+| 3 | eyeColor | `#695a4b` | 105,90,75 | 92 |
+| 4 | shirtColor | `#ffffff` | 255,255,255 | 95 |
+| 5 | underShirtColor | `#ffffff` | 255,255,255 | 98 |
+| 6 | pantsColor | `#abc0ab` | 171,192,171 | 101 |
+| 7 | shoeColor | `#ffffff` | 255,255,255 | 104 |
+
+**双实现一致**：本工具（C#）与独立 Python 参考实现解析出的 7 色完全相同。
+
+### 与 id:4 实测前缀的交叉验证（前 24 字节）
+
+payload `16..18 = ff ff ff` = hairColor `#ffffff`；
+payload `19..21 = ff bb a9` = skinColor `#ffbba9`（**强辨识值，唯一性铁证**）；
+payload `22..23 = 69 5a` = eyeColor `#695a4b` 的前两字节。
+
+因此 **颜色起点 = 16**，`16..19` 的 `ff ff ff ff` = hairColor 三字节 + skinColor 首字节，
+**不是坐标**。用 `#ffbba9` 落在 19..21 即可排除「16 是 underShirt」的猜测：
+标准顺序下 underShirt 只能落在 28。
+
+### 本轮代码改动（仅日志，无行为变化）
+
+- `Session.cs` `frame.recv`：id:4 不再截断到 24 字节（`recvHexCap = payload.Length`），其它消息维持 24。
+- `Session.cs` `syncplayer.echoed`：新增 `hex`，把实际**发出**的 40 字节完整打印。
+- `PlrCommand.SelfTest`：有真实 `.plr` 时跑完整 CLI 输出（`plr.color` 带 hex+RGB），
+  并在 `debug/syncplayer-40.txt` 存在时用真实颜色做对照，断言「颜色起点=16」「命中≥2/7」。
+
+### 已知遗留（如实记录）
+
+1. 真实文件 `parsedOffset=3703`，明文 4000 → **尾部 297 字节未识别**（含重复的 30 字节模式）。
+   颜色/头像前缀（偏移 86..106）远早于此，**不受影响**；受影响的是出生点之后的可变段，
+   若后续要用 .plr 构造 id:5/SSC，需先补齐这段。
+2. `.plr` 里 `hair=196`，但 id:4 的 `payload[2]=0x02`；而 `payload[7]=0xc4=196`。
+   暂记为「候选观察」，需要第二个不同角色的样本才能判定。
