@@ -144,7 +144,8 @@ jobs:
       # 发布产物上的 .plr 解析自检（合成 v319 + debug/ 下的真实样本，若有）
       - name: .plr parser selftest (published dll)
         run: |
-          docker run --rm -v "$PWD/server/dist:/app" -w /app \
+          mkdir -p debug
+          docker run --rm -v "$PWD/server/dist:/app" -v "$PWD/debug:/app/debug" -w /app \
             mcr.microsoft.com/dotnet/runtime:8.0 \
             dotnet BunnyLoader.Server.dll --plr-selftest
 

@@ -522,7 +522,8 @@ public static class PlrCommand
         byte[] plaintext = BuildSyntheticV319();
         byte[] encrypted = PlayerFileReader.EncryptAesCbc(plaintext);
 
-        string dir = Path.Combine(AppContext.BaseDirectory, "debug");
+        // 合成样本写到临时目录，避免污染仓库 / 安装目录
+        string dir = Path.Combine(Path.GetTempPath(), "bunny-plr-selftest");
         Directory.CreateDirectory(dir);
         string path = Path.Combine(dir, "plr-selftest-v319.plr");
         File.WriteAllBytes(path, encrypted);
@@ -562,10 +563,27 @@ public static class PlrCommand
             ok &= Check(log, "plr 自检：明文文件同样能解析", false, e.Message);
         }
 
-        // 如果人类把真实 .plr 放进 debug/，一并验证（不写死文件名）
-        string[] real = Directory.GetFiles(dir, "*.plr")
-            .Where(p => !Path.GetFileName(p).StartsWith("plr-selftest", StringComparison.Ordinal))
-            .ToArray();
+        // 如果人类把真实 .plr 放进 debug/，一并验证（不写死文件名）。
+        // 同时看「二进制目录」和「工作目录」两处：面板上把 .plr 放在 DLL 旁边，
+        // 仓库里则放在仓库根的 debug/，两种位置都要能被发现。
+        string binDebug = Path.Combine(AppContext.BaseDirectory, "debug");
+        var searchDirs = new List<string> { binDebug };
+        string cwdDebug = Path.Combine(Directory.GetCurrentDirectory(), "debug");
+        if (!string.Equals(cwdDebug, binDebug, StringComparison.Ordinal))
+            searchDirs.Add(cwdDebug);
+
+        var real = new List<string>();
+        foreach (string d in searchDirs)
+        {
+            if (!Directory.Exists(d))
+                continue;
+
+            foreach (string file in Directory.GetFiles(d, "*.plr"))
+            {
+                if (!Path.GetFileName(file).StartsWith("plr-selftest", StringComparison.Ordinal))
+                    real.Add(file);
+            }
+        }
 
         if (real.Length == 0)
         {
