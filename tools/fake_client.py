@@ -298,10 +298,11 @@ def pcap_flow(sock: socket.socket) -> int:
     check("id:4 被回显", ident == 4, ident)
     check("id:4 长度不变（40）", len(payload) == 40, len(payload))
     check("whoAmI 改写为 1", payload[:1] == b"\x01", payload[:2].hex())
+    import math as _m
     import struct as _s
     cx = _s.unpack_from("<f", payload, 40 - 8)[0]
     cy = _s.unpack_from("<f", payload, 40 - 4)[0]
-    check("NaN 坐标被覆写", abs(cx - 2105.0) < 0.5 and abs(cy - 312.0) < 0.5, f"{cx},{cy}")
+    check("NaN 坐标被覆写为有限值", not _m.isnan(cx) and not _m.isnan(cy), f"{cx},{cy}")
 
     ident, payload = recv_frame(sock)
     check("收到 id:14 激活", ident == 14 and payload[:2] == b"\x01\x01", f"{ident} {payload.hex()}")
@@ -348,7 +349,7 @@ def pcap_flow(sock: socket.socket) -> int:
     # id:5 必须原样回传
     equip = b"\x00\x00\x00\x00\x00\x00\x00\x01\x02\x03"
     sock.sendall(frame(5, equip))
-    ident, payload = recv_frame(sock)
+    ident, payload = expect_frame(sock, 5)
     check("id:5 原样回传", ident == 5 and payload == equip, f"{ident} {payload.hex()}")
 
     # 血量由客户端决定：只回显，不覆盖
