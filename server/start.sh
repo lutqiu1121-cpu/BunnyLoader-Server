@@ -1,11 +1,18 @@
 #!/bin/sh
 # 简幻云 AIO 启动脚本。
 #
-#   sh start.sh                 # 端口取 SERVER_PORT / PORT，默认 7777
-#   sh start.sh --port 23456    # 也可以显式指定
+# ⛔ R5～R9 阶段禁止把本脚本当作启动入口（档案第 0 章红线：启动命令必须逐字一致）。
+#    面板里「启动命令」只能填这一条，不要用 sh start.sh，也不要写 sh -c '...' 包裹：
+#
+#    mise use -g dotnet@8.0.408 && env WORLD_FILE=world.wld dotnet BunnyLoader.Server.dll --port 32054
+#
+#    本脚本保留为 R10 工程化阶段的候选入口；启用前必须向人类说明完整内容与等价性
+#    （同 dotnet 8.0.408、同环境变量、同 DLL、同端口 32054），旧命令保留为 fallback。
+#
+#   sh start.sh                 # R10 起可用：端口取 SERVER_PORT / PORT，默认 7777
+#   sh start.sh --port 23456    # R10 起可用：也可以显式指定
 #
 # 会自动找 dotnet（PATH 找不到时按常见绝对路径兜底）。
-# 面板里「启动命令」填： sh start.sh
 
 set -e
 DIR=$(cd "$(dirname "$0")" && pwd)

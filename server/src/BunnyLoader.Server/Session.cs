@@ -58,9 +58,14 @@ internal sealed class Session : ISessionTicker
     private long _lastWindowCheckMs;
     private int _controlsReceived;
     private bool _spawnSent;
-    private byte[]? _syncEcho;
+    private int _syncRecvCount;
     private int _equipRecv;
     private int _equipSent;
+
+    /// <summary>收/发帧计数，按消息号归档：验收「id:4 到底发了几次」「有没有 id:13」直接看这里。</summary>
+    private readonly int[] _framesIn = new int[256];
+    private readonly int[] _framesOut = new int[256];
+    private long _lastTrafficLogMs;
     private byte[]? _lastHealth;
     private byte[]? _lastMana;
     private long _lastTimeoutLogMs;
@@ -159,8 +164,27 @@ internal sealed class Session : ISessionTicker
             if (_tick is not null)
                 await _tick.StopAsync();
 
+            // 验收用：一次会话里每个消息号各收/发了几帧（id:4 是否重复发送、有没有 id:13 一目了然）。
+            _log.Info("traffic.summary",
+                ("conn", _id),
+                ("in", TrafficSummary(_framesIn)),
+                ("out", TrafficSummary(_framesOut)),
+                ("note", "按消息号统计的帧数"));
+
             _client.Dispose();
         }
+    }
+
+    private static string TrafficSummary(int[] counts)
+    {
+        var parts = new List<string>();
+        for (int id = 0; id < counts.Length; id++)
+        {
+            if (counts[id] > 0)
+                parts.Add($"{id}:{counts[id]}");
+        }
+
+        return parts.Count == 0 ? "-" : string.Join(" ", parts);
     }
 
 
@@ -388,6 +412,8 @@ internal sealed class Session : ISessionTicker
 
     private async Task DispatchAsync(NetworkStream stream, byte id, byte[] payload, List<byte> inbox, CancellationToken cancellationToken)
     {
+        _framesIn[id]++;
+
         _log.Info("frame.recv",
             ("conn", _id),
             ("id", id),
@@ -524,8 +550,8 @@ internal sealed class Session : ISessionTicker
                     tail.Add(Messages.StartPlayingPacket());
                 }
 
-                if (_syncEcho is not null)
-                    tail.Add(Codec.Frame(MessageId.SyncPlayer, _syncEcho));
+                // id:4 不在 tail 重放：客户端发来 id:4 时已经立即回显过一次（技术主管批注），
+                // 这里再放一次就是同一次会话里的第二次发送。顺序因此是 7 -> 10×40 -> 49 -> 14 -> 12 -> 129。
 
                 tail.Add(Codec.Frame(MessageId.PlayerActive, new[] { PlayerSlot, (byte)1 }));
 
@@ -548,7 +574,8 @@ internal sealed class Session : ISessionTicker
                     ("conn", _id),
                     ("frames", tail.Count),
                     ("ids", string.Join(",", tail.Select(f => f[2]))),
-                    ("note", "49 -> 4 -> 14 -> 12 -> 129"));
+                    ("sync4", "not-replayed"),
+                    ("note", "49 -> 14 -> 12 -> 129；id:4 已在收到时立即回显，这里不重放"));
                 break;
             }
 
@@ -664,44 +691,70 @@ internal sealed class Session : ISessionTicker
                     break;
                 }
 
+                // whoAmI 改写保留，但必须能从日志确认「改写前后一致」。
                 byte whoAmI = echo[0];
                 echo[0] = PlayerSlot;
 
-                // 只在「两个坐标都是全 FF（NaN）」时原地覆写，绝不猜测偏移
-                int coordOffset = -1;
-                for (int i = 1; i + 8 <= echo.Length; i++)
-                {
-                    bool xNaN = echo[i] == 0xFF && echo[i + 1] == 0xFF && echo[i + 2] == 0xFF && echo[i + 3] == 0xFF;
-                    bool yNaN = echo[i + 4] == 0xFF && echo[i + 5] == 0xFF && echo[i + 6] == 0xFF && echo[i + 7] == 0xFF;
-                    if (xNaN && yNaN) { coordOffset = i; break; }
-                }
+                _syncRecvCount++;
 
-                string before = Codec.Hex(echo, 24);
+                // ===== 诊断（本轮唯一目的）：把 40 字节一次说清楚，不做任何改写 =====
+                // 上一轮的日志被 Codec.Hex(echo, 24) 截断到前 24 字节，坐标/颜色偏移因此定不下来。
+                SyncPlayer4.Report report = SyncPlayer4.Analyze(payload);
 
-                if (coordOffset >= 0)
-                {
-                    BinaryPrimitives.WriteSingleLittleEndian(echo.AsSpan(coordOffset, 4), WorldSpawnX);
-                    BinaryPrimitives.WriteSingleLittleEndian(echo.AsSpan(coordOffset + 4, 4), WorldSpawnY);
-                }
+                _log.Info("syncplayer.raw",
+                    ("conn", _id),
+                    ("len", report.Length),
+                    ("hex", report.HexSpaced),
+                    ("ascii", report.Ascii),
+                    ("recvLen", payload.Length),
+                    ("sendLen", echo.Length),
+                    ("count", _syncRecvCount),
+                    ("whoAmI", $"0x{whoAmI:X2} -> 0x{PlayerSlot:X2}"),
+                    ("whoAmIChanged", whoAmI != PlayerSlot));
+
+                _log.Info("syncplayer.layout",
+                    ("conn", _id),
+                    ("playerId", report.PlayerId),
+                    ("skinVariant", report.SkinVariant),
+                    ("hair", report.Hair),
+                    ("nameOffset", report.NameOffset),
+                    ("namePrefixBytes", report.NamePrefixBytes),
+                    ("nameLenClaimed", report.NameLengthClaimed),
+                    ("name", report.Name),
+                    ("standardLayoutOk", report.StandardLayoutOk),
+                    ("derail", report.Derail),
+                    ("minStdBytes", report.MinStd),
+                    ("minRgbaBytes", report.MinRgba),
+                    ("actualLen", report.Length));
+
+                _log.Info("syncplayer.fields",
+                    ("conn", _id),
+                    ("fields", report.Fields),
+                    ("nameCandidates", report.NameCandidates),
+                    ("printableRuns", report.PrintableRuns));
+
+                _log.Info("syncplayer.candidates",
+                    ("conn", _id),
+                    ("u32Aligned", report.U32Candidates),
+                    ("floats", report.FloatCandidates),
+                    ("nanPairOffset", report.NanPairOffset),
+                    ("note", "16-19 的 ff ff ff ff 可能是颜色/标志位，也可能是 NaN f32；此行走位未确认前不改写"));
 
                 if (echo.Length != payload.Length)
                     throw new InvalidOperationException($"id:4 长度被改变: recv={payload.Length} send={echo.Length}");
 
-                _syncEcho = echo;
-
+                // ===== 发送语义（技术主管批注）：立即回显、保持时延；**不缓存**、tail 不重放 =====
+                // 这样一次会话里客户端每发一次 4，我们就回一次 4，不会有第二次重复发送。
                 await SendAsync(stream, Codec.Frame(MessageId.SyncPlayer, echo), cancellationToken);
 
-                _log.Info("player.sync.echoed",
+                await SendAsync(stream, Codec.Frame(MessageId.PlayerActive, new[] { PlayerSlot, (byte)1 }), cancellationToken);
+
+                _log.Info("syncplayer.echoed",
                     ("conn", _id),
                     ("recvLen", payload.Length),
                     ("sendLen", echo.Length),
-                    ("whoAmI", $"0x{whoAmI:X2} -> 0x{PlayerSlot:X2}"),
-                    ("coordOffset", coordOffset),
-                    ("before", before),
-                    ("after", Codec.Hex(echo, 24)));
-
-                await SendAsync(stream, Codec.Frame(MessageId.PlayerActive, new[] { PlayerSlot, (byte)1 }), cancellationToken);
-                _log.Info("player.active.sent", ("conn", _id), ("slot", PlayerSlot));
+                    ("count", _syncRecvCount),
+                    ("note", "立即回显 + 立即 14；不写入任何缓存，world.tail 不重放 id:4"));
                 break;
             }
 
@@ -728,6 +781,8 @@ internal sealed class Session : ISessionTicker
                 _player.LastControls = payload;
                 _player.LastSeenMs = (long)_clock.Elapsed.TotalMilliseconds;
 
+                // 本轮只做诊断：状态更新保持原样（按旧逻辑读 i16），
+                // 但额外用正确偏移解析一次位置写进日志——这条是判断「摇杆是否真的解锁」的证据。
                 if (payload.Length >= 9)
                 {
                     _player.TileX = Math.Abs(BinaryPrimitives.ReadInt16LittleEndian(payload.AsSpan(1, 2)));
@@ -738,11 +793,19 @@ internal sealed class Session : ISessionTicker
 
                 if (_controlsReceived % 60 == 1)
                 {
+                    bool parsed = PlayerControls13.TryParsePosition(payload, out float pixelX, out float pixelY, out int posTileX, out int posTileY);
+
                     _log.Info("controls.update",
                         ("conn", _id),
                         ("x", _player.TileX),
                         ("y", _player.TileY),
-                        ("count", _controlsReceived));
+                        ("count", _controlsReceived),
+                        ("len", payload.Length),
+                        ("hex", Codec.Hex(payload, 32)),
+                        ("posOffset6Ok", parsed),
+                        ("posTile", parsed ? $"{posTileX},{posTileY}" : "-"),
+                        ("posPixel", parsed ? $"{pixelX},{pixelY}" : "-"),
+                        ("note", "posTile/posPixel 是按偏移 6 解析的候选读法，仅供诊断，不参与状态"));
                 }
                 break;
             }
@@ -817,11 +880,14 @@ internal sealed class Session : ISessionTicker
 
         _lastSendMs = (long)_clock.Elapsed.TotalMilliseconds;
         _capture?.ToClient(frame);
+        _framesOut[frame[2]]++;
+
         _log.Info("frame.send",
             ("conn", _id),
             ("id", frame[2]),
             ("name", Messages.Name(frame[2])),
             ("len", frame.Length),
+            ("seq", _framesOut[frame[2]]),
             ("hex", Codec.Hex(frame.AsSpan(3), 24)));
     }
 
@@ -907,11 +973,14 @@ internal sealed class Session : ISessionTicker
 
         foreach (byte[] frame in frames)
         {
+            _framesOut[frame[2]]++;
+
             _log.Info("frame.send",
                 ("conn", _id),
                 ("id", frame[2]),
                 ("name", Messages.Name(frame[2])),
                 ("len", frame.Length),
+                ("seq", _framesOut[frame[2]]),
                 ("hex", Codec.Hex(frame.AsSpan(3), 24)));
         }
 
@@ -1123,6 +1192,16 @@ internal sealed class Session : ISessionTicker
     public async Task OnGameTickAsync(double nowMs, CancellationToken cancellationToken)
     {
         long now = (long)nowMs;
+
+        // 15s 一次的流量快照：面板日志被截断时，也能看出「客户端到底有没有发 id:13」「我们发了几次 id:4」。
+        if (now - _lastTrafficLogMs >= 15_000)
+        {
+            _lastTrafficLogMs = now;
+            _log.Info("traffic.tick",
+                ("conn", _id),
+                ("in", TrafficSummary(_framesIn)),
+                ("out", TrafficSummary(_framesOut)));
+        }
 
         // 超时踢人已按要求关闭：只记日志，不断开连接。
         if (_player.LastSeenMs > 0 && now - _player.LastSeenMs > TickEngine.TimeoutMs)

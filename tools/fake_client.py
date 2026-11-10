@@ -287,7 +287,8 @@ def pcap_flow(sock: socket.socket) -> int:
     ident, payload = recv_frame(sock)
     check_welcome(ident, payload, "68 之后的欢迎包")
 
-    # 上报角色：40 字节，whoAmI=FF，坐标是 NaN（全 FF）
+    # 上报角色：40 字节。本轮（R5 第三轮，技术主管批注）只做诊断打印，
+    # 服务端不得改写 id:4 的任何字节（whoAmI 除外），所以这里逐字节核对回显内容。
     name = string("Tester")
     filler = b"\x00" * (40 - 1 - len(name) - 8)
     sync_payload = b"\xff" + name + filler + b"\xff" * 8
@@ -295,14 +296,12 @@ def pcap_flow(sock: socket.socket) -> int:
     sock.sendall(frame(4, sync_payload))
 
     ident, payload = recv_frame(sock)
-    check("id:4 被回显", ident == 4, ident)
+    check("id:4 立即被回显（不改变时延）", ident == 4, ident)
     check("id:4 长度不变（40）", len(payload) == 40, len(payload))
     check("whoAmI 改写为 1", payload[:1] == b"\x01", payload[:2].hex())
-    import math as _m
-    import struct as _s
-    cx = _s.unpack_from("<f", payload, 40 - 8)[0]
-    cy = _s.unpack_from("<f", payload, 40 - 4)[0]
-    check("NaN 坐标被覆写为有限值", not _m.isnan(cx) and not _m.isnan(cy), f"{cx},{cy}")
+    expected_echo = b"\x01" + sync_payload[1:]
+    check("id:4 除 whoAmI 外一个字节都没被改（诊断轮不得改写坐标/颜色）",
+          payload == expected_echo, payload.hex())
 
     ident, payload = recv_frame(sock)
     check("收到 id:14 激活", ident == 14 and payload[:2] == b"\x01\x01", f"{ident} {payload.hex()}")
@@ -314,7 +313,7 @@ def pcap_flow(sock: socket.socket) -> int:
         early = None
     check("激活之后静默（等 id:6）", early is None, early[:16].hex() if early else None)
 
-    # 请求世界：7 -> 40 块 -> 49 -> 12
+    # 请求世界：7 -> 40 块 -> 49 -> 14 -> 12 -> 129（id:4 不重放）
     sock.settimeout(15)
     sock.sendall(frame(6, b""))
 
@@ -333,17 +332,26 @@ def pcap_flow(sock: socket.socket) -> int:
     check("收到 id=49", 49 in ids, ids[:20])
     check("收到 id=12", 12 in ids, ids[:20])
     check("收到 id=129", 129 in ids, ids[:24])
-    check("49 之后重放 id:4", 49 in ids and 4 in ids[ids.index(49):], ids[-8:])
-    check("重放 4 之后有 id:14", 4 in ids and 14 in ids[ids.index(4):] if 4 in ids else False, ids[-8:])
+
+    # 第 8 章验收 (5)：id:4 在整条会话里只发一次——收到时立即回显那一次，tail 不重放。
+    check("id:4 会话内不重放（ids 中 0 次）", ids.count(4) == 0, ids.count(4))
+
+    tail_ids = [i for i in ids if i in (49, 14, 12, 129)]
+    check("tail 顺序 = 49 -> 14 -> 12 -> 129", tail_ids == [49, 14, 12, 129], tail_ids)
     if 49 in ids and 12 in ids and 129 in ids:
         check("顺序 49 -> ... -> 12 -> 129",
               ids.index(49) < ids.index(12) < ids.index(129), ids[-10:])
     print(f"        序列: 分块={sections} ids={ids[:12]}…")
 
-    # R5：控制包只更新内存（节流广播），不再无脑回显
+    # R5：控制包只更新内存（节流广播），不再无脑回显。
+    # 位置固定从偏移 6 开始、单位像素：这里发一个真实的 14 字节控制帧（2105,312 格）。
     sock.settimeout(6)
-    controls = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00"
-    sock.sendall(frame(13, controls))
+    controls = bytearray(14)
+    controls[0] = 0x01
+    import struct as _s
+    _s.pack_into("<f", controls, 6, 2105 * 16 + 8)
+    _s.pack_into("<f", controls, 10, 312 * 16)
+    sock.sendall(frame(13, bytes(controls)))
     sock.sendall(frame(14, b"\x00\x01"))
 
     # id:5 必须原样回传

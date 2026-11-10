@@ -24,6 +24,10 @@ jobs:
           docker --version
           python3 --version
 
+      # 验收条件 0：启动命令红线（R5 两轮实测都栽在这里，做成硬门禁）。
+      - name: 启动命令红线自检
+        run: sh tools/check-startup-command.sh
+
       # 验收条件 1：Docker 构建必须通过。失败就在这里红。
       - name: Docker build
         run: docker build -t bunny-loader-server:ci ./server
@@ -145,6 +149,21 @@ jobs:
           done
           python3 tools/fake_client.py 127.0.0.1 17790 proofdoc
           docker logs panel-doc | grep -E 'proof\.(sent|verified)|serverinfo\.163' | head -3
+
+          # 诊断轮门禁：完整 40 字节必须真的被打出来（不允许再被截断成 24 字节）。
+          docker logs panel-doc | grep -q '"ev":"syncplayer.raw"' \
+            || { echo "缺少 syncplayer.raw（完整 40 字节 hex）"; docker logs panel-doc | tail -40; exit 1; }
+          docker logs panel-doc | grep '"ev":"syncplayer.raw"' | head -1
+          docker logs panel-doc | grep -q '"ev":"syncplayer.layout"' \
+            || { echo "缺少 syncplayer.layout（逐字段走位）"; exit 1; }
+          docker logs panel-doc | grep '"ev":"syncplayer.layout"' | head -1
+
+          # 第 8 章验收 (5)：同一条会话里 id:4 只能发一次（收到时立即回显那一次）。
+          # 只数 frame.send（frame.recv 也会打印 "name":"SyncPlayer"）。
+          sync4=$(docker logs panel-doc | grep -c '"ev":"frame.send".*"name":"SyncPlayer"')
+          echo "id:4 发送次数 = $sync4"
+          [ "$sync4" -eq 1 ] || { echo "id:4 发了 $sync4 次，必须恰好 1 次"; docker logs panel-doc | grep '"name":"SyncPlayer"'; exit 1; }
+
           docker rm -f panel-doc
 
       - name: 严格状态机 — DISABLE_163 对照组

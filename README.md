@@ -35,7 +35,13 @@
 产物是**框架依赖版**（约 60 KB），不打包运行时。完整清单见 [docs/panel-deploy.md](docs/panel-deploy.md)：
 
 1. 从 Releases 下载 `bunny-loader-server-panel.zip`，上传到面板根目录并解压；
-2. 启动命令：`sh start.sh`（自带 dotnet 查找与端口透传）；
+2. 启动命令（**R5～R9 红线，逐字一致，禁止任何变体**）：
+
+   ```bash
+   mise use -g dotnet@8.0.408 && env WORLD_FILE=world.wld dotnet BunnyLoader.Server.dll --port 32054
+   ```
+
+   不得写成 `sh start.sh`、不得用 `sh -c '...'` 包裹、不得改端口、不得把 `WORLD_FILE` 写成 `块状的小屋.wld`；
 3. 看到 `"ev":"server.start"` 就是在监听。
 
 服务端会在消息 3 之后立刻补发 BL 欢迎包（82 / kind 200），并且**每次连接轮换一种消息 3 形态**

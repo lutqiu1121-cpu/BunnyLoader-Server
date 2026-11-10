@@ -1,8 +1,21 @@
 # 极简部署（简幻云 AIO 镜像 v1，自带 .NET 8）
 
-> 你只需要：**上传一个 zip → 解压 → 启动命令填 `sh start.sh` → 看控制台**。
+> ⛔ **R5～R9 阶段启动命令红线（逐字一致，禁止任何变体）**
+>
+> ```bash
+> mise use -g dotnet@8.0.408 && env WORLD_FILE=world.wld dotnet BunnyLoader.Server.dll --port 32054
+> ```
+>
+> 交付前自检三条：① 端口必须是 `32054`；② 世界文件必须是 `world.wld`（不是 `块状的小屋.wld`）；
+> ③ 不得出现 `sh start.sh`、不得出现 `sh -c '...'` 包裹、不得省略 `mise use -g dotnet@8.0.408 &&` 前缀。
+> R5 两轮实测都因为写成 `sh -c 'WORLD_FILE=块状的小屋.wld sh start.sh'` 而违规，
+> 本文档下面所有形如 `sh start.sh` / `sh -c '...'` 的写法都是 **R3 以前的历史记录**，
+> R5～R9 期间**一律不得**用作启动入口。
+
+> 你只需要：**上传一个 zip → 解压 → 粘贴上面那条红线命令 → 看控制台**。
 > 不需要 SSH，不需要装任何东西。
-> 当前是 **R3**：握手 + 平坦世界分块，目标是画完地图并进入世界。
+> 当前是 **R5**：握手、世界头、分块、进图都已通过；卡在进图后摇杆锁死。
+> 本轮（R5 第三轮）是**诊断轮**：只加日志，不改 id:4 的任何字节。
 
 ---
 
@@ -15,30 +28,31 @@
 解压后应该是：
 
 ```
-start.sh                          ← 启动脚本（已含 dotnet 查找与端口透传）
 BunnyLoader.Server.dll            ← 主程序
 BunnyLoader.Server.deps.json
 BunnyLoader.Server.runtimeconfig.json
 config/server.json                ← 可选
 testdata/handshake-vectors.json   ← 自检用
+start.sh                          ← R10 才允许用的启动入口，R5～R9 期间不要用
 ```
 
 ## 2. 启动命令
 
-**主推 —— 只要一行：**
+**R5～R9 唯一合规写法（复制粘贴，不要改任何字符）：**
 
 ```bash
-sh start.sh
+# ⛔ 历史记录（R3 以前）：R5～R9 期间禁止使用，合规命令只有 §2 那条 mise+env 写法
+mise use -g dotnet@8.0.408 && env WORLD_FILE=world.wld dotnet BunnyLoader.Server.dll --port 32054
 ```
 
-它会：找 `dotnet`（`PATH` 找不到就依次试 `/usr/bin`、`/usr/local/bin`、`/usr/share/dotnet`、`~/.dotnet`、mise shims）
-→ 端口从 `SERVER_PORT`、`PORT` 依次读，都没有才用 7777 → 启动。
+各段含义：`mise use -g dotnet@8.0.408` 固定运行时版本 → `env WORLD_FILE=world.wld` 指定面板根目录的世界文件 →
+`dotnet BunnyLoader.Server.dll --port 32054` 启动并监听 32054。
 
-**备选 —— 直接写：**
+**以下全部是历史记录（R3 以前），R5～R9 期间禁止使用：**
 
-```bash
-dotnet BunnyLoader.Server.dll --port 分配端口
-```
+- `sh start.sh`（脚本入口，R10 工程化阶段才允许，且必须先通过等价性论证）
+- `dotnet BunnyLoader.Server.dll --port 分配端口`（缺 mise 前缀、缺 WORLD_FILE）
+- 任何 `sh -c '...'` 包裹
 
 **兜底 —— `dotnet: command not found` 时：**
 
@@ -56,7 +70,7 @@ mise exec dotnet@8.0 -- dotnet BunnyLoader.Server.dll --port 分配端口
 
 | 项 | 填什么 |
 |---|---|
-| 端口号 | 面板分配的数字。用 `sh start.sh` 时它读 `SERVER_PORT`/`PORT`；用备选命令就显式写 `--port` |
+| 端口号 | **32054**（R5～R9 红线，不得改动）。程序固定 `0.0.0.0` 监听 |
 | 协议 | **TCP**（必须）。BL 联机是纯 TCP，选 UDP 一定连不上 |
 | 监听地址 | 不用管，程序固定 `0.0.0.0` |
 
@@ -109,6 +123,7 @@ mise exec dotnet@8.0 -- dotnet BunnyLoader.Server.dll --port 分配端口
 想固定成某一种（不必每次连都轮换），启动命令加一个变量：
 
 ```bash
+# ⛔ 历史记录（R3 以前）：R5～R9 期间禁止使用，合规命令只有 §2 那条 mise+env 写法
 sh -c 'MSG3_VARIANT=flags1 sh start.sh'
 ```
 
@@ -122,6 +137,7 @@ sh -c 'MSG3_VARIANT=flags1 sh start.sh'
 也可以单独控制两个维度：
 
 ```bash
+# ⛔ 历史记录（R3 以前）：R5～R9 期间禁止使用，合规命令只有 §2 那条 mise+env 写法
 sh -c 'MSG3_LAYOUT=flags MSG3_SPECIAL_FLAG=true sh start.sh'
 ```
 
@@ -133,6 +149,7 @@ sh -c 'MSG3_LAYOUT=flags MSG3_SPECIAL_FLAG=true sh start.sh'
 如果三次都秒断，先用这一条把「欢迎包」排除掉：
 
 ```bash
+# ⛔ 历史记录（R3 以前）：R5～R9 期间禁止使用，合规命令只有 §2 那条 mise+env 写法
 sh -c 'SKIP_WELCOME_PACK=true sh start.sh'
 ```
 
@@ -151,6 +168,7 @@ sh -c 'SKIP_WELCOME_PACK=true sh start.sh'
 两个环境变量可以直接改字节，不必等我出新包：
 
 ```bash
+# ⛔ 历史记录（R3 以前）：R5～R9 期间禁止使用，合规命令只有 §2 那条 mise+env 写法
 # 消息 3 的负载改为 4 字节 01 00 00 00
 sh -c 'MSG3_HEX=01000000 sh start.sh'
 
@@ -168,6 +186,7 @@ sh -c 'WELCOME_HEX=7fb1c800 sh start.sh'
 改成候选轮换启动：
 
 ```bash
+# ⛔ 历史记录（R3 以前）：R5～R9 期间禁止使用，合规命令只有 §2 那条 mise+env 写法
 sh -c 'MSG3_CANDIDATES=auto sh start.sh'
 ```
 
@@ -200,12 +219,14 @@ sh -c 'MSG3_CANDIDATES=auto sh start.sh'
 自定义候选（只用你挑的）：
 
 ```bash
+# ⛔ 历史记录（R3 以前）：R5～R9 期间禁止使用，合规命令只有 §2 那条 mise+env 写法
 sh -c 'MSG3_CANDIDATES=00,0000,0001 sh start.sh'
 ```
 
 **控制组**（连消息 3 都不发，验证客户端是不是自己超时）：
 
 ```bash
+# ⛔ 历史记录（R3 以前）：R5～R9 期间禁止使用，合规命令只有 §2 那条 mise+env 写法
 sh -c 'SKIP_APPROVED=true sh start.sh'
 ```
 
@@ -214,6 +235,7 @@ sh -c 'SKIP_APPROVED=true sh start.sh'
 长度与槽位假设已被排除，改用「3 之后立刻给世界头」这条假设：
 
 ```bash
+# ⛔ 历史记录（R3 以前）：R5～R9 期间禁止使用，合规命令只有 §2 那条 mise+env 写法
 sh -c 'SEND_MSG7_AFTER_3=true sh start.sh'
 ```
 
@@ -226,6 +248,7 @@ sh -c 'SEND_MSG7_AFTER_3=true sh start.sh'
 想做「只有 3+7、不带欢迎」的对照（**预期客户端会自踢**）：
 
 ```bash
+# ⛔ 历史记录（R3 以前）：R5～R9 期间禁止使用，合规命令只有 §2 那条 mise+env 写法
 sh -c 'SEND_MSG7_AFTER_3=true MSG7_INCLUDE_WELCOME=false sh start.sh'
 ```
 
@@ -352,6 +375,7 @@ y >= rockLayer        石头（类型 1）
 **给带锁客户端测试时建议直接 `PROOF_MODE=on`**，省掉 200ms 探测：
 
 ```bash
+# ⛔ 历史记录（R3 以前）：R5～R9 期间禁止使用，合规命令只有 §2 那条 mise+env 写法
 sh -c 'WORLD_FILE=块状的小屋.wld PROOF_MODE=on sh start.sh'
 ```
 
@@ -387,6 +411,7 @@ sh -c 'WORLD_FILE=块状的小屋.wld PROOF_MODE=on sh start.sh'
 组合示例：
 
 ```bash
+# ⛔ 历史记录（R3 以前）：R5～R9 期间禁止使用，合规命令只有 §2 那条 mise+env 写法
 # 你的方案 4：模块 0 + kind 1
 sh -c 'WORLD_FILE=块状的小屋.wld PROOF_MODE=on PROOF_AS_TEXT=true sh start.sh'
 
@@ -416,6 +441,7 @@ sh -c 'WORLD_FILE=块状的小屋.wld PROOF_MODE=on PROOF_MESSAGE_ID=9 sh start.
 所以改成**自动扫描**：
 
 ```bash
+# ⛔ 历史记录（R3 以前）：R5～R9 期间禁止使用，合规命令只有 §2 那条 mise+env 写法
 sh -c 'WORLD_FILE=块状的小屋.wld PROOF_MODE=on PROOF_SWEEP=true sh start.sh'
 ```
 
@@ -457,6 +483,7 @@ sh -c 'WORLD_FILE=块状的小屋.wld PROOF_MODE=on PROOF_SWEEP=true sh start.sh
 启动命令回到最干净的形式：
 
 ```bash
+# ⛔ 历史记录（R3 以前）：R5～R9 期间禁止使用，合规命令只有 §2 那条 mise+env 写法
 sh -c 'WORLD_FILE=块状的小屋.wld sh start.sh'
 ```
 
@@ -503,6 +530,7 @@ TCP 建立 → 发 27 字节 proof → 立刻发 id:3 + 欢迎包(82/200) → �
 启动命令：
 
 ```bash
+# ⛔ 历史记录（R3 以前）：R5～R9 期间禁止使用，合规命令只有 §2 那条 mise+env 写法
 sh -c 'WORLD_FILE=块状的小屋.wld NO_WELCOME=true sh start.sh'
 ```
 
@@ -566,6 +594,7 @@ PROOF_LEGACY_CAPTURE=true
 ### 启动命令
 
 ```bash
+# ⛔ 历史记录（R3 以前）：R5～R9 期间禁止使用，合规命令只有 §2 那条 mise+env 写法
 sh -c 'WORLD_FILE=块状的小屋.wld sh start.sh'
 ```
 
@@ -662,7 +691,8 @@ conn.open
 
 ## 8. 常见问题
 
-**Q1：`dotnet: command not found`** → 用 §2 的兜底命令，或 `sh start.sh`（它自带查找）。
+**Q1：`dotnet: command not found`** → 先确认 `mise use -g dotnet@8.0.408` 是否执行成功（红线命令前半段），
+不要退回到 `sh start.sh`（R5～R9 期间禁止）。
 
 **Q2：想确认镜像里有没有 .NET**
 
@@ -683,3 +713,43 @@ sh -c 'dotnet BunnyLoader.Server.dll --print-config'
 ```
 
 打印一行 `config.effective`（含 `port`、`msg3`、`world`）后退出。
+
+
+---
+
+## 10. R5 第三轮：id:4 诊断轮（2026-11-10）
+
+本轮**只加日志，不改 id:4 的任何字节**（whoAmI 改写保留）。目的：一次实测就把 40 字节说清楚，
+用来判定 `ff ff ff ff`（实测落在第 16-19 字节）到底是颜色、标志位，还是别的什么。
+
+### 10.1 本轮日志（按出现顺序）
+
+```json
+{"ev":"syncplayer.raw","len":40,"hex":"01 07 02 d0 cc 4c 3e c4 03 43 75 70 00 00 00 00 ff ff ff ff bb a9 69 5a …","ascii":"...","whoAmI":"0x01 -> 0x01","whoAmIChanged":false}
+{"ev":"syncplayer.layout","playerId":1,"skinVariant":7,"hair":2,"nameOffset":3,"namePrefixBytes":3,"nameLenClaimed":1254992,"standardLayoutOk":false,"derail":"…","minStdBytes":50,"minRgbaBytes":57,"actualLen":40}
+{"ev":"syncplayer.fields","fields":"…","nameCandidates":"8:len=3:\"Cup\"","printableRuns":"…"}
+{"ev":"syncplayer.candidates","u32Aligned":"0:0x020701 …","floats":"16:NaN …","nanPairOffset":-1}
+{"ev":"syncplayer.echoed","recvLen":40,"sendLen":40,"count":1,"note":"立即回显 + 立即 14；不写入任何缓存，world.tail 不重放 id:4"}
+```
+
+`syncplayer.layout` 里两个数字是本轮的核心证据：
+
+| 字段 | 含义 |
+|---|---|
+| `nameLenClaimed` | 把第 3 字节起当标准 7bit 长度前缀解出来的值。实测会是 1254992（≈1.2MB），远超 40 字节 |
+| `standardLayoutOk` | 上述判断的结果：`false` = 该客户端**不是**标准 1.4.5.8 SyncPlayer 布局 |
+| `minStdBytes` | 标准布局（颜色 3 字节 RGB）最少需要多少字节；实测名字 3 字节时是 50 > 40 |
+| `minRgbaBytes` | 同样布局但颜色按 4 字节 RGBA 存时需要多少字节；用来验证「第 16-19 字节是 RGBA 颜色」这个假设 |
+
+### 10.2 人类要回传什么
+
+1. `syncplayer.raw`（**必须 40 组 hex**，如果只有 24 组说明 DLL 没换）
+2. `syncplayer.layout` / `syncplayer.fields` / `syncplayer.candidates`
+3. 客户端里该角色的捏脸数据：肤色、发色（含发色编号）、瞳色、衣服/裤子上衣/鞋子的颜色
+4. `world.tail`（应为 `49,14,12,129`）与 `traffic.summary`（看有没有 `13:`）
+
+### 10.3 本轮不做什么
+
+- 不改 id:4 任何字节（含 `ff ff ff ff`）
+- 不改加载时序（7 → 10×40 → 49 → 14 → 12 → 129，id:4 在收到时立即回显）
+- 不改握手、163、分块编码、.wld 解析
