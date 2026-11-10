@@ -36,6 +36,10 @@ jobs:
       - name: C# selftest (golden vectors)
         run: docker run --rm bunny-loader-server:ci --selftest
 
+      # .plr 解析器：造一份 v319 合成存档（加密→落盘→按真实路径解析）验证 AES 与字段偏移。
+      - name: .plr parser selftest (synthetic v319)
+        run: docker run --rm bunny-loader-server:ci --plr-selftest
+
       - name: Python reference selftest
         run: python3 tools/proto_ref.py selftest
 
@@ -136,6 +140,13 @@ jobs:
           done
           python3 tools/fake_client.py 127.0.0.1 17782 flags0
           docker rm -f panel-v3
+
+      # 发布产物上的 .plr 解析自检（合成 v319 + debug/ 下的真实样本，若有）
+      - name: .plr parser selftest (published dll)
+        run: |
+          docker run --rm -v "$PWD/server/dist:/app" -w /app \
+            mcr.microsoft.com/dotnet/runtime:8.0 \
+            dotnet BunnyLoader.Server.dll --plr-selftest
 
       - name: 严格状态机 — 26 字节证明 + 回执 + 163 + 进世界
         run: |

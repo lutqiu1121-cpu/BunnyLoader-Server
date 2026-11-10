@@ -772,3 +772,52 @@ standard(1+13*3+2=42) 差 -14      ← 标准全量布局需要 42 字节，实�
 - 不改 id:4 任何字节（含 `ff ff ff ff`）
 - 不改加载时序（7 → 10×40 → 49 → 14 → 12 → 129，id:4 在收到时立即回显）
 - 不改握手、163、分块编码、.wld 解析
+
+---
+
+## 11. R6：.plr 解析器（离线工具，不联网）
+
+用于确认「ff ff ff ff 到底是哪个字段」：直接读玩家存档的权威颜色，再和 id:4 的 40 字节比对。
+
+### 11.1 文件格式结论（v319 = 1.4.5.x）
+
+- **加密**：整个文件是 AES-128-CBC 密文，`Key = IV = "h3y_gUyZ" 的 UTF-16LE 字节`（16 字节），**无填充**，
+  密文长度必须是 16 的倍数；明文被补 0 到 16 的倍数，所以末尾几个 0 字节属正常。
+- **明文头部**：`int32 版本(319) + "relogic" + byte fileType=3 + uint32 revision + uint64 favorite + 名字(7bit 长度+UTF-8)`。
+  注意：**不是**「以版本字符串开头」，加密判断的依据就是「解密后第 4..10 字节是不是 `relogic`」。
+- 之后顺序：难度 → 游玩时长(int64) → 发型(int32) → 发型染料 → 队伍 → hideVisibleAccessory×2 →
+  hideMisc → skinVariant → 生命/生命上限/魔力/魔力上限 → extraAccessory → 生物群系火把×2 →
+  工匠面包 → 6 个永久强化 → 旧日军团 → 税钱 → 死亡数×2 → **7 个颜色（各 3 字节 RGB）** → 物品区。
+
+### 11.2 怎么用
+
+```bash
+# 只解析存档
+dotnet BunnyLoader.Server.dll --parse-plr debug/Cup.plr
+
+# 解析 + 与 id:4 的 40 字节 payload 对照（推荐）
+dotnet BunnyLoader.Server.dll --parse-plr debug/Cup.plr --sync-raw "01 07 02 d0 cc ...（共 40 组）"
+```
+
+输出全是逐行 JSON：`plr.file`（前 32 字节 hex）、`plr.header`（版本/加密/判断依据）、
+`plr.decrypted`（解密后前 32 字节）、`plr.field`（每字段偏移+长度+值）、`plr.color`（7 色 hex+RGB）、
+`plr.inventory.slot`（前 10 槽）、`plr.inventory.summary`，对照时再加 `plr.id4.match` /
+`plr.id4.field`（字段表）/ `plr.id4.conclusion`（结论）。
+
+完整物品栏写到 `debug/plr-inventory-<名字>.log`。
+
+### 11.3 对照结论怎么读
+
+`plr.id4.conclusion` 的 `answer` 会直接点名：
+「偏移 16..19 的 ff ff ff ff 不是坐标：hairColor 位于 16..18，…」，
+`plr.id4.field` 里 `confirmed:true` 的行表示「该颜色与 .plr 逐字节一致」，
+其余标「候选，待验证」。名字定位命中时 `plr.id4.compare` 会给出 `nameOffset` / `colorStart` / `matchers`。
+
+### 11.4 自检
+
+```bash
+dotnet BunnyLoader.Server.dll --plr-selftest
+# 造一份 v319 合成存档（加密→落盘→按真实路径解析），断言 AES 与每个字段偏移
+```
+
+`debug/` 下若存在真实 `.plr`，自检会自动带上它（断言名字非空、颜色有值、至少 1 个非空物品）。

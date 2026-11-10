@@ -65,3 +65,40 @@
    **`syncplayer.hypotheses`** 五行原样回传；并附上该角色的捏脸颜色（发色 7 组 + 肤/瞳/上衣/内衣/裤/鞋）。
    `hypotheses` 里 `map(...)=` 那一段就是「哪种字段顺序正好用完 40 字节」，人类把颜色一对就能定布局。
 5. 顺带回传：`world.tail`（应为 `49,14,12,129`）、`traffic.summary`（看有没有 13）。
+
+---
+
+## 2026-11-10 | R6 第一层：.plr 解析器（只读验证，不接网络）
+
+**性质**：一次性新增离线工具，不接入 Session，不改 id:4/id:5 任何下发逻辑，
+不碰握手 / 加载时序 / World 解析 / TickEngine。
+
+### 新增
+
+| 文件 | 内容 |
+|---|---|
+| `server/src/BunnyLoader.Server/Player/PlayerFileData.cs` | 解析结果模型：`PlayerColor`（3 字节 RGB，带 hex/RGB 两种形式）、`PlayerItem`、`PlrField`（名字/偏移/长度/值/是否确认）、`PlayerFileData`（版本、名字、难度、发型、染料、hideVisuals×2、hideMisc、skinVariant、生命魔力、7 个颜色、各物品区、trailing hex、字段表） |
+| `server/src/BunnyLoader.Server/Player/PlayerFileReader.cs` | `ReadFromFile(path)`：读文件 → 判断明文/密文（依据：第 4..10 字节是否 `relogic`）→ AES-128-CBC 解密（Key=IV=`h3y_gUyZ` 的 UTF-16LE，无填充）→ 按 v319 顺序逐字段解析，每个字段记录偏移与长度；`Parse()` 也对外暴露（自检用） |
+| `server/src/BunnyLoader.Server/Player/PlrCommand.cs` | `--parse-plr` 实现：打印前 32 字节 hex、版本、加密判断依据、解密后前 32 字节、逐字段 JSON、7 颜色（hex+RGB）、生命魔力、前 10 个背包槽、完整物品栏写 `debug/plr-inventory-*.log`；`--sync-raw` 时与 id:4 的 40 字节对照，输出 `plr.id4.field` 字段表与 `plr.id4.conclusion`；`SelfTest()` 造 v319 合成存档验证 AES + 偏移，并对人类实测的 24 字节前缀跑一遍对照逻辑 |
+| `server/src/BunnyLoader.Server/Program.cs` | 新增三个参数分支（`--parse-plr` / `--sync-raw` / `--plr-selftest`），在**读配置之前**拦截，离线运行；帮助文本同步 |
+| `.github/workflows/build.yml` | docker job 与 panel job 各加一步 `--plr-selftest`（合成 v319 + `debug/` 下真实样本若有） |
+
+### 没有改
+
+`Session.cs`、`SyncPlayer4.cs`、`Messages.cs`、`PlayerControls13.cs`、`Program.cs` 的启动流程本身、
+`ProveAsync`、`SendServerInfoAsync`、`SendFullAreaAsync`、`WldReader`、`TickEngine` —— 全部未触碰。
+启动命令未改（红线自检脚本仍通过），未新增任何 `.sh` 脚本。
+
+### 验证方式
+
+- CI：`--plr-selftest` 断言「识别加密 / 版本 319 / 名字 Cup / 发色 #ffffff / 肤色 #ffbba9 /
+  生命 400/500 / 背包 50 槽 / 至少 1 个非空槽 / 解析结束偏移 > 1000」，
+  另断言「明文文件同样能解析」与「已知 24 字节前缀：名字在 8、颜色起点 16、hairColor 已确认」。
+- 合成存档布局已用独立 Python 参考实现交叉验证：明文 3688 字节，补齐到 3696，尾随 8 个 0。
+- 手机实测：不需要（本轮只看命令行输出）。
+
+### 待人类提供（阻塞项）
+
+真实 `.plr`（手机端导出）与 id:4 的**完整 40 字节**。拿到后：
+`dotnet BunnyLoader.Server.dll --parse-plr debug/<name>.plr --sync-raw "<40 字节 hex>"`，
+即可产出「ff ff ff ff 属于哪个字段」的最终结论。

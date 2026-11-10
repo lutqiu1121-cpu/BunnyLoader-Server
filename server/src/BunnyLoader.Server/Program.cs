@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using BunnyLoader.Server.Player;
 using BunnyLoader.Server.Protocol;
 using BunnyLoader.Server.World;
 
@@ -28,6 +29,9 @@ public static class Program
         string? worldPath = null;
         bool worldInfo = false;
         string? cliProof = null;
+        string? parsePlrPath = null;
+        string? syncRawHex = null;
+        bool plrSelftest = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -74,6 +78,15 @@ public static class Program
                 case "--selftest":
                     selftest = true;
                     break;
+                case "--parse-plr":
+                    if (!TryValue(args, ref i, out parsePlrPath)) return 2;
+                    break;
+                case "--sync-raw":
+                    if (!TryValue(args, ref i, out syncRawHex)) return 2;
+                    break;
+                case "--plr-selftest":
+                    plrSelftest = true;
+                    break;
                 case "--print-config":
                     printConfig = true;
                     break;
@@ -86,6 +99,17 @@ public static class Program
                     PrintHelp();
                     return 2;
             }
+        }
+
+        // .plr 解析是纯离线工具：不读 config、不起监听、不发任何帧。
+        if (parsePlrPath is not null)
+            return PlrCommand.Run(parsePlrPath, syncRawHex, new JsonLogger("info"));
+
+        if (plrSelftest)
+        {
+            bool plrOk = PlrCommand.SelfTest(new JsonLogger("info"));
+            Console.Error.WriteLine(plrOk ? "plr selftest: PASS" : "plr selftest: FAIL");
+            return plrOk ? 0 : 1;
         }
 
         ServerConfig config;
@@ -381,6 +405,9 @@ public static class Program
         Console.WriteLine("  --world <path>       用原版 .wld 作为真实世界（否则用平坦世界）");
         Console.WriteLine("  --world-info <path>  只解析 .wld 并打印摘要后退出");
         Console.WriteLine("  --proof <auto|on|off> 二开版纯文本握手：auto=先探测（默认）");
+        Console.WriteLine("  --parse-plr <path>   只解析 .plr（AES-128 自动解密）并打印字段，退出；不联网");
+        Console.WriteLine("  --sync-raw <hex>     配合 --parse-plr：给出 id:4 的完整 payload，做颜色对照");
+        Console.WriteLine("  --plr-selftest       用合成 v319 存档自检 .plr 解析器后退出");
         Console.WriteLine();
         Console.WriteLine("环境变量（面板只能改启动命令时用这些）:");
         Console.WriteLine("  SERVER_PORT / PORT   监听端口，默认 7777");
