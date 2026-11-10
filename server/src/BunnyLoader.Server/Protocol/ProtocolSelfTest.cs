@@ -127,6 +127,41 @@ public static class ProtocolSelfTest
         // 标准布局所需最小长度 > 40：说明这个客户端的 SyncPlayer 不是标准全量布局。
         ok &= Check(log, "id:4 标准布局最小长度 > 40", report.MinStd > 40, report.MinStd);
 
+        // ---- 假设枚举：这是本轮「找出 ff ff ff ff 是谁」的核心工具 ----
+        // 实测样本里名字唯一可能在偏移 8（0x03 + "Cup"），枚举必须自己找到它并给出 rest=28。
+        ok &= Check(log, "id:4 假设枚举给出 rest=28", report.Hypotheses.Contains("rest=28"), report.Hypotheses);
+        ok &= Check(log, "id:4 假设枚举找到 name@8", report.Hypotheses.Contains("name@8"), report.Hypotheses);
+
+        // 反过来验证枚举器本身没写错：按标准 1.4.5.8 布局造一个 51 字节的包，必须被精确命中，
+        // 且 map 里的 hairDye / 第一个发色要逐字节对上（对不上就说明枚举器在瞎报）。
+        byte[] standard = new byte[51];
+        int o = 0;
+        standard[o++] = 0x01;
+        standard[o++] = 0x07;
+        standard[o++] = 0x02;
+        standard[o++] = 0x03;
+        standard[o++] = (byte)'C';
+        standard[o++] = (byte)'u';
+        standard[o++] = (byte)'p';
+        standard[o++] = 0x05;               // hairDye
+        standard[o++] = 0x12;               // hairColor[0] = #123456
+        standard[o++] = 0x34;
+        standard[o++] = 0x56;
+        o += 6 * 3;                         // 其余 6 个发色
+        o += 6 * 3;                         // 6 个身体色
+        standard[o++] = 0x00;               // difficulty
+        standard[o++] = 0x0a;               // hideVisuals
+        standard[o++] = 0x00;               // hideVisuals2
+        standard[o++] = 0x40;               // hideMisc
+
+        ok &= Check(log, "标准布局样本构造为 51 字节", o == standard.Length, $"{o}/{standard.Length}");
+
+        SyncPlayer4.Report std = SyncPlayer4.Analyze(standard);
+        ok &= Check(log, "标准布局 51 字节被枚举精确命中（13c3B）",
+            std.Hypotheses.Contains("13c3B"), std.Hypotheses);
+        ok &= Check(log, "标准布局 map: hairDye@7=0x05", std.Hypotheses.Contains("hairDye@7=0x05"), std.Hypotheses);
+        ok &= Check(log, "标准布局 map: c0@8=#123456", std.Hypotheses.Contains("c0@8=#123456"), std.Hypotheses);
+
         return ok;
     }
 

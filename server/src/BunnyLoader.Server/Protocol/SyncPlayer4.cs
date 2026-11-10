@@ -68,6 +68,12 @@ public static class SyncPlayer4
         /// <summary>逐字段清单，未知的一律标注「候选」。</summary>
         public string Fields { get; init; } = "-";
 
+        /// <summary>
+        /// 布局假设枚举（纯诊断）：穷举「名字起始偏移 × 名字编码 × hairDye × 颜色个数 × 颜色宽度 × 尾部字节数」，
+        /// 只报正好把 payload 用完的组合。人类拿捏脸 RGB 一对就能确定哪个假设为真。
+        /// </summary>
+        public string Hypotheses { get; init; } = "-";
+
         public int NanPairOffset { get; init; } = -1;
     }
 
@@ -255,8 +261,204 @@ public static class SyncPlayer4
             FloatCandidates = floats.Count == 0 ? "-" : string.Join(" ", floats),
             PrintableRuns = printableRuns.Count == 0 ? "-" : string.Join(" ", printableRuns),
             Fields = string.Join(" | ", fields),
+            Hypotheses = BuildHypotheses(payload),
             NanPairOffset = FirstFullByteRun(payload, 0xFF, 8),
         };
+    }
+
+    /// <summary>名字的三种候选编码。本轮只做识别，不从中间判断谁对。</summary>
+    private enum NameEnc
+    {
+        SevenBit = 0,
+        U8Length = 1,
+        NulTerminated = 2,
+    }
+
+    /// <summary>
+    /// 布局假设枚举（纯诊断，不改 payload）。
+    /// 该客户端是二开版，SyncPlayer 未必是标准全量布局：上一版按标准 7bit 前缀解析，
+    /// 在偏移 3 解出 1254992 字节，直接证明「名字不在偏移 3」。所以这里改成穷举——
+    /// 名字起始偏移(3..12) × 编码(7bit/u8/nul) × 有无 hairDye × 颜色个数(6..13) × 颜色宽度(3|4) × 尾部字节(0..4)，
+    /// 只报**正好把 payload 用完**的组合。人类把客户端里的捏脸 RGB 贴过来，对得上的那条就是真布局。
+    /// </summary>
+    private static string BuildHypotheses(ReadOnlySpan<byte> payload)
+    {
+        int length = payload.Length;
+        if (length < 8)
+            return "payload 太短，无法枚举";
+
+        var exact = new List<(int score, string tag, string map)>();
+        NameEnc[] encodings = { NameEnc.SevenBit, NameEnc.U8Length, NameEnc.NulTerminated };
+        int restSeen = -1;
+        int restAt = -1;
+
+        for (int start = 3; start <= Math.Min(12, length - 1); start++)
+        {
+            foreach (NameEnc enc in encodings)
+            {
+                if (!TryReadName(payload, start, enc, out string name, out int after))
+                    continue;
+
+                int rest = length - after;
+                if (restSeen < 0)
+                {
+                    restSeen = rest;
+                    restAt = after;
+                }
+
+                for (int dye = 0; dye <= 1; dye++)
+                {
+                    for (int colors = 6; colors <= 13; colors++)
+                    {
+                        for (int width = 3; width <= 4; width++)
+                        {
+                            for (int tail = 0; tail <= 4; tail++)
+                            {
+                                if (dye + colors * width + tail != rest)
+                                    continue;
+
+                                // 越像标准全量布局分越高：有 hairDye、13 色、RGB、尾部 2-4 字节
+                                int score = (dye == 1 ? 4 : 0) + (colors == 13 ? 3 : 0)
+                                            + (width == 3 ? 2 : 0) + (tail >= 2 ? 1 : 0);
+
+                                exact.Add((
+                                    score,
+                                    NameTag(enc, start, dye, colors, width, tail),
+                                    FieldMap(payload, start, enc, name, after, dye, colors, width, tail)));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (exact.Count == 0)
+            return $"rest={restSeen}(@{restAt}) 无任何组合能正好用完：说明字段顺序/编码与假设集都不符（候选，待人类对照捏脸数据确认）";
+
+        exact.Sort((a, b) => b.score.CompareTo(a.score));
+
+        var tags = new List<string>();
+        for (int i = 0; i < exact.Count && i < 6; i++)
+            tags.Add(exact[i].tag);
+
+        // 标准全量布局（hairDye + 13 色 RGB + difficulty/hideVisuals 2 字节）差多少
+        int standard = 1 + 13 * 3 + 2;
+
+        return $"rest={restSeen}(@{restAt}) exact={exact.Count} "
+               + $"top=[{string.Join(" ", tags)}] "
+               + $"map({exact[0].tag})= {exact[0].map} "
+               + $"standard(1+13*3+2={standard}) 差 {restSeen - standard}";
+    }
+
+    /// <summary>按给定假设把 payload 走一遍，输出「字段@偏移=值」，供人类逐项对照捏脸数据。</summary>
+    private static string FieldMap(ReadOnlySpan<byte> payload, int start, NameEnc enc, string name, int after,
+        int dye, int colors, int width, int tail)
+    {
+        var parts = new List<string> { $"name@{start}({EncTag(enc)})=\"{name}\"" };
+
+        int off = after;
+
+        if (dye == 1)
+        {
+            parts.Add($"hairDye@{off}=0x{payload[off]:X2}");
+            off += 1;
+        }
+
+        for (int i = 0; i < colors; i++)
+        {
+            parts.Add($"c{i}@{off}={ColorHex(payload.Slice(off, width))}");
+            off += width;
+        }
+
+        if (tail > 0)
+            parts.Add($"tail@{off}..{off + tail - 1}（{tail} 字节：difficulty/hideVisuals/hideVisuals2/hideMisc，候选）");
+
+        return string.Join(" ", parts);
+    }
+
+    private static string NameTag(NameEnc enc, int start, int dye, int colors, int width, int tail)
+        => $"name@{start}/{EncTag(enc)}/{(dye == 1 ? "dye" : "nodye")}/{colors}c{width}B/{tail}t";
+
+    private static string EncTag(NameEnc enc)
+    {
+        switch (enc)
+        {
+            case NameEnc.SevenBit: return "7bit";
+            case NameEnc.U8Length: return "u8";
+            default: return "nul";
+        }
+    }
+
+    private static string ColorHex(ReadOnlySpan<byte> color)
+    {
+        var text = new StringBuilder(color.Length + 1);
+        text.Append('#');
+        for (int i = 0; i < color.Length; i++)
+            text.Append(color[i].ToString("x2"));
+        return text.ToString();
+    }
+
+    /// <summary>按三种候选编码读名字；成功时 after = 名字之后第一个字节的偏移。</summary>
+    private static bool TryReadName(ReadOnlySpan<byte> payload, int start, NameEnc enc,
+        out string text, out int after)
+    {
+        text = "";
+        after = start;
+
+        if (start < 0 || start >= payload.Length)
+            return false;
+
+        switch (enc)
+        {
+            case NameEnc.SevenBit:
+            {
+                if (!TryRead7BitLength(payload, start, out int claimed, out int prefixBytes))
+                    return false;
+                if (claimed <= 0 || start + prefixBytes + claimed > payload.Length)
+                    return false;
+
+                ReadOnlySpan<byte> body = payload.Slice(start + prefixBytes, claimed);
+                if (!IsPrintableAscii(body))
+                    return false;
+
+                text = Encoding.ASCII.GetString(body);
+                after = start + prefixBytes + claimed;
+                return true;
+            }
+
+            case NameEnc.U8Length:
+            {
+                int claimed = payload[start];
+                if (claimed <= 0 || start + 1 + claimed > payload.Length)
+                    return false;
+
+                ReadOnlySpan<byte> body = payload.Slice(start + 1, claimed);
+                if (!IsPrintableAscii(body))
+                    return false;
+
+                text = Encoding.ASCII.GetString(body);
+                after = start + 1 + claimed;
+                return true;
+            }
+
+            default:
+            {
+                int end = start;
+                while (end < payload.Length && payload[end] != 0)
+                    end++;
+
+                if (end >= payload.Length || end == start)
+                    return false;
+
+                ReadOnlySpan<byte> body = payload.Slice(start, end - start);
+                if (!IsPrintableAscii(body))
+                    return false;
+
+                text = Encoding.ASCII.GetString(body);
+                after = end + 1;
+                return true;
+            }
+        }
     }
 
     /// <summary>完整十六进制，空格分隔（不截断）。</summary>

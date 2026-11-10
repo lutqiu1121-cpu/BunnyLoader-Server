@@ -740,6 +740,14 @@ internal sealed class Session : ISessionTicker
                     ("nanPairOffset", report.NanPairOffset),
                     ("note", "16-19 的 ff ff ff ff 可能是颜色/标志位，也可能是 NaN f32；此行走位未确认前不改写"));
 
+                // 决定性的一行：哪几种「字段顺序 × 编码 × 颜色宽度」正好把 40 字节用完。
+                // 人类把客户端捏脸 RGB 贴过来，对得上的那条就是真布局。
+                _log.Info("syncplayer.hypotheses",
+                    ("conn", _id),
+                    ("len", report.Length),
+                    ("hex", report.HexSpaced),
+                    ("hypotheses", report.Hypotheses));
+
                 if (echo.Length != payload.Length)
                     throw new InvalidOperationException($"id:4 长度被改变: recv={payload.Length} send={echo.Length}");
 

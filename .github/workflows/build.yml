@@ -157,6 +157,9 @@ jobs:
           docker logs panel-doc | grep -q '"ev":"syncplayer.layout"' \
             || { echo "缺少 syncplayer.layout（逐字段走位）"; exit 1; }
           docker logs panel-doc | grep '"ev":"syncplayer.layout"' | head -1
+          docker logs panel-doc | grep -q '"ev":"syncplayer.hypotheses"' \
+            || { echo "缺少 syncplayer.hypotheses（假设枚举）"; exit 1; }
+          docker logs panel-doc | grep '"ev":"syncplayer.hypotheses"' | head -1
 
           # 第 8 章验收 (5)：同一条会话里 id:4 只能发一次（收到时立即回显那一次）。
           # 只数 frame.send（frame.recv 也会打印 "name":"SyncPlayer"）。

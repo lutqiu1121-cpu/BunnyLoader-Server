@@ -729,6 +729,7 @@ sh -c 'dotnet BunnyLoader.Server.dll --print-config'
 {"ev":"syncplayer.layout","playerId":1,"skinVariant":7,"hair":2,"nameOffset":3,"namePrefixBytes":3,"nameLenClaimed":1254992,"standardLayoutOk":false,"derail":"…","minStdBytes":50,"minRgbaBytes":63,"actualLen":40}
 {"ev":"syncplayer.fields","fields":"…","nameCandidates":"8:len=3:\"Cup\"","printableRuns":"…"}
 {"ev":"syncplayer.candidates","u32Aligned":"0:0x020701 …","floats":"16:NaN …","nanPairOffset":-1}
+{"ev":"syncplayer.hypotheses","len":40,"hypotheses":"rest=28(@12) exact=9 top=[name@8/7bit/dye/8c3B/3t …] map(name@8/7bit/dye/8c3B/3t)= name@8(7bit)=\"Cup\" hairDye@12=0x00 c0@13=#d0cc4c … standard(1+13*3+2=42) 差 -14"}
 {"ev":"syncplayer.echoed","recvLen":40,"sendLen":40,"count":1,"note":"立即回显 + 立即 14；不写入任何缓存，world.tail 不重放 id:4"}
 ```
 
@@ -741,10 +742,28 @@ sh -c 'dotnet BunnyLoader.Server.dll --print-config'
 | `minStdBytes` | 标准布局（颜色 3 字节 RGB）最少需要多少字节；实测名字 3 字节时是 50 > 40 |
 | `minRgbaBytes` | 同样布局但颜色按 4 字节 RGBA 存时需要多少字节；用来验证「第 16-19 字节是 RGBA 颜色」这个假设 |
 
+### 10.1b `syncplayer.hypotheses` 怎么读（**决定性的一行**）
+
+因为已经确定这个客户端不是标准布局，服务端改成**穷举假设**：
+名字起始偏移(3..12) × 编码(`7bit`/`u8`/`nul`) × 有无 `hairDye` × 颜色个数(6..13) × 颜色宽度(3|4 字节) × 尾部字节(0..4)，
+**只报正好把 40 字节用完的组合**，并按「像不像标准全量布局」排序。
+
+```
+rest=28(@12)                      ← 名字解析完后还剩 28 字节（@12 = 名字结束的偏移）
+exact=9                           ← 有 9 种组合正好用完，说明 40 字节本身是自洽的
+top=[name@8/7bit/dye/8c3B/3t …]   ← 最像标准布局的那几条
+map(...)= name@8="Cup" hairDye@12=0x00 c0@13=#d0cc4c c1@16=#ffffffff … tail@37..
+standard(1+13*3+2=42) 差 -14      ← 标准全量布局需要 42 字节，实测只剩 28，差 14 字节
+```
+
+**人类要做的判断**：把客户端里的捏脸颜色（发色 7 组 + 肤/瞳/上衣/内衣/裤/鞋 6 组）拿出来，
+和 `map(...)` 里 `c0@13`、`c1@16`… 的 `#rrggbb` 逐个比。
+对得上的那条假设 = 真布局；**`ff ff ff ff` 落在哪一项上，就一眼能看出来**（若 `cN=#ffffffff`，它就是颜色而不是 NaN 坐标）。
+
 ### 10.2 人类要回传什么
 
 1. `syncplayer.raw`（**必须 40 组 hex**，如果只有 24 组说明 DLL 没换）
-2. `syncplayer.layout` / `syncplayer.fields` / `syncplayer.candidates`
+2. `syncplayer.layout` / `syncplayer.fields` / `syncplayer.candidates` / `syncplayer.hypotheses`
 3. 客户端里该角色的捏脸数据：肤色、发色（含发色编号）、瞳色、衣服/裤子上衣/鞋子的颜色
 4. `world.tail`（应为 `49,14,12,129`）与 `traffic.summary`（看有没有 `13:`）
 

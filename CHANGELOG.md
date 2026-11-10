@@ -21,7 +21,7 @@
 
 | 文件 | 函数/位置 | 改前 | 改后 |
 |---|---|---|---|
-| `server/src/BunnyLoader.Server/Protocol/SyncPlayer4.cs` | 新增（只读解析器） | 无 | `Analyze()` 输出完整 hex（空格分隔、不截断）、ASCII 视图、标准布局走位（playerId/skinVariant/hair/name 长度前缀与断点原因）、对齐 u32 候选、f32 候选、名字候选、可打印段、标准/RGBA 布局最小字节数 |
+| `server/src/BunnyLoader.Server/Protocol/SyncPlayer4.cs` | 新增（只读解析器） | 无 | `Analyze()` 输出完整 hex（空格分隔、不截断）、ASCII 视图、标准布局走位（playerId/skinVariant/hair/name 长度前缀与断点原因）、对齐 u32 候选、f32 候选、名字候选、可打印段、标准/RGBA 布局最小字节数；`BuildHypotheses()` 穷举「名字偏移×编码×hairDye×颜色个数×颜色宽度×尾部字节」并只报正好用完 40 字节的组合，给出 `字段@偏移=#rrggbb` 供人类对照捏脸数据 |
 | `server/src/BunnyLoader.Server/Protocol/PlayerControls13.cs` | 新增（只读解析器） | 无 | `TryParsePosition()` 按偏移 6 解析 Vector2（像素）并换成格坐标，供日志使用 |
 | `server/src/BunnyLoader.Server/Session.cs` | `case MessageId.SyncPlayer` | 日志只打前 24 字节；坐标全 FF 时原地改写；发两次（分支一次 + tail 一次） | 完整打印 40 字节 + 逐字段 + 候选读法；**不再改写任何字节**；立即回显一次、不缓存；tail 不重放 |
 | 同上 | `case MessageId.RequestWorldData`（tail） | `if (_syncEcho != null) tail.Add(4)` | 删除重放，tail 固定为 `49 -> 14 -> 12 -> 129` |
@@ -47,7 +47,8 @@
 
 - 自动化（CI 每次 push 全跑）：
   - `sh tools/check-startup-command.sh` → 7 项 PASS（本地已跑，见交付说明）。
-  - `--selftest` golden vectors + 本轮新增 30+ 条断言（含「标准布局不成立」「名字候选 Cup」「帧头长度一致」）。
+  - `--selftest` golden vectors + 本轮新增 40+ 条断言（含「标准布局不成立」「名字候选 Cup」「帧头长度一致」
+    「假设枚举在实测样本上给出 rest=28/name@8」「假设枚举在合成 51 字节标准包上精确命中 13c3B 且 hairDye@7=0x05、c0@8=#123456」）。
   - `python3 tools/proto_ref.py selftest`。
   - `fake_client.py proofdoc` 全流程 e2e：id:4 立即回显且未改写、tail 不重放、顺序 49→14→12→129。
   - panel-doc 步骤硬断言：`syncplayer.raw` 出现、`SyncPlayer` 发送次数 == 1。
@@ -60,5 +61,7 @@
    （不是 `sh start.sh`，不是 `sh -c '…'`，`WORLD_FILE` 不是 `块状的小屋.wld`）。
 2. 连上并发角色后，控制台应出现 `{"ev":"syncplayer.raw","len":40,"hex":"…"}`，**hex 必须是 40 组**。
 3. 同一次连接里 `{"ev":"frame.send",…,"name":"SyncPlayer"…}` 只出现 **1 次**。
-4. 把 `syncplayer.raw`、`syncplayer.layout`、`syncplayer.fields`、`syncplayer.candidates` 四行原样回传。
+4. 把 `syncplayer.raw`、`syncplayer.layout`、`syncplayer.fields`、`syncplayer.candidates`、
+   **`syncplayer.hypotheses`** 五行原样回传；并附上该角色的捏脸颜色（发色 7 组 + 肤/瞳/上衣/内衣/裤/鞋）。
+   `hypotheses` 里 `map(...)=` 那一段就是「哪种字段顺序正好用完 40 字节」，人类把颜色一对就能定布局。
 5. 顺带回传：`world.tail`（应为 `49,14,12,129`）、`traffic.summary`（看有没有 13）。
