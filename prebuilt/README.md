@@ -1,17 +1,17 @@
 # prebuilt/ —— 可直接上传到面板的包
 
-`bunny-loader-server-panel.zip` 是 **R5 第三轮（诊断轮）** 的可运行产物，由 CI 构建并放在这里便于直接下载。
+`bunny-loader-server-panel.zip` 是 **R5 第三轮（诊断轮，含假设枚举）** 的可运行产物，由 CI 构建并放在这里便于直接下载。
 
 > 若本目录暂时为空：说明代码刚更新、CI 尚未跑完。稍等几分钟，或直接从
 > Releases 标签 `panel` 下载同名文件。
 
 - 构建方式：Docker 里 `dotnet publish -c Release`（框架依赖，面板自带 .NET 8 即可）
 - 重新构建：`./server/build-panel.sh`
-- 对应提交：`97a7e61`（分支 `main`，CI 全绿）
-- ZIP 大小 / SHA-256（本目录这一份，90521 字节）：
-  `5dfdabfe92645d2a0049813598fe71a716d024b54727a9da2430fbc7f3bbab29`
-- 包内 `BunnyLoader.Server.dll` 大小 / SHA-256：`137728` 字节 /
-  `4ca754dfa9a6ace1f2d4e774514027b9e03f1c45635296933a013609117e2380`
+- 对应提交：`7fffad7`（分支 `main`，CI 全绿）
+- ZIP 大小 / SHA-256（本目录这一份，92606 字节）：
+  `c2a1272cbbe3231051f9f1f968652468cb9c5a33113343abeaa90e33b4e2afd5`
+- 包内 `BunnyLoader.Server.dll` 大小 / SHA-256：`142848` 字节 /
+  `d410908a2abc3415213984b9f38a1c72d46b2f5788e0552b1ece92eef1ebcaf1`
   —— 这是**确定性构建**，与 Releases 里最新资产内的 DLL 逐字节相同（已实测核对）；
   ZIP 因内部时间戳每次重新打包都会变哈希，**认 DLL 的哈希**，不要认 ZIP 的。
 - 部署说明：[../docs/panel-deploy.md](../docs/panel-deploy.md)
@@ -38,8 +38,10 @@ start.sh                             R10 才允许用的入口脚本
 
 ## 本包相对上一版的差异（本轮）
 
-- 新增 `syncplayer.raw` / `syncplayer.layout` / `syncplayer.fields` / `syncplayer.candidates` 四条日志：
-  id:4 的 **完整 40 字节** 一律打印，不再截断成 24 字节。
+- 新增 `syncplayer.raw` / `syncplayer.layout` / `syncplayer.fields` / `syncplayer.candidates`
+  / **`syncplayer.hypotheses`** 五条日志：id:4 的 **完整 40 字节** 一律打印，不再截断成 24 字节。
+- `syncplayer.hypotheses` 会穷举「名字偏移×编码×hairDye×颜色个数×颜色宽度×尾部字节」，
+  只报正好用完 40 字节的组合，并把前两条假设的 `字段@偏移=#rrggbb` 打出来——人类拿捏脸颜色一对就能定布局。
 - `world.tail` 不再重放 id:4（顺序变为 `49 -> 14 -> 12 -> 129`），同一条会话里 id:4 只发一次（收到时立即回显）。
 - 新增 `traffic.tick` / `traffic.summary`：按消息号统计收/发帧数。
 - **没有任何 id:4 字节改写**（whoAmI 除外）。
