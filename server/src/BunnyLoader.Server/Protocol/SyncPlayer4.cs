@@ -287,16 +287,23 @@ public static class SyncPlayer4
         if (length < 8)
             return "payload 太短，无法枚举";
 
-        var exact = new List<(int score, string tag, string map)>();
+        var exact = new List<(int score, int nameLen, int start, string tag, string map)>();
         NameEnc[] encodings = { NameEnc.SevenBit, NameEnc.U8Length, NameEnc.NulTerminated };
         int restSeen = -1;
         int restAt = -1;
 
         for (int start = 3; start <= Math.Min(12, length - 1); start++)
         {
+            // 名字不可能从一段可打印串的中间起头：start>3 时若前一个字节是可见 ASCII，这个起点必是假的。
+            // （实测的 "Cup" 在偏移 8，前一字节 0xc4 不可打印，符合；标准布局的 start=3 不受此限。）
+            if (start > 3 && payload[start - 1] >= 0x20 && payload[start - 1] <= 0x7E)
+                continue;
+
             foreach (NameEnc enc in encodings)
             {
                 if (!TryReadName(payload, start, enc, out string name, out int after))
+                    continue;
+                if (name.Length < 2)
                     continue;
 
                 int rest = length - after;
@@ -323,6 +330,8 @@ public static class SyncPlayer4
 
                                 exact.Add((
                                     score,
+                                    name.Length,
+                                    start,
                                     NameTag(enc, start, dye, colors, width, tail),
                                     FieldMap(payload, start, enc, name, after, dye, colors, width, tail)));
                             }
@@ -335,19 +344,35 @@ public static class SyncPlayer4
         if (exact.Count == 0)
             return $"rest={restSeen}(@{restAt}) 无任何组合能正好用完：说明字段顺序/编码与假设集都不符（候选，待人类对照捏脸数据确认）";
 
-        exact.Sort((a, b) => b.score.CompareTo(a.score));
+        // 排序必须是确定性的：同分时名字更长的优先，再按起点靠前，
+        // 否则同一条 payload 两次跑出来的 map 可能不一样，人类对照时会被误导。
+        exact.Sort((a, b) =>
+        {
+            int cmp = b.score.CompareTo(a.score);
+            if (cmp != 0) return cmp;
+            cmp = b.nameLen.CompareTo(a.nameLen);
+            if (cmp != 0) return cmp;
+            cmp = a.start.CompareTo(b.start);
+            if (cmp != 0) return cmp;
+            return string.CompareOrdinal(a.tag, b.tag);
+        });
 
         var tags = new List<string>();
-        for (int i = 0; i < exact.Count && i < 6; i++)
+        for (int i = 0; i < exact.Count && i < 4; i++)
             tags.Add(exact[i].tag);
 
         // 标准全量布局（hairDye + 13 色 RGB + difficulty/hideVisuals 2 字节）差多少
         int standard = 1 + 13 * 3 + 2;
 
+        // 前两条假设各给一份完整字段图：人类只需要和捏脸颜色对一次。
+        var maps = new List<string>();
+        for (int i = 0; i < exact.Count && i < 2; i++)
+            maps.Add($"map({exact[i].tag})= {exact[i].map}");
+
         return $"rest={restSeen}(@{restAt}) exact={exact.Count} "
                + $"top=[{string.Join(" ", tags)}] "
-               + $"map({exact[0].tag})= {exact[0].map} "
-               + $"standard(1+13*3+2={standard}) 差 {restSeen - standard}";
+               + string.Join(" | ", maps)
+               + $" | standard(1+13*3+2={standard}) 差 {restSeen - standard}";
     }
 
     /// <summary>按给定假设把 payload 走一遍，输出「字段@偏移=值」，供人类逐项对照捏脸数据。</summary>
