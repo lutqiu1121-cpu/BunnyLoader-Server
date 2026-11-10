@@ -7,11 +7,13 @@
 
 - 构建方式：Docker 里 `dotnet publish -c Release`（框架依赖，面板自带 .NET 8 即可）
 - 重新构建：`./server/build-panel.sh`
-- 对应提交：`491895b`（分支 `main`）
-- ZIP 大小 / SHA-256（本目录这一份）：`90521` 字节 /
+- 对应提交：`97a7e61`（分支 `main`，CI 全绿）
+- ZIP 大小 / SHA-256（本目录这一份，90521 字节）：
   `5dfdabfe92645d2a0049813598fe71a716d024b54727a9da2430fbc7f3bbab29`
 - 包内 `BunnyLoader.Server.dll` 大小 / SHA-256：`137728` 字节 /
   `4ca754dfa9a6ace1f2d4e774514027b9e03f1c45635296933a013609117e2380`
+  —— 这是**确定性构建**，与 Releases 里最新资产内的 DLL 逐字节相同（已实测核对）；
+  ZIP 因内部时间戳每次重新打包都会变哈希，**认 DLL 的哈希**，不要认 ZIP 的。
 - 部署说明：[../docs/panel-deploy.md](../docs/panel-deploy.md)
 
 **R5～R9 启动命令红线（逐字一致）：**
