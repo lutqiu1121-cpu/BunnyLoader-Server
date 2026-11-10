@@ -726,7 +726,7 @@ sh -c 'dotnet BunnyLoader.Server.dll --print-config'
 
 ```json
 {"ev":"syncplayer.raw","len":40,"hex":"01 07 02 d0 cc 4c 3e c4 03 43 75 70 00 00 00 00 ff ff ff ff bb a9 69 5a …","ascii":"...","whoAmI":"0x01 -> 0x01","whoAmIChanged":false}
-{"ev":"syncplayer.layout","playerId":1,"skinVariant":7,"hair":2,"nameOffset":3,"namePrefixBytes":3,"nameLenClaimed":1254992,"standardLayoutOk":false,"derail":"…","minStdBytes":50,"minRgbaBytes":57,"actualLen":40}
+{"ev":"syncplayer.layout","playerId":1,"skinVariant":7,"hair":2,"nameOffset":3,"namePrefixBytes":3,"nameLenClaimed":1254992,"standardLayoutOk":false,"derail":"…","minStdBytes":50,"minRgbaBytes":63,"actualLen":40}
 {"ev":"syncplayer.fields","fields":"…","nameCandidates":"8:len=3:\"Cup\"","printableRuns":"…"}
 {"ev":"syncplayer.candidates","u32Aligned":"0:0x020701 …","floats":"16:NaN …","nanPairOffset":-1}
 {"ev":"syncplayer.echoed","recvLen":40,"sendLen":40,"count":1,"note":"立即回显 + 立即 14；不写入任何缓存，world.tail 不重放 id:4"}
