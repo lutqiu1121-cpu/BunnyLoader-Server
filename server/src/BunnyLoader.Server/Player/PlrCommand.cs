@@ -585,7 +585,7 @@ public static class PlrCommand
             }
         }
 
-        if (real.Length == 0)
+        if (real.Count == 0)
         {
             log.Info("plr.selftest.real", ("status", "skipped"), ("hint", "debug/ 下没有真实 .plr；本轮只验证合成样本"));
         }
