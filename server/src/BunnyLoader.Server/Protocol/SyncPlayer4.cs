@@ -137,6 +137,29 @@ public static class SyncPlayer4
         if (!nameOk && nameOffset < length)
             fields.Add($"{nameOffset}..:name=（候选，待人类对照客户端捏脸数据确认；标准解析在此断点：{derail}）");
 
+        // ---- 名字之后的字段：给出「标准布局下它们本该落在哪」的偏移，全部标候选 ----
+        // 本轮禁止改写任何字节，所以这里只报位置；人类拿到捏脸数据后能直接对号入座。
+        int expected = nameOffset + namePrefixBytes + (nameOk ? name.Length : 0);
+
+        fields.Add($"{expected}:hairDye（候选，待人类对照客户端捏脸数据确认）");
+        expected += 1;
+        fields.Add($"{expected}..{expected + 20}:7×发色 hairColor[0..6] RGB（候选，待确认）");
+        expected += 21;
+        fields.Add($"{expected}..{expected + 17}:肤/瞳/上衣/内衣/裤/鞋 6×RGB（候选，待确认）");
+        expected += 18;
+        fields.Add($"{expected}:difficulty（候选，待确认）");
+        expected += 1;
+        fields.Add($"{expected}:hideVisuals（候选，待确认）");
+        expected += 1;
+        fields.Add($"{expected}:hideVisuals2（候选，待确认）");
+        expected += 1;
+        fields.Add($"{expected}:hideMisc（候选，待确认）");
+        expected += 1;
+
+        if (expected > length)
+            fields.Add($"标准布局走到 {expected} 字节，实测只有 {length} 字节：差 {expected - length} 字节"
+                       + "（这是判断「该客户端是否标准全量 SyncPlayer」的直接证据）");
+
         // ---- 名字候选：某个字节的值正好等于其后可打印段长度（实测样本里 offset 8 = 0x03 + "Cup"）----
         for (int i = 0; i + 1 < length; i++)
         {
@@ -208,8 +231,7 @@ public static class SyncPlayer4
         int minStd = 3 + 1 + nameBytes + 1 + 7 * 3 + 6 * 3 + 2;      // 7 发色 + 6 个身体色（RGB）
         int minRgba = 3 + 1 + nameBytes + 1 + 7 * 4 + 6 * 4 + 2;     // 同上，但每色 RGBA 4 字节
 
-        // ---- 断点之后的字段一律标「候选」 ----
-        fields.Add($"{length - 2}..{length - 1}:difficulty/hideVisuals/hideVisuals2/hideMisc（候选，待确认）");
+        // ---- 剩下的字节：只能列候选，不能断言语义 ----
         fields.Add("其余 4 字节值：见 u32 候选，颜色/标志位都可能（候选，待人类对照客户端捏脸数据确认）");
 
         return new Report
