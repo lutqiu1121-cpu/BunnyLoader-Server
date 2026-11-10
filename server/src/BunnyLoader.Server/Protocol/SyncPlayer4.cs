@@ -292,11 +292,12 @@ public static class SyncPlayer4
         int restSeen = -1;
         int restAt = -1;
 
-        for (int start = 3; start <= Math.Min(12, length - 1); start++)
+        for (int start = 2; start <= Math.Min(12, length - 1); start++)
         {
-            // 名字不可能从一段可打印串的中间起头：start>3 时若前一个字节是可见 ASCII，这个起点必是假的。
-            // （实测的 "Cup" 在偏移 8，前一字节 0xc4 不可打印，符合；标准布局的 start=3 不受此限。）
-            if (start > 3 && payload[start - 1] >= 0x20 && payload[start - 1] <= 0x7E)
+            // 名字不可能从一段可打印串的中间起头：前一个字节若是可见 ASCII，这个起点必是假的。
+            // 标准布局里 start=3 的前一字节是 hair id（<0x20），实测里的 "Cup" 在偏移 8、前一字节 0xc4，
+            // 两者都通过；而 "Tester" 内部的 offset 4 这种假起点会被挡掉。
+            if (payload[start - 1] >= 0x20 && payload[start - 1] <= 0x7E)
                 continue;
 
             foreach (NameEnc enc in encodings)

@@ -1,0 +1,824 @@
+﻿2026-11-10T06:16:42.1840846Z Current runner version: '2.338.2'
+2026-11-10T06:16:42.1870826Z ##[group]Runner Image Provisioner
+2026-11-10T06:16:42.1871786Z Hosted Compute Agent
+2026-11-10T06:16:42.1872395Z Version: 20261028.624
+2026-11-10T06:16:42.1873093Z Commit: 54898b74c23fde5556c9b3c3a2290865feef0dfe
+2026-11-10T06:16:42.1874099Z Build Date: 2026-10-28T21:51:42Z
+2026-11-10T06:16:42.1874879Z Worker ID: {f99c2e65-20b8-4951-9a66-fb5d617b1bd0}
+2026-11-10T06:16:42.1875596Z Region: us-east-1
+2026-11-10T06:16:42.1876183Z Cloud: AWS
+2026-11-10T06:16:42.1876763Z ##[endgroup]
+2026-11-10T06:16:42.1878321Z ##[group]Operating System
+2026-11-10T06:16:42.1878990Z Ubuntu
+2026-11-10T06:16:42.1879539Z 24.04.5
+2026-11-10T06:16:42.1880063Z LTS
+2026-11-10T06:16:42.1880636Z ##[endgroup]
+2026-11-10T06:16:42.1881224Z ##[group]Runner Image
+2026-11-10T06:16:42.1881917Z Image: ubuntu-24.04
+2026-11-10T06:16:42.1882524Z Version: 20261101.114.1
+2026-11-10T06:16:42.1884210Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261101.114/images/ubuntu/Ubuntu2404-Readme.md
+2026-11-10T06:16:42.1885870Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261101.114
+2026-11-10T06:16:42.1886942Z ##[endgroup]
+2026-11-10T06:16:42.1888087Z ##[group]GITHUB_TOKEN Permissions
+2026-11-10T06:16:42.1890517Z Contents: write
+2026-11-10T06:16:42.1891137Z Metadata: read
+2026-11-10T06:16:42.1891752Z ##[endgroup]
+2026-11-10T06:16:42.1894431Z Secret source: Actions
+2026-11-10T06:16:42.1895451Z Cache mode: write
+2026-11-10T06:16:42.1896182Z Prepare workflow directory
+2026-11-10T06:16:42.2240749Z Prepare all required actions
+2026-11-10T06:16:42.2296265Z Getting action download info
+2026-11-10T06:16:42.3888061Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-11-10T06:16:44.8395208Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-11-10T06:16:45.1896843Z Complete job name: panel package (framework-dependent)
+2026-11-10T06:16:45.2690999Z ##[group]Run actions/checkout@v4
+2026-11-10T06:16:45.2691886Z with:
+2026-11-10T06:16:45.2692444Z   repository: lutqiu1121-cpu/BunnyLoader-Server
+2026-11-10T06:16:45.2698749Z   token: ***
+2026-11-10T06:16:45.2699240Z   ssh-strict: true
+2026-11-10T06:16:45.2699720Z   ssh-user: git
+2026-11-10T06:16:45.2700237Z   persist-credentials: true
+2026-11-10T06:16:45.2700882Z   clean: true
+2026-11-10T06:16:45.2701416Z   sparse-checkout-cone-mode: true
+2026-11-10T06:16:45.2702043Z   fetch-depth: 1
+2026-11-10T06:16:45.2702538Z   fetch-tags: false
+2026-11-10T06:16:45.2703059Z   show-progress: true
+2026-11-10T06:16:45.2703703Z   lfs: false
+2026-11-10T06:16:45.2704205Z   submodules: false
+2026-11-10T06:16:45.2704732Z   set-safe-directory: true
+2026-11-10T06:16:45.2705333Z   allow-unsafe-pr-checkout: false
+2026-11-10T06:16:45.2706129Z ##[endgroup]
+2026-11-10T06:16:49.0333728Z Syncing repository: lutqiu1121-cpu/BunnyLoader-Server
+2026-11-10T06:16:49.0335643Z ##[group]Getting Git version info
+2026-11-10T06:16:49.0336660Z Working directory is '/home/runner/work/BunnyLoader-Server/BunnyLoader-Server'
+2026-11-10T06:16:49.0363755Z [command]/usr/bin/git version
+2026-11-10T06:16:49.4490178Z git version 2.56.0
+2026-11-10T06:16:49.4514940Z ##[endgroup]
+2026-11-10T06:16:49.4527917Z Temporarily overriding HOME='/home/runner/work/_temp/ab964962-0801-44ae-a810-8f2800417f58' before making global git config changes
+2026-11-10T06:16:49.4529186Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-10T06:16:49.4531246Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/BunnyLoader-Server/BunnyLoader-Server
+2026-11-10T06:16:49.4991417Z Deleting the contents of '/home/runner/work/BunnyLoader-Server/BunnyLoader-Server'
+2026-11-10T06:16:49.4997406Z ##[group]Initializing the repository
+2026-11-10T06:16:49.5003138Z [command]/usr/bin/git init /home/runner/work/BunnyLoader-Server/BunnyLoader-Server
+2026-11-10T06:16:49.5653852Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-11-10T06:16:49.5655186Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-11-10T06:16:49.5655791Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-11-10T06:16:49.5656329Z hint: call:
+2026-11-10T06:16:49.5656803Z hint:
+2026-11-10T06:16:49.5677669Z hint: 	git config --global init.defaultBranch <name>
+2026-11-10T06:16:49.5678144Z hint:
+2026-11-10T06:16:49.5678521Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-11-10T06:16:49.5679270Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-11-10T06:16:49.5679744Z hint:
+2026-11-10T06:16:49.5680055Z hint: 	git branch -m <name>
+2026-11-10T06:16:49.5680376Z hint:
+2026-11-10T06:16:49.5680756Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-11-10T06:16:49.5681616Z Initialized empty Git repository in /home/runner/work/BunnyLoader-Server/BunnyLoader-Server/.git/
+2026-11-10T06:16:49.5685573Z [command]/usr/bin/git remote add origin https://github.com/lutqiu1121-cpu/BunnyLoader-Server
+2026-11-10T06:16:49.5730350Z ##[endgroup]
+2026-11-10T06:16:49.5731276Z ##[group]Disabling automatic garbage collection
+2026-11-10T06:16:49.5734135Z [command]/usr/bin/git config --local gc.auto 0
+2026-11-10T06:16:49.5760431Z ##[endgroup]
+2026-11-10T06:16:49.5761333Z ##[group]Setting up auth
+2026-11-10T06:16:49.5766353Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-10T06:16:49.5795940Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-10T06:16:50.0785985Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-10T06:16:50.0875417Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-10T06:16:50.0998475Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-10T06:16:50.1027794Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-10T06:16:50.1191415Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-11-10T06:16:50.1209385Z ##[endgroup]
+2026-11-10T06:16:50.1210198Z ##[group]Fetching the repository
+2026-11-10T06:16:50.1224930Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +6bb377f99ce74e8eca5d4e999fd9db52894ec393:refs/remotes/origin/main
+2026-11-10T06:16:50.5224070Z From https://github.com/lutqiu1121-cpu/BunnyLoader-Server
+2026-11-10T06:16:50.5225325Z  * [new ref]         6bb377f99ce74e8eca5d4e999fd9db52894ec393 -> origin/main
+2026-11-10T06:16:50.5227470Z ##[endgroup]
+2026-11-10T06:16:50.5228311Z ##[group]Determining the checkout info
+2026-11-10T06:16:50.5229114Z ##[endgroup]
+2026-11-10T06:16:50.5229721Z [command]/usr/bin/git sparse-checkout disable
+2026-11-10T06:16:50.5280132Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-11-10T06:16:50.5313997Z ##[group]Checking out the ref
+2026-11-10T06:16:50.5317206Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+2026-11-10T06:16:50.5553146Z Switched to a new branch 'main'
+2026-11-10T06:16:50.5559830Z branch 'main' set up to track 'origin/main'.
+2026-11-10T06:16:50.5566868Z ##[endgroup]
+2026-11-10T06:16:50.5613218Z [command]/usr/bin/git log -1 --format=%H
+2026-11-10T06:16:50.5626673Z 6bb377f99ce74e8eca5d4e999fd9db52894ec393
+2026-11-10T06:16:50.5815478Z ##[group]Run rm -rf server/dist && mkdir -p server/dist
+2026-11-10T06:16:50.5816013Z [36;1mrm -rf server/dist && mkdir -p server/dist[0m
+2026-11-10T06:16:50.5816464Z [36;1mdocker run --rm -v "$PWD/server:/src" -w /src mcr.microsoft.com/dotnet/sdk:8.0 \[0m
+2026-11-10T06:16:50.5817044Z [36;1m  dotnet publish src/BunnyLoader.Server/BunnyLoader.Server.csproj \[0m
+2026-11-10T06:16:50.5817414Z [36;1m    -c Release -o /src/dist[0m
+2026-11-10T06:16:50.5817677Z [36;1mls -lh server/dist[0m
+2026-11-10T06:16:50.5843276Z shell: /usr/bin/bash -e {0}
+2026-11-10T06:16:50.5843771Z ##[endgroup]
+2026-11-10T06:16:51.8177473Z Unable to find image 'mcr.microsoft.com/dotnet/sdk:8.0' locally
+2026-11-10T06:16:51.9569336Z 8.0: Pulling from dotnet/sdk
+2026-11-10T06:16:52.1227160Z dd051e1b8c92: Pulling fs layer
+2026-11-10T06:16:52.1229289Z 88ff34f4269d: Pulling fs layer
+2026-11-10T06:16:52.1229878Z 0c85d6fb7176: Pulling fs layer
+2026-11-10T06:16:52.1230338Z d3383cff8ccc: Pulling fs layer
+2026-11-10T06:16:52.1231257Z 93e3f9b5dcda: Pulling fs layer
+2026-11-10T06:16:52.1231795Z e6178ed010c8: Pulling fs layer
+2026-11-10T06:16:52.1232238Z 7907cfbe77b5: Pulling fs layer
+2026-11-10T06:16:52.1232605Z 912f60dafa80: Pulling fs layer
+2026-11-10T06:16:52.1232982Z c06c658d3245: Pulling fs layer
+2026-11-10T06:16:52.1233397Z 0849941a4061: Pulling fs layer
+2026-11-10T06:16:52.1234026Z f3f549f6a09c: Pulling fs layer
+2026-11-10T06:16:52.1234418Z 93e3f9b5dcda: Waiting
+2026-11-10T06:16:52.1234782Z e6178ed010c8: Waiting
+2026-11-10T06:16:52.1235198Z 7907cfbe77b5: Waiting
+2026-11-10T06:16:52.1235565Z 912f60dafa80: Waiting
+2026-11-10T06:16:52.1235886Z c06c658d3245: Waiting
+2026-11-10T06:16:52.1236258Z 0849941a4061: Waiting
+2026-11-10T06:16:52.1236591Z f3f549f6a09c: Waiting
+2026-11-10T06:16:52.1236976Z d3383cff8ccc: Waiting
+2026-11-10T06:16:52.1673251Z 0c85d6fb7176: Verifying Checksum
+2026-11-10T06:16:52.1674332Z 0c85d6fb7176: Download complete
+2026-11-10T06:16:52.2426552Z 88ff34f4269d: Verifying Checksum
+2026-11-10T06:16:52.2427902Z 88ff34f4269d: Download complete
+2026-11-10T06:16:52.2919421Z 93e3f9b5dcda: Verifying Checksum
+2026-11-10T06:16:52.2926479Z 93e3f9b5dcda: Download complete
+2026-11-10T06:16:52.3233018Z d3383cff8ccc: Verifying Checksum
+2026-11-10T06:16:52.3234188Z d3383cff8ccc: Download complete
+2026-11-10T06:16:52.3879063Z e6178ed010c8: Verifying Checksum
+2026-11-10T06:16:52.3881152Z e6178ed010c8: Download complete
+2026-11-10T06:16:52.3981056Z dd051e1b8c92: Verifying Checksum
+2026-11-10T06:16:52.3983259Z dd051e1b8c92: Download complete
+2026-11-10T06:16:52.5152972Z 7907cfbe77b5: Verifying Checksum
+2026-11-10T06:16:52.5154239Z 7907cfbe77b5: Download complete
+2026-11-10T06:16:52.5829946Z 0849941a4061: Verifying Checksum
+2026-11-10T06:16:52.5830729Z 0849941a4061: Download complete
+2026-11-10T06:16:52.6574719Z c06c658d3245: Verifying Checksum
+2026-11-10T06:16:52.6575287Z c06c658d3245: Download complete
+2026-11-10T06:16:52.7397122Z f3f549f6a09c: Verifying Checksum
+2026-11-10T06:16:52.7399544Z f3f549f6a09c: Download complete
+2026-11-10T06:16:53.2075636Z 912f60dafa80: Verifying Checksum
+2026-11-10T06:16:53.2076152Z 912f60dafa80: Download complete
+2026-11-10T06:16:53.3108904Z dd051e1b8c92: Pull complete
+2026-11-10T06:16:53.5474906Z 88ff34f4269d: Pull complete
+2026-11-10T06:16:53.5535612Z 0c85d6fb7176: Pull complete
+2026-11-10T06:16:53.9510093Z d3383cff8ccc: Pull complete
+2026-11-10T06:16:53.9594850Z 93e3f9b5dcda: Pull complete
+2026-11-10T06:16:54.0906275Z e6178ed010c8: Pull complete
+2026-11-10T06:16:54.6747056Z 7907cfbe77b5: Pull complete
+2026-11-10T06:16:57.3238149Z 912f60dafa80: Pull complete
+2026-11-10T06:16:57.3666040Z c06c658d3245: Pull complete
+2026-11-10T06:16:57.3759407Z 0849941a4061: Pull complete
+2026-11-10T06:16:57.6209308Z f3f549f6a09c: Pull complete
+2026-11-10T06:16:57.6236698Z Digest: sha256:341aa6e8bbaceb1194732328ca27c15bfa9c531687db83a66af3c0c1833f5534
+2026-11-10T06:16:57.6244793Z Status: Downloaded newer image for mcr.microsoft.com/dotnet/sdk:8.0
+2026-11-10T06:17:06.5210895Z   Determining projects to restore...
+2026-11-10T06:17:06.8780656Z   Restored /src/src/BunnyLoader.Server/BunnyLoader.Server.csproj (in 50 ms).
+2026-11-10T06:17:09.7734333Z /src/src/BunnyLoader.Server/Session.cs(77,18): warning CS0169: The field 'Session._proofDone' is never used [/src/src/BunnyLoader.Server/BunnyLoader.Server.csproj]
+2026-11-10T06:17:09.7736570Z /src/src/BunnyLoader.Server/Session.cs(81,17): warning CS0414: The field 'Session._lastSectionY' is assigned but its value is never used [/src/src/BunnyLoader.Server/BunnyLoader.Server.csproj]
+2026-11-10T06:17:09.7737966Z /src/src/BunnyLoader.Server/Session.cs(80,17): warning CS0414: The field 'Session._lastSectionX' is assigned but its value is never used [/src/src/BunnyLoader.Server/BunnyLoader.Server.csproj]
+2026-11-10T06:17:09.8678567Z   BunnyLoader.Server -> /src/src/BunnyLoader.Server/bin/Release/net8.0/BunnyLoader.Server.dll
+2026-11-10T06:17:09.8886163Z   BunnyLoader.Server -> /src/dist/
+2026-11-10T06:17:09.9863176Z total 268K
+2026-11-10T06:17:09.9865275Z -rwxr-xr-x 1 root root  71K Nov 10 06:17 BunnyLoader.Server
+2026-11-10T06:17:09.9878061Z -rw-r--r-- 1 root root  424 Nov 10 06:17 BunnyLoader.Server.deps.json
+2026-11-10T06:17:09.9888792Z -rw-r--r-- 1 root root 140K Nov 10 06:17 BunnyLoader.Server.dll
+2026-11-10T06:17:09.9891172Z -rw-r--r-- 1 root root  46K Nov 10 06:17 BunnyLoader.Server.pdb
+2026-11-10T06:17:09.9891990Z -rw-r--r-- 1 root root  467 Nov 10 06:17 BunnyLoader.Server.runtimeconfig.json
+2026-11-10T06:17:09.9930472Z ##[group]Run docker run --rm -v "$PWD/server/dist:/app" -w /app \
+2026-11-10T06:17:09.9930911Z [36;1mdocker run --rm -v "$PWD/server/dist:/app" -w /app \[0m
+2026-11-10T06:17:09.9931300Z [36;1m  -e SKIP_WELCOME_PACK=true -e MSG3_HEX=0100 \[0m
+2026-11-10T06:17:09.9931616Z [36;1m  mcr.microsoft.com/dotnet/runtime:8.0 \[0m
+2026-11-10T06:17:09.9931960Z [36;1m  dotnet BunnyLoader.Server.dll --port 18080 --print-config[0m
+2026-11-10T06:17:09.9954545Z shell: /usr/bin/bash -e {0}
+2026-11-10T06:17:09.9954829Z ##[endgroup]
+2026-11-10T06:17:10.0099489Z Unable to find image 'mcr.microsoft.com/dotnet/runtime:8.0' locally
+2026-11-10T06:17:10.1126724Z 8.0: Pulling from dotnet/runtime
+2026-11-10T06:17:10.1536373Z dd051e1b8c92: Already exists
+2026-11-10T06:17:10.1544465Z 88ff34f4269d: Already exists
+2026-11-10T06:17:10.1550031Z 0c85d6fb7176: Already exists
+2026-11-10T06:17:10.1556217Z d3383cff8ccc: Already exists
+2026-11-10T06:17:10.1563044Z 93e3f9b5dcda: Already exists
+2026-11-10T06:17:10.2150047Z Digest: sha256:09f71a9459e260fe4bab0528f0bd9bfbfed7c8330bed3aa5b665281760205bec
+2026-11-10T06:17:10.2165149Z Status: Downloaded newer image for mcr.microsoft.com/dotnet/runtime:8.0
+2026-11-10T06:17:10.3657692Z {"ts":"2026-11-10T06:17:10.3633039+00:00","lvl":"info","ev":"config.effective","configFile":"(missing, using defaults)","host":"0.0.0.0","port":18080,"name":"Bunny Loader Server","level":"info","msg3":"auto(flags+bool1 -> slot -> flags+bool0)","world":"Bunny World","skipWelcomePack":true,"msg3Hex":"0100","welcomeHex":"","candidates":"","proofMode":"on","proofTiming":"before","proofFraming":"raw","proofWrapper":"netmodule","proofNetModuleId":45439,"proofMessageId":null,"proofSweep":false,"proofWaitReply":false,"echoControls":true,"proofServerLine":"NingLauncher/1/server","skipApproved":false,"sendMsg7After3":false,"msg7IncludeWelcome":true,"mods":0,"env":"SKIP_WELCOME_PACK=True,MSG3_HEX=0100"}
+2026-11-10T06:17:10.4245626Z ##[group]Run docker run -d --name panel-v1 --restart=no -e MSG3_VARIANT=flags1 -e WORLD_ON_HELLO=off -e PROOF_MODE=off \
+2026-11-10T06:17:10.4246551Z [36;1mdocker run -d --name panel-v1 --restart=no -e MSG3_VARIANT=flags1 -e WORLD_ON_HELLO=off -e PROOF_MODE=off \[0m
+2026-11-10T06:17:10.4247191Z [36;1m  -p 17780:7777 -v "$PWD/server/dist:/app" -w /app \[0m
+2026-11-10T06:17:10.4247646Z [36;1m  mcr.microsoft.com/dotnet/runtime:8.0 \[0m
+2026-11-10T06:17:10.4248094Z [36;1m  dotnet BunnyLoader.Server.dll --port 7777[0m
+2026-11-10T06:17:10.4248460Z [36;1mfor i in $(seq 1 30); do[0m
+2026-11-10T06:17:10.4248949Z [36;1m  docker logs panel-v1 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1[0m
+2026-11-10T06:17:10.4249451Z [36;1mdone[0m
+2026-11-10T06:17:10.4249777Z [36;1mdocker logs panel-v1 || true[0m
+2026-11-10T06:17:10.4250213Z [36;1mpython3 tools/fake_client.py 127.0.0.1 17780 flags1[0m
+2026-11-10T06:17:10.4250838Z [36;1mdocker rm -f panel-v1[0m
+2026-11-10T06:17:10.4282765Z shell: /usr/bin/bash -e {0}
+2026-11-10T06:17:10.4283260Z ##[endgroup]
+2026-11-10T06:17:10.4542139Z eb6f9f46efa0a4a2a7b84307e0a84b463882b132a613030f47c5937647078e63
+2026-11-10T06:17:11.7356378Z {"ts":"2026-11-10T06:17:10.6973219+00:00","lvl":"warn","ev":"config.missing","path":"/app/config/server.json","note":"使用内置默认值；可用环境变量覆盖"}
+2026-11-10T06:17:11.7357969Z {"ts":"2026-11-10T06:17:10.7122743+00:00","lvl":"info","ev":"server.start","host":"0.0.0.0","port":7777,"name":"Bunny Loader Server","world":"Bunny World","msg3":"flags+True","skipWelcomePack":false,"mods":0,"worldFile":"(flat)","capture":"(off)","env":"PROOF_MODE=off,WORLD_ON_HELLO=off,MSG3_VARIANT=flags1","note":"R2：握手 + 世界头；方块数据在 R3"}
+2026-11-10T06:17:12.1895699Z 连接 127.0.0.1:17780  变体=flags1
+2026-11-10T06:17:12.1904690Z   PASS  回复 id = 3
+2026-11-10T06:17:12.1924711Z   PASS  消息 3 负载（flags1）
+2026-11-10T06:17:12.1949787Z   PASS  消息3之后静默（等客户端发 68）
+2026-11-10T06:17:12.1950603Z   PASS  68 之后的欢迎包: id = 82 (NetModules)
+2026-11-10T06:17:12.1964528Z   PASS  68 之后的欢迎包: 模块 0xB17F
+2026-11-10T06:17:12.1984402Z   PASS  68 之后的欢迎包: kind = 200
+2026-11-10T06:17:12.1994584Z   PASS  68 之后的欢迎包: 长度 4（含 rules）
+2026-11-10T06:17:12.2103281Z   PASS  回复 id = 7 (WorldData)
+2026-11-10T06:17:12.2105916Z   PASS  世界名可解析
+2026-11-10T06:17:12.2109433Z   PASS  负载被完整消费
+2026-11-10T06:17:12.2110202Z   PASS  尺寸有效
+2026-11-10T06:17:12.2111675Z   PASS  出生点在界内
+2026-11-10T06:17:12.2112707Z         世界: 'Bunny World' 4200x1200 spawn=(2100,349) payload=175
+2026-11-10T06:17:12.2115052Z 
+2026-11-10T06:17:12.2136158Z 端到端全部通过。
+2026-11-10T06:17:12.2984883Z panel-v1
+2026-11-10T06:17:12.3051763Z ##[group]Run docker run -d --name panel-v2 --restart=no -e MSG3_VARIANT=slot -e WORLD_ON_HELLO=off -e PROOF_MODE=off \
+2026-11-10T06:17:12.3052726Z [36;1mdocker run -d --name panel-v2 --restart=no -e MSG3_VARIANT=slot -e WORLD_ON_HELLO=off -e PROOF_MODE=off \[0m
+2026-11-10T06:17:12.3053425Z [36;1m  -p 17781:7777 -v "$PWD/server/dist:/app" -w /app \[0m
+2026-11-10T06:17:12.3054592Z [36;1m  mcr.microsoft.com/dotnet/runtime:8.0 \[0m
+2026-11-10T06:17:12.3055064Z [36;1m  dotnet BunnyLoader.Server.dll --port 7777[0m
+2026-11-10T06:17:12.3055558Z [36;1mfor i in $(seq 1 30); do[0m
+2026-11-10T06:17:12.3056050Z [36;1m  docker logs panel-v2 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1[0m
+2026-11-10T06:17:12.3056541Z [36;1mdone[0m
+2026-11-10T06:17:12.3057023Z [36;1mpython3 tools/fake_client.py 127.0.0.1 17781 slot[0m
+2026-11-10T06:17:12.3057456Z [36;1mdocker rm -f panel-v2[0m
+2026-11-10T06:17:12.3082092Z shell: /usr/bin/bash -e {0}
+2026-11-10T06:17:12.3082623Z ##[endgroup]
+2026-11-10T06:17:12.3317596Z c7117a0099f7d0cf7c428947d727b6ed11358d9060fc49e2f761bcf32772f7f2
+2026-11-10T06:17:13.9409104Z 连接 127.0.0.1:17781  变体=slot
+2026-11-10T06:17:13.9465186Z   PASS  回复 id = 3
+2026-11-10T06:17:13.9665088Z   PASS  消息 3 负载（slot）
+2026-11-10T06:17:13.9726668Z   PASS  消息3之后静默（等客户端发 68）
+2026-11-10T06:17:13.9727520Z   PASS  68 之后的欢迎包: id = 82 (NetModules)
+2026-11-10T06:17:13.9728828Z   PASS  68 之后的欢迎包: 模块 0xB17F
+2026-11-10T06:17:13.9729221Z   PASS  68 之后的欢迎包: kind = 200
+2026-11-10T06:17:13.9729634Z   PASS  68 之后的欢迎包: 长度 4（含 rules）
+2026-11-10T06:17:13.9730009Z   PASS  回复 id = 7 (WorldData)
+2026-11-10T06:17:13.9730394Z   PASS  世界名可解析
+2026-11-10T06:17:13.9730744Z   PASS  负载被完整消费
+2026-11-10T06:17:13.9731049Z   PASS  尺寸有效
+2026-11-10T06:17:13.9731403Z   PASS  出生点在界内
+2026-11-10T06:17:13.9731830Z         世界: 'Bunny World' 4200x1200 spawn=(2100,349) payload=175
+2026-11-10T06:17:13.9732160Z 
+2026-11-10T06:17:13.9732394Z 端到端全部通过。
+2026-11-10T06:17:14.0589931Z panel-v2
+2026-11-10T06:17:14.0709101Z ##[group]Run docker run -d --name panel-v3 --restart=no -e MSG3_VARIANT=flags0 -e WORLD_ON_HELLO=off -e PROOF_MODE=off \
+2026-11-10T06:17:14.0710119Z [36;1mdocker run -d --name panel-v3 --restart=no -e MSG3_VARIANT=flags0 -e WORLD_ON_HELLO=off -e PROOF_MODE=off \[0m
+2026-11-10T06:17:14.0710811Z [36;1m  -p 17782:7777 -v "$PWD/server/dist:/app" -w /app \[0m
+2026-11-10T06:17:14.0711521Z [36;1m  mcr.microsoft.com/dotnet/runtime:8.0 \[0m
+2026-11-10T06:17:14.0711963Z [36;1m  dotnet BunnyLoader.Server.dll --port 7777[0m
+2026-11-10T06:17:14.0712390Z [36;1mfor i in $(seq 1 30); do[0m
+2026-11-10T06:17:14.0712883Z [36;1m  docker logs panel-v3 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1[0m
+2026-11-10T06:17:14.0713410Z [36;1mdone[0m
+2026-11-10T06:17:14.0715373Z [36;1mpython3 tools/fake_client.py 127.0.0.1 17782 flags0[0m
+2026-11-10T06:17:14.0715829Z [36;1mdocker rm -f panel-v3[0m
+2026-11-10T06:17:14.0771533Z shell: /usr/bin/bash -e {0}
+2026-11-10T06:17:14.0772128Z ##[endgroup]
+2026-11-10T06:17:14.1086501Z 13cdb992c4f1e6ec3fba4e43483b8ee2b5de211237da05e3da478ea5a433c427
+2026-11-10T06:17:15.7335729Z 连接 127.0.0.1:17782  变体=flags0
+2026-11-10T06:17:15.7336859Z   PASS  回复 id = 3
+2026-11-10T06:17:15.7355390Z   PASS  消息 3 负载（flags0）
+2026-11-10T06:17:15.7382188Z   PASS  消息3之后静默（等客户端发 68）
+2026-11-10T06:17:15.7383324Z   PASS  68 之后的欢迎包: id = 82 (NetModules)
+2026-11-10T06:17:15.7384202Z   PASS  68 之后的欢迎包: 模块 0xB17F
+2026-11-10T06:17:15.7384754Z   PASS  68 之后的欢迎包: kind = 200
+2026-11-10T06:17:15.7385266Z   PASS  68 之后的欢迎包: 长度 4（含 rules）
+2026-11-10T06:17:15.7385722Z   PASS  回复 id = 7 (WorldData)
+2026-11-10T06:17:15.7386162Z   PASS  世界名可解析
+2026-11-10T06:17:15.7386604Z   PASS  负载被完整消费
+2026-11-10T06:17:15.7386992Z   PASS  尺寸有效
+2026-11-10T06:17:15.7387385Z   PASS  出生点在界内
+2026-11-10T06:17:15.7387900Z         世界: 'Bunny World' 4200x1200 spawn=(2100,349) payload=175
+2026-11-10T06:17:15.7388214Z 
+2026-11-10T06:17:15.7388467Z 端到端全部通过。
+2026-11-10T06:17:15.8304530Z panel-v3
+2026-11-10T06:17:15.8348168Z ##[group]Run docker run -d --name panel-doc --restart=no \
+2026-11-10T06:17:15.8348763Z [36;1mdocker run -d --name panel-doc --restart=no \[0m
+2026-11-10T06:17:15.8349272Z [36;1m  -e PROOF_MODE=on -e MSG3_VARIANT=flags1 \[0m
+2026-11-10T06:17:15.8349768Z [36;1m  -p 17790:7777 -v "$PWD/server/dist:/app" -w /app \[0m
+2026-11-10T06:17:15.8350219Z [36;1m  mcr.microsoft.com/dotnet/runtime:8.0 \[0m
+2026-11-10T06:17:15.8350729Z [36;1m  dotnet BunnyLoader.Server.dll --port 7777[0m
+2026-11-10T06:17:15.8351182Z [36;1mfor i in $(seq 1 30); do[0m
+2026-11-10T06:17:15.8351751Z [36;1m  docker logs panel-doc 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1[0m
+2026-11-10T06:17:15.8352263Z [36;1mdone[0m
+2026-11-10T06:17:15.8352656Z [36;1mpython3 tools/fake_client.py 127.0.0.1 17790 proofdoc[0m
+2026-11-10T06:17:15.8353259Z [36;1mdocker logs panel-doc | grep -E 'proof\.(sent|verified)|serverinfo\.163' | head -3[0m
+2026-11-10T06:17:15.8354431Z [36;1m[0m
+2026-11-10T06:17:15.8354957Z [36;1m# 诊断轮门禁：完整 40 字节必须真的被打出来（不允许再被截断成 24 字节）。[0m
+2026-11-10T06:17:15.8355460Z [36;1mdocker logs panel-doc | grep -q '"ev":"syncplayer.raw"' \[0m
+2026-11-10T06:17:15.8356245Z [36;1m  || { echo "缺少 syncplayer.raw（完整 40 字节 hex）"; docker logs panel-doc | tail -40; exit 1; }[0m
+2026-11-10T06:17:15.8356975Z [36;1mdocker logs panel-doc | grep '"ev":"syncplayer.raw"' | head -1[0m
+2026-11-10T06:17:15.8357581Z [36;1mdocker logs panel-doc | grep -q '"ev":"syncplayer.layout"' \[0m
+2026-11-10T06:17:15.8358420Z [36;1m  || { echo "缺少 syncplayer.layout（逐字段走位）"; exit 1; }[0m
+2026-11-10T06:17:15.8359160Z [36;1mdocker logs panel-doc | grep '"ev":"syncplayer.layout"' | head -1[0m
+2026-11-10T06:17:15.8359806Z [36;1mdocker logs panel-doc | grep -q '"ev":"syncplayer.hypotheses"' \[0m
+2026-11-10T06:17:15.8360401Z [36;1m  || { echo "缺少 syncplayer.hypotheses（假设枚举）"; exit 1; }[0m
+2026-11-10T06:17:15.8361006Z [36;1mdocker logs panel-doc | grep '"ev":"syncplayer.hypotheses"' | head -1[0m
+2026-11-10T06:17:15.8361577Z [36;1m[0m
+2026-11-10T06:17:15.8361920Z [36;1m# 第 8 章验收 (5)：同一条会话里 id:4 只能发一次（收到时立即回显那一次）。[0m
+2026-11-10T06:17:15.8362432Z [36;1m# 只数 frame.send（frame.recv 也会打印 "name":"SyncPlayer"）。[0m
+2026-11-10T06:17:15.8363051Z [36;1msync4=$(docker logs panel-doc | grep -c '"ev":"frame.send".*"name":"SyncPlayer"')[0m
+2026-11-10T06:17:15.8363841Z [36;1mecho "id:4 发送次数 = $sync4"[0m
+2026-11-10T06:17:15.8364563Z [36;1m[ "$sync4" -eq 1 ] || { echo "id:4 发了 $sync4 次，必须恰好 1 次"; docker logs panel-doc | grep '"name":"SyncPlayer"'; exit 1; }[0m
+2026-11-10T06:17:15.8365453Z [36;1m[0m
+2026-11-10T06:17:15.8365790Z [36;1mdocker rm -f panel-doc[0m
+2026-11-10T06:17:15.8396501Z shell: /usr/bin/bash -e {0}
+2026-11-10T06:17:15.8396906Z ##[endgroup]
+2026-11-10T06:17:15.8652327Z 202842fd747eba560d96db8741562f726b523026070df1342d760643ffeaef44
+2026-11-10T06:17:18.5597296Z 连接 127.0.0.1:17790  变体=proofdoc
+2026-11-10T06:17:18.5597907Z   PASS  证明 = 1a 00 52 47 4e + 文本（26 字节）
+2026-11-10T06:17:18.5598524Z   PASS  验证后收到移动版 ServerInfo (163)
+2026-11-10T06:17:18.5598973Z   PASS  163 状态版本 = 0
+2026-11-10T06:17:18.5599321Z   PASS  163 服务器名非空
+2026-11-10T06:17:18.5599640Z   PASS  163 状态非空
+2026-11-10T06:17:18.5600049Z   PASS  163 最大人数 = 16
+2026-11-10T06:17:18.5600356Z   PASS  163 当前人数 = 1
+2026-11-10T06:17:18.5600683Z         163: ver=0 name='Bunny Server' status='Online' 1/16
+2026-11-10T06:17:18.5601173Z   PASS  发 id:1 后收到 id=3
+2026-11-10T06:17:18.5601509Z   PASS  消息 3 负载 = 01 01
+2026-11-10T06:17:18.5601997Z   PASS  68 之后的欢迎包: id = 82 (NetModules)
+2026-11-10T06:17:18.5602406Z   PASS  68 之后的欢迎包: 模块 0xB17F
+2026-11-10T06:17:18.5603881Z   PASS  68 之后的欢迎包: kind = 200
+2026-11-10T06:17:18.5604319Z   PASS  68 之后的欢迎包: 长度 4（含 rules）
+2026-11-10T06:17:18.5604709Z   PASS  id:4 立即被回显（不改变时延）
+2026-11-10T06:17:18.5605111Z   PASS  id:4 长度不变（40）
+2026-11-10T06:17:18.5605451Z   PASS  whoAmI 改写为 1
+2026-11-10T06:17:18.5605932Z   PASS  id:4 除 whoAmI 外一个字节都没被改（诊断轮不得改写坐标/颜色）
+2026-11-10T06:17:18.5606594Z   PASS  收到 id:14 激活
+2026-11-10T06:17:18.5616866Z   PASS  激活之后静默（等 id:6）
+2026-11-10T06:17:18.5618086Z   PASS  收到 id=7
+2026-11-10T06:17:18.5624251Z   PASS  分块数 >= 40
+2026-11-10T06:17:18.5624892Z   PASS  收到 id=49
+2026-11-10T06:17:18.5625569Z   PASS  收到 id=12
+2026-11-10T06:17:18.5626039Z   PASS  收到 id=129
+2026-11-10T06:17:18.5626654Z   PASS  id:4 会话内不重放（ids 中 0 次）
+2026-11-10T06:17:18.5627236Z   PASS  tail 顺序 = 49 -> 14 -> 12 -> 129
+2026-11-10T06:17:18.5627993Z   PASS  顺序 49 -> ... -> 12 -> 129
+2026-11-10T06:17:18.5628783Z         序列: 分块=40 ids=[7, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10]…
+2026-11-10T06:17:18.5629347Z   PASS  id:5 原样回传
+2026-11-10T06:17:18.5629889Z   PASS  id:16 被原样回显（不覆盖 400 血）
+2026-11-10T06:17:18.5630357Z   PASS  发 12 之后连接仍存活
+2026-11-10T06:17:18.5630629Z 
+2026-11-10T06:17:18.5789813Z {"ts":"2026-11-10T06:17:17.0410859+00:00","lvl":"info","ev":"proof.sent.26bytes","conn":"c1","bytes":26,"hex":"1a 00 52 47 4e 4e 69 6e 67 4c 61 75 6e 63 68 65 72 2f 31 2f 73 65 72 76 65 72"}
+2026-11-10T06:17:18.5818305Z {"ts":"2026-11-10T06:17:17.0466327+00:00","lvl":"info","ev":"proof.verified","conn":"c1","note":"回执匹配成功"}
+2026-11-10T06:17:18.5819523Z {"ts":"2026-11-10T06:17:17.0484900+00:00","lvl":"info","ev":"serverinfo.163.sent","conn":"c1","bytes":26,"payloadLen":23,"hex":"1a 00 a3 00 0c 42 75 6e 6e 79 20 53 65 72 76 65 72 06 4f 6e 6c 69 6e 65 10 01"}
+2026-11-10T06:17:18.6013480Z {"ts":"2026-11-10T06:17:17.0636827+00:00","lvl":"info","ev":"syncplayer.raw","conn":"c1","len":40,"hex":"ff 06 54 65 73 74 65 72 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ff ff ff ff ff ff ff ff","ascii":"..Tester................................","recvLen":40,"sendLen":40,"count":1,"whoAmI":"0xFF -> 0x01","whoAmIChanged":true}
+2026-11-10T06:17:18.6240157Z {"ts":"2026-11-10T06:17:17.0638343+00:00","lvl":"info","ev":"syncplayer.layout","conn":"c1","playerId":255,"skinVariant":6,"hair":84,"nameOffset":3,"namePrefixBytes":1,"nameLenClaimed":101,"name":"","standardLayoutOk":false,"derail":"name 长度前缀在偏移 3 解出 101 字节，但剩余只有 36 字节：标准布局在本 payload 上不成立","minStdBytes":50,"minRgbaBytes":63,"actualLen":40}
+2026-11-10T06:17:18.6463297Z {"ts":"2026-11-10T06:17:17.0640638+00:00","lvl":"info","ev":"syncplayer.hypotheses","conn":"c1","len":40,"hex":"ff 06 54 65 73 74 65 72 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ff ff ff ff ff ff ff ff","hypotheses":"rest=31(@9) exact=6 top=[name@3/nul/dye/9c3B/3t name@3/nul/dye/10c3B/0t name@3/nul/dye/7c4B/2t name@3/nul/nodye/9c3B/4t] map(name@3/nul/dye/9c3B/3t)= name@3(nul)=\"ester\" hairDye@9=0x00 c0@10=#000000 c1@13=#000000 c2@16=#000000 c3@19=#000000 c4@22=#000000 c5@25=#000000 c6@28=#000000 c7@31=#00ffff c8@34=#ffffff tail@37..39（3 字节：difficulty/hideVisuals/hideVisuals2/hideMisc，候选） | map(name@3/nul/dye/10c3B/0t)= name@3(nul)=\"ester\" hairDye@9=0x00 c0@10=#000000 c1@13=#000000 c2@16=#000000 c3@19=#000000 c4@22=#000000 c5@25=#000000 c6@28=#000000 c7@31=#00ffff c8@34=#ffffff c9@37=#ffffff | standard(1+13*3+2=42) 差 -11"}
+2026-11-10T06:17:18.6579055Z id:4 发送次数 = 1
+2026-11-10T06:17:18.7540495Z panel-doc
+2026-11-10T06:17:18.7601520Z ##[group]Run docker run -d --name panel-n163 --restart=no \
+2026-11-10T06:17:18.7602154Z [36;1mdocker run -d --name panel-n163 --restart=no \[0m
+2026-11-10T06:17:18.7602685Z [36;1m  -e PROOF_MODE=on -e DISABLE_163=true -e MSG3_VARIANT=flags1 \[0m
+2026-11-10T06:17:18.7603195Z [36;1m  -p 17796:7777 -v "$PWD/server/dist:/app" -w /app \[0m
+2026-11-10T06:17:18.7624344Z [36;1m  mcr.microsoft.com/dotnet/runtime:8.0 \[0m
+2026-11-10T06:17:18.7628205Z [36;1m  dotnet BunnyLoader.Server.dll --port 7777[0m
+2026-11-10T06:17:18.7628708Z [36;1mfor i in $(seq 1 30); do[0m
+2026-11-10T06:17:18.7629252Z [36;1m  docker logs panel-n163 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1[0m
+2026-11-10T06:17:18.7629721Z [36;1mdone[0m
+2026-11-10T06:17:18.7629996Z [36;1mpython3 - <<'PYC'[0m
+2026-11-10T06:17:18.7630367Z [36;1mimport socket, sys[0m
+2026-11-10T06:17:18.7630697Z [36;1msys.path.insert(0, "tools")[0m
+2026-11-10T06:17:18.7631391Z [36;1mfrom fake_client import DOC_PROOF, DOC_PROOF_REPLY, frame, string, recv_frame, recv_exact[0m
+2026-11-10T06:17:18.7632030Z [36;1ms = socket.create_connection(("127.0.0.1", 17796), timeout=6)[0m
+2026-11-10T06:17:18.7634228Z [36;1ms.settimeout(6)[0m
+2026-11-10T06:17:18.7634629Z [36;1massert recv_exact(s, len(DOC_PROOF)) == DOC_PROOF[0m
+2026-11-10T06:17:18.7635034Z [36;1ms.sendall(DOC_PROOF_REPLY)[0m
+2026-11-10T06:17:18.7635481Z [36;1ms.sendall(frame(1, string("Terraria326")))[0m
+2026-11-10T06:17:18.7635909Z [36;1mident, payload = recv_frame(s)[0m
+2026-11-10T06:17:18.7636297Z [36;1massert ident == 3, f"期望 3，收到 {ident}"[0m
+2026-11-10T06:17:18.7636718Z [36;1massert payload == b"\x01\x01", payload.hex()[0m
+2026-11-10T06:17:18.7637139Z [36;1mprint("PASS DISABLE_163 下回执后直接回 id:3")[0m
+2026-11-10T06:17:18.7637540Z [36;1mPYC[0m
+2026-11-10T06:17:18.7637885Z [36;1mdocker logs panel-n163 | grep -E 'proof\.verified|serverinfo\.163' | head -3[0m
+2026-11-10T06:17:18.7638395Z [36;1mdocker rm -f panel-n163[0m
+2026-11-10T06:17:18.7667977Z shell: /usr/bin/bash -e {0}
+2026-11-10T06:17:18.7668483Z ##[endgroup]
+2026-11-10T06:17:18.7915675Z 5402953e6dc4c276371335683072f05becdaaae37d6631d11f58a5d0ee67b436
+2026-11-10T06:17:19.9816756Z PASS DISABLE_163 下回执后直接回 id:3
+2026-11-10T06:17:20.0007867Z {"ts":"2026-11-10T06:17:19.9707545+00:00","lvl":"info","ev":"proof.verified","conn":"c1","note":"回执匹配成功"}
+2026-11-10T06:17:20.0009556Z {"ts":"2026-11-10T06:17:19.9714371+00:00","lvl":"info","ev":"serverinfo.163.disabled","conn":"c1","note":"DISABLE_163=true，跳过"}
+2026-11-10T06:17:20.0784804Z panel-n163
+2026-11-10T06:17:20.0856028Z ##[group]Run docker run -d --name panel-rej --restart=no \
+2026-11-10T06:17:20.0856692Z [36;1mdocker run -d --name panel-rej --restart=no \[0m
+2026-11-10T06:17:20.0857131Z [36;1m  -e PROOF_MODE=on -e MSG3_VARIANT=flags1 \[0m
+2026-11-10T06:17:20.0857595Z [36;1m  -p 17798:7777 -v "$PWD/server/dist:/app" -w /app \[0m
+2026-11-10T06:17:20.0857998Z [36;1m  mcr.microsoft.com/dotnet/runtime:8.0 \[0m
+2026-11-10T06:17:20.0858427Z [36;1m  dotnet BunnyLoader.Server.dll --port 7777[0m
+2026-11-10T06:17:20.0858868Z [36;1mfor i in $(seq 1 30); do[0m
+2026-11-10T06:17:20.0859399Z [36;1m  docker logs panel-rej 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1[0m
+2026-11-10T06:17:20.0859896Z [36;1mdone[0m
+2026-11-10T06:17:20.0860285Z [36;1mpython3 tools/fake_client.py 127.0.0.1 17798 proofreject[0m
+2026-11-10T06:17:20.0860801Z [36;1mdocker logs panel-rej | grep -E 'proof\.rejected' | head -2[0m
+2026-11-10T06:17:20.0861332Z [36;1mdocker rm -f panel-rej[0m
+2026-11-10T06:17:20.0893210Z shell: /usr/bin/bash -e {0}
+2026-11-10T06:17:20.0894053Z ##[endgroup]
+2026-11-10T06:17:20.1145888Z a928aa3438fe14fc072edff9fb48ad750fabea829cad7bd2bdfc667b9ef676c8
+2026-11-10T06:17:21.2988003Z 连接 127.0.0.1:17798  变体=proofreject
+2026-11-10T06:17:21.2988927Z   PASS  证明已收到
+2026-11-10T06:17:21.2989430Z   PASS  验证前发 Hello 被断开
+2026-11-10T06:17:21.2989893Z 
+2026-11-10T06:17:21.3159703Z {"ts":"2026-11-10T06:17:21.2967154+00:00","lvl":"warn","ev":"proof.rejected-other-frame","conn":"c1","id":"1","name":"Hello"}
+2026-11-10T06:17:21.3161902Z {"ts":"2026-11-10T06:17:21.3006262+00:00","lvl":"warn","ev":"proof.rejected","conn":"c1","note":"验证前收到非回执帧或回执不符，断开"}
+2026-11-10T06:17:21.4139838Z panel-rej
+2026-11-10T06:17:21.4210886Z ##[group]Run docker run -d --name panel-auto --restart=no \
+2026-11-10T06:17:21.4211501Z [36;1mdocker run -d --name panel-auto --restart=no \[0m
+2026-11-10T06:17:21.4212026Z [36;1m  -e PROOF_MODE=off -e MSG3_VARIANT=flags1 \[0m
+2026-11-10T06:17:21.4212470Z [36;1m  -e WORLD_ON_HELLO=off \[0m
+2026-11-10T06:17:21.4212865Z [36;1m  -p 17791:7777 -v "$PWD/server/dist:/app" -w /app \[0m
+2026-11-10T06:17:21.4213314Z [36;1m  mcr.microsoft.com/dotnet/runtime:8.0 \[0m
+2026-11-10T06:17:21.4214191Z [36;1m  dotnet BunnyLoader.Server.dll --port 7777[0m
+2026-11-10T06:17:21.4214629Z [36;1mfor i in $(seq 1 30); do[0m
+2026-11-10T06:17:21.4215132Z [36;1m  docker logs panel-auto 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1[0m
+2026-11-10T06:17:21.4215619Z [36;1mdone[0m
+2026-11-10T06:17:21.4215990Z [36;1mpython3 tools/fake_client.py 127.0.0.1 17791 world[0m
+2026-11-10T06:17:21.4216508Z [36;1mdocker logs panel-auto | grep -E 'proof\.skipped' | head -2[0m
+2026-11-10T06:17:21.4217119Z [36;1mdocker rm -f panel-auto[0m
+2026-11-10T06:17:21.4249364Z shell: /usr/bin/bash -e {0}
+2026-11-10T06:17:21.4249794Z ##[endgroup]
+2026-11-10T06:17:21.4531215Z f06a9c64cbe23b26feb55dd1e381e8d94cafba9b226bd4e35a3a229f37cbf30e
+2026-11-10T06:17:27.1968524Z 连接 127.0.0.1:17791  变体=world
+2026-11-10T06:17:27.1969480Z   PASS  回复 id = 3
+2026-11-10T06:17:27.1994964Z   PASS  消息 3 负载（world）
+2026-11-10T06:17:27.1998043Z   PASS  消息3之后静默（等客户端发 68）
+2026-11-10T06:17:27.2013132Z   PASS  68 之后的欢迎包: id = 82 (NetModules)
+2026-11-10T06:17:27.2038341Z   PASS  68 之后的欢迎包: 模块 0xB17F
+2026-11-10T06:17:27.2039780Z   PASS  68 之后的欢迎包: kind = 200
+2026-11-10T06:17:27.2040181Z   PASS  68 之后的欢迎包: 长度 4（含 rules）
+2026-11-10T06:17:27.2040593Z   PASS  回复 id = 7 (WorldData)
+2026-11-10T06:17:27.2040942Z   PASS  世界名可解析
+2026-11-10T06:17:27.2041283Z   PASS  负载被完整消费
+2026-11-10T06:17:27.2041619Z   PASS  尺寸有效
+2026-11-10T06:17:27.2041920Z   PASS  出生点在界内
+2026-11-10T06:17:27.2042375Z         世界: 'Bunny World' 4200x1200 spawn=(2100,349) payload=175
+2026-11-10T06:17:27.2042879Z   PASS  收到至少 1 个分块
+2026-11-10T06:17:27.2043244Z   PASS  首个分块头 = 200x150
+2026-11-10T06:17:27.2043793Z   PASS  发 12 之后连接仍存活
+2026-11-10T06:17:27.2044306Z         首个分块 xStart=1600 yStart=150 raw=21 bytes, 共 40 块
+2026-11-10T06:17:27.2044936Z 
+2026-11-10T06:17:27.2172318Z {"ts":"2026-11-10T06:17:22.6248336+00:00","lvl":"info","ev":"proof.skipped","conn":"c1","reason":"mode=off"}
+2026-11-10T06:17:27.3086449Z panel-auto
+2026-11-10T06:17:27.3184551Z ##[group]Run docker run --rm -v "$PWD/server/testdata:/td:ro" -v "$PWD/server/dist:/app" -w /app \
+2026-11-10T06:17:27.3185292Z [36;1mdocker run --rm -v "$PWD/server/testdata:/td:ro" -v "$PWD/server/dist:/app" -w /app \[0m
+2026-11-10T06:17:27.3185884Z [36;1m  mcr.microsoft.com/dotnet/runtime:8.0 \[0m
+2026-11-10T06:17:27.3186418Z [36;1m  dotnet BunnyLoader.Server.dll --world-info /td/real-world.wld | tee /tmp/real.txt[0m
+2026-11-10T06:17:27.3187037Z [36;1mgrep -q '"size":"4200x1200"' /tmp/real.txt[0m
+2026-11-10T06:17:27.3187486Z [36;1mgrep -q '"spawn":"2105,312"' /tmp/real.txt[0m
+2026-11-10T06:17:27.3187865Z [36;1mgrep -q '"version":326' /tmp/real.txt[0m
+2026-11-10T06:17:27.3188309Z [36;1mgrep -q '块状的小屋' /tmp/real.txt[0m
+2026-11-10T06:17:27.3249369Z shell: /usr/bin/bash -e {0}
+2026-11-10T06:17:27.3249683Z ##[endgroup]
+2026-11-10T06:17:27.5585696Z {"ts":"2026-11-10T06:17:27.5567995+00:00","lvl":"info","ev":"world.note","text":"世界 块状的小屋 4200x1200 出生点 (2105,312) 地表 337 版本 326"}
+2026-11-10T06:17:27.5596914Z {"ts":"2026-11-10T06:17:27.5581540+00:00","lvl":"info","ev":"world.loaded","file":"/td/real-world.wld","name":"块状的小屋","size":"4200x1200","spawn":"2105,312","surface":337,"version":326}
+2026-11-10T06:17:27.5809057Z {"ts":"2026-11-10T06:17:27.5790350+00:00","lvl":"info","ev":"world.info","file":"/td/real-world.wld","version":326,"name":"块状的小屋","seed":"1508899741","size":"4200x1200","spawn":"2105,312","surface":337,"rockLayer":481,"crimson":false,"tiles":5040000,"active":2544878,"activePct":50.49,"walls":1123619}
+2026-11-10T06:17:27.6432838Z ##[group]Run mkdir -p /tmp/wld
+2026-11-10T06:17:27.6433206Z [36;1mmkdir -p /tmp/wld[0m
+2026-11-10T06:17:27.6433973Z [36;1mpython3 tools/make_test_world.py /tmp/wld/test.wld[0m
+2026-11-10T06:17:27.6434548Z [36;1mdocker run --rm -v /tmp/wld:/wld -v "$PWD/server/dist:/app" -w /app \[0m
+2026-11-10T06:17:27.6434992Z [36;1m  -e LOG_LEVEL=info \[0m
+2026-11-10T06:17:27.6435270Z [36;1m  mcr.microsoft.com/dotnet/runtime:8.0 \[0m
+2026-11-10T06:17:27.6435812Z [36;1m  dotnet BunnyLoader.Server.dll --world-info /wld/test.wld | tee /tmp/wld/info.txt[0m
+2026-11-10T06:17:27.6436230Z [36;1mgrep -q '"size":"400x300"' /tmp/wld/info.txt[0m
+2026-11-10T06:17:27.6436601Z [36;1mgrep -q '"name":"TestWorld"' /tmp/wld/info.txt[0m
+2026-11-10T06:17:27.6456885Z shell: /usr/bin/bash -e {0}
+2026-11-10T06:17:27.6457241Z ##[endgroup]
+2026-11-10T06:17:27.6765466Z 写出 /tmp/wld/test.wld: 4270 字节, 400x300, 段偏移 46/260/4266/4268
+2026-11-10T06:17:27.8424738Z {"ts":"2026-11-10T06:17:27.8406805+00:00","lvl":"info","ev":"world.note","text":"瓦片段结束于 4260，但箱子段在 4266（差 -6 字节，可能字段有偏差）"}
+2026-11-10T06:17:27.8425896Z {"ts":"2026-11-10T06:17:27.8418549+00:00","lvl":"info","ev":"world.note","text":"世界 TestWorld 400x300 出生点 (200,99) 地表 100 版本 326"}
+2026-11-10T06:17:27.8430692Z {"ts":"2026-11-10T06:17:27.8420136+00:00","lvl":"info","ev":"world.loaded","file":"/wld/test.wld","name":"TestWorld","size":"400x300","spawn":"200,99","surface":100,"version":326}
+2026-11-10T06:17:27.8514104Z {"ts":"2026-11-10T06:17:27.8503398+00:00","lvl":"info","ev":"world.info","file":"/wld/test.wld","version":326,"name":"TestWorld","seed":"12345","size":"400x300","spawn":"200,99","surface":100,"rockLayer":200,"crimson":false,"tiles":120000,"active":80000,"activePct":66.67,"walls":0}
+2026-11-10T06:17:27.9180981Z ##[group]Run docker run -d --name panel-wld --restart=no -e MSG3_VARIANT=flags1 -e WORLD_ON_HELLO=off -e PROOF_MODE=off \
+2026-11-10T06:17:27.9181733Z [36;1mdocker run -d --name panel-wld --restart=no -e MSG3_VARIANT=flags1 -e WORLD_ON_HELLO=off -e PROOF_MODE=off \[0m
+2026-11-10T06:17:27.9182266Z [36;1m  -p 17789:7777 -v /tmp/wld:/wld -v "$PWD/server/dist:/app" -w /app \[0m
+2026-11-10T06:17:27.9182638Z [36;1m  mcr.microsoft.com/dotnet/runtime:8.0 \[0m
+2026-11-10T06:17:27.9183172Z [36;1m  dotnet BunnyLoader.Server.dll --port 7777 --world /wld/test.wld[0m
+2026-11-10T06:17:27.9183500Z [36;1mfor i in $(seq 1 30); do[0m
+2026-11-10T06:17:27.9184100Z [36;1m  docker logs panel-wld 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1[0m
+2026-11-10T06:17:27.9184464Z [36;1mdone[0m
+2026-11-10T06:17:27.9184712Z [36;1mdocker logs panel-wld | head -5[0m
+2026-11-10T06:17:27.9185039Z [36;1mpython3 tools/fake_client.py 127.0.0.1 17789 world || {[0m
+2026-11-10T06:17:27.9185517Z [36;1m  echo "===== server log (tail 80) ====="[0m
+2026-11-10T06:17:27.9185832Z [36;1m  docker logs panel-wld | tail -80[0m
+2026-11-10T06:17:27.9186087Z [36;1m  exit 1[0m
+2026-11-10T06:17:27.9186387Z [36;1m}[0m
+2026-11-10T06:17:27.9186707Z [36;1mdocker logs panel-wld | grep -E 'world.loaded|chunks\.|world.sections' | head -5[0m
+2026-11-10T06:17:27.9187088Z [36;1mdocker rm -f panel-wld[0m
+2026-11-10T06:17:27.9207497Z shell: /usr/bin/bash -e {0}
+2026-11-10T06:17:27.9207859Z ##[endgroup]
+2026-11-10T06:17:27.9402304Z bb820d137ffd29f44f1dd06110115b30fd479b1df180a964940c3156e9d5b396
+2026-11-10T06:17:29.1025813Z {"ts":"2026-11-10T06:17:28.1101713+00:00","lvl":"info","ev":"world.note","text":"瓦片段结束于 4260，但箱子段在 4266（差 -6 字节，可能字段有偏差）"}
+2026-11-10T06:17:29.1027035Z {"ts":"2026-11-10T06:17:28.1119583+00:00","lvl":"info","ev":"world.note","text":"世界 TestWorld 400x300 出生点 (200,99) 地表 100 版本 326"}
+2026-11-10T06:17:29.1028540Z {"ts":"2026-11-10T06:17:28.1121374+00:00","lvl":"info","ev":"world.loaded","file":"/wld/test.wld","name":"TestWorld","size":"400x300","spawn":"200,99","surface":100,"version":326}
+2026-11-10T06:17:29.1029745Z {"ts":"2026-11-10T06:17:28.1127252+00:00","lvl":"warn","ev":"config.missing","path":"/app/config/server.json","note":"使用内置默认值；可用环境变量覆盖"}
+2026-11-10T06:17:29.1031714Z {"ts":"2026-11-10T06:17:28.1189602+00:00","lvl":"info","ev":"server.start","host":"0.0.0.0","port":7777,"name":"Bunny Loader Server","world":"Bunny World","msg3":"flags+True","skipWelcomePack":false,"mods":0,"worldFile":"test.wld","capture":"(off)","env":"PROOF_MODE=off,WORLD_ON_HELLO=off,MSG3_VARIANT=flags1","note":"R2：握手 + 世界头；方块数据在 R3"}
+2026-11-10T06:17:31.5855822Z 连接 127.0.0.1:17789  变体=world
+2026-11-10T06:17:31.5875155Z   PASS  回复 id = 3
+2026-11-10T06:17:31.5894922Z   PASS  消息 3 负载（world）
+2026-11-10T06:17:31.5902557Z   PASS  消息3之后静默（等客户端发 68）
+2026-11-10T06:17:31.5914697Z   PASS  68 之后的欢迎包: id = 82 (NetModules)
+2026-11-10T06:17:31.5915357Z   PASS  68 之后的欢迎包: 模块 0xB17F
+2026-11-10T06:17:31.5916231Z   PASS  68 之后的欢迎包: kind = 200
+2026-11-10T06:17:31.5916990Z   PASS  68 之后的欢迎包: 长度 4（含 rules）
+2026-11-10T06:17:31.5918368Z   PASS  回复 id = 7 (WorldData)
+2026-11-10T06:17:31.5918851Z   PASS  世界名可解析
+2026-11-10T06:17:31.5919258Z   PASS  负载被完整消费
+2026-11-10T06:17:31.5919732Z   PASS  尺寸有效
+2026-11-10T06:17:31.5920150Z   PASS  出生点在界内
+2026-11-10T06:17:31.5920748Z         世界: 'TestWorld' 400x300 spawn=(200,99) payload=173
+2026-11-10T06:17:31.5921414Z   PASS  收到至少 1 个分块
+2026-11-10T06:17:31.5921845Z   PASS  首个分块头 = 200x150
+2026-11-10T06:17:31.5922844Z   PASS  发 12 之后连接仍存活
+2026-11-10T06:17:31.5923383Z         首个分块 xStart=0 yStart=0 raw=28 bytes, 共 4 块
+2026-11-10T06:17:31.5924112Z 
+2026-11-10T06:17:31.6077252Z {"ts":"2026-11-10T06:17:28.1121374+00:00","lvl":"info","ev":"world.loaded","file":"/wld/test.wld","name":"TestWorld","size":"400x300","spawn":"200,99","surface":100,"version":326}
+2026-11-10T06:17:31.6079079Z {"ts":"2026-11-10T06:17:29.5786268+00:00","lvl":"info","ev":"chunks.full","conn":"c1","x":200,"y":99,"sections":4,"skipped":0,"force":true,"total":4}
+2026-11-10T06:17:31.6085066Z {"ts":"2026-11-10T06:17:29.5834844+00:00","lvl":"info","ev":"chunks.none","conn":"c1","x":200,"y":99,"sent":4,"count":1,"note":"窗口都已发送过，跳过"}
+2026-11-10T06:17:31.7035643Z panel-wld
+2026-11-10T06:17:31.7113117Z ##[group]Run docker run -d --name panel-world --restart=no -e PROOF_MODE=off \
+2026-11-10T06:17:31.7113880Z [36;1mdocker run -d --name panel-world --restart=no -e PROOF_MODE=off \[0m
+2026-11-10T06:17:31.7114247Z [36;1m  -e MSG3_VARIANT=flags1 \[0m
+2026-11-10T06:17:31.7114625Z [36;1m  -e WORLD_ON_HELLO=off \[0m
+2026-11-10T06:17:31.7114941Z [36;1m  -p 17787:7777 -v "$PWD/server/dist:/app" -w /app \[0m
+2026-11-10T06:17:31.7115315Z [36;1m  mcr.microsoft.com/dotnet/runtime:8.0 \[0m
+2026-11-10T06:17:31.7115634Z [36;1m  dotnet BunnyLoader.Server.dll --port 7777[0m
+2026-11-10T06:17:31.7115953Z [36;1mfor i in $(seq 1 30); do[0m
+2026-11-10T06:17:31.7116320Z [36;1m  docker logs panel-world 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1[0m
+2026-11-10T06:17:31.7116707Z [36;1mdone[0m
+2026-11-10T06:17:31.7116998Z [36;1mdocker logs panel-world || true[0m
+2026-11-10T06:17:31.7117342Z [36;1mpython3 tools/fake_client.py 127.0.0.1 17787 world[0m
+2026-11-10T06:17:31.7117791Z [36;1mdocker logs panel-world | tail -5[0m
+2026-11-10T06:17:31.7118089Z [36;1mdocker rm -f panel-world[0m
+2026-11-10T06:17:31.7139484Z shell: /usr/bin/bash -e {0}
+2026-11-10T06:17:31.7139782Z ##[endgroup]
+2026-11-10T06:17:31.7371245Z fad890b461507a08b42ae2757fa1ef6f1a2640e9aca0cecf9d0af9846b4dabd1
+2026-11-10T06:17:32.8946628Z {"ts":"2026-11-10T06:17:31.8857410+00:00","lvl":"warn","ev":"config.missing","path":"/app/config/server.json","note":"使用内置默认值；可用环境变量覆盖"}
+2026-11-10T06:17:32.8947918Z {"ts":"2026-11-10T06:17:31.8931002+00:00","lvl":"info","ev":"server.start","host":"0.0.0.0","port":7777,"name":"Bunny Loader Server","world":"Bunny World","msg3":"flags+True","skipWelcomePack":false,"mods":0,"worldFile":"(flat)","capture":"(off)","env":"PROOF_MODE=off,WORLD_ON_HELLO=off,MSG3_VARIANT=flags1","note":"R2：握手 + 世界头；方块数据在 R3"}
+2026-11-10T06:17:37.4936779Z 连接 127.0.0.1:17787  变体=world
+2026-11-10T06:17:37.4937758Z   PASS  回复 id = 3
+2026-11-10T06:17:37.4955196Z   PASS  消息 3 负载（world）
+2026-11-10T06:17:37.4974901Z   PASS  消息3之后静默（等客户端发 68）
+2026-11-10T06:17:37.4992108Z   PASS  68 之后的欢迎包: id = 82 (NetModules)
+2026-11-10T06:17:37.4992955Z   PASS  68 之后的欢迎包: 模块 0xB17F
+2026-11-10T06:17:37.5008929Z   PASS  68 之后的欢迎包: kind = 200
+2026-11-10T06:17:37.5031924Z   PASS  68 之后的欢迎包: 长度 4（含 rules）
+2026-11-10T06:17:37.5032525Z   PASS  回复 id = 7 (WorldData)
+2026-11-10T06:17:37.5032999Z   PASS  世界名可解析
+2026-11-10T06:17:37.5033471Z   PASS  负载被完整消费
+2026-11-10T06:17:37.5035997Z   PASS  尺寸有效
+2026-11-10T06:17:37.5041467Z   PASS  出生点在界内
+2026-11-10T06:17:37.5042037Z         世界: 'Bunny World' 4200x1200 spawn=(2100,349) payload=175
+2026-11-10T06:17:37.5042606Z   PASS  收到至少 1 个分块
+2026-11-10T06:17:37.5043026Z   PASS  首个分块头 = 200x150
+2026-11-10T06:17:37.5043414Z   PASS  发 12 之后连接仍存活
+2026-11-10T06:17:37.5044090Z         首个分块 xStart=1600 yStart=150 raw=21 bytes, 共 40 块
+2026-11-10T06:17:37.5044440Z 
+2026-11-10T06:17:37.5129579Z {"ts":"2026-11-10T06:17:35.4911499+00:00","lvl":"info","ev":"frame.recv","conn":"c1","id":"12","name":"PlayerSpawn","len":6,"hex":"00 39 08 38 01 00"}
+2026-11-10T06:17:37.5130232Z {"ts":"2026-11-10T06:17:35.4912142+00:00","lvl":"info","ev":"player.spawn","conn":"c1","x":"2105","y":"312","valid":true}
+2026-11-10T06:17:37.5132886Z {"ts":"2026-11-10T06:17:35.4913111+00:00","lvl":"info","ev":"player.spawn.ignored","conn":"c1","note":"已有正确坐标，忽略"}
+2026-11-10T06:17:37.5134556Z {"ts":"2026-11-10T06:17:37.4926390+00:00","lvl":"info","ev":"conn.close","conn":"c1","bytes":82,"reason":"eof"}
+2026-11-10T06:17:37.5135691Z {"ts":"2026-11-10T06:17:37.5001825+00:00","lvl":"info","ev":"traffic.summary","conn":"c1","in":"1:1 6:1 8:1 12:1 68:1","out":"3:1 7:1 10:40 12:1 14:1 49:1 82:1 129:1","note":"按消息号统计的帧数"}
+2026-11-10T06:17:37.6082679Z panel-world
+2026-11-10T06:17:37.6171057Z ##[group]Run docker run -d --name panel-wneg --restart=no -e PROOF_MODE=off \
+2026-11-10T06:17:37.6171617Z [36;1mdocker run -d --name panel-wneg --restart=no -e PROOF_MODE=off \[0m
+2026-11-10T06:17:37.6171980Z [36;1m  -e MSG3_VARIANT=flags1 \[0m
+2026-11-10T06:17:37.6172290Z [36;1m  -e WORLD_ON_HELLO=off \[0m
+2026-11-10T06:17:37.6172603Z [36;1m  -p 17788:7777 -v "$PWD/server/dist:/app" -w /app \[0m
+2026-11-10T06:17:37.6172967Z [36;1m  mcr.microsoft.com/dotnet/runtime:8.0 \[0m
+2026-11-10T06:17:37.6173324Z [36;1m  dotnet BunnyLoader.Server.dll --port 7777[0m
+2026-11-10T06:17:37.6174016Z [36;1mfor i in $(seq 1 30); do[0m
+2026-11-10T06:17:37.6174447Z [36;1m  docker logs panel-wneg 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1[0m
+2026-11-10T06:17:37.6174810Z [36;1mdone[0m
+2026-11-10T06:17:37.6175127Z [36;1mpython3 tools/fake_client.py 127.0.0.1 17788 worldneg[0m
+2026-11-10T06:17:37.6175629Z [36;1mdocker logs panel-wneg | grep -E 'spawn.fallback|sections' | head -3[0m
+2026-11-10T06:17:37.6176047Z [36;1mdocker rm -f panel-wneg[0m
+2026-11-10T06:17:37.6198363Z shell: /usr/bin/bash -e {0}
+2026-11-10T06:17:37.6198686Z ##[endgroup]
+2026-11-10T06:17:37.6432741Z fb08a533ed3d6c579af1718a5e87743ba14e11037387d73d7481a1f8079d8c28
+2026-11-10T06:17:43.4113399Z 连接 127.0.0.1:17788  变体=worldneg
+2026-11-10T06:17:43.4127536Z   PASS  回复 id = 3
+2026-11-10T06:17:43.4164977Z   PASS  消息 3 负载（worldneg）
+2026-11-10T06:17:43.4165725Z   PASS  消息3之后静默（等客户端发 68）
+2026-11-10T06:17:43.4182649Z   PASS  68 之后的欢迎包: id = 82 (NetModules)
+2026-11-10T06:17:43.4184229Z   PASS  68 之后的欢迎包: 模块 0xB17F
+2026-11-10T06:17:43.4214751Z   PASS  68 之后的欢迎包: kind = 200
+2026-11-10T06:17:43.4215693Z   PASS  68 之后的欢迎包: 长度 4（含 rules）
+2026-11-10T06:17:43.4216292Z   PASS  回复 id = 7 (WorldData)
+2026-11-10T06:17:43.4216845Z   PASS  世界名可解析
+2026-11-10T06:17:43.4217350Z   PASS  负载被完整消费
+2026-11-10T06:17:43.4217834Z   PASS  尺寸有效
+2026-11-10T06:17:43.4218351Z   PASS  出生点在界内
+2026-11-10T06:17:43.4219006Z         世界: 'Bunny World' 4200x1200 spawn=(2100,349) payload=175
+2026-11-10T06:17:43.4219679Z   PASS  收到至少 1 个分块
+2026-11-10T06:17:43.4220184Z   PASS  首个分块头 = 200x150
+2026-11-10T06:17:43.4220696Z   PASS  分块没发到世界左上角（xStart >= 1000）
+2026-11-10T06:17:43.4221191Z   PASS  发 12 之后连接仍存活
+2026-11-10T06:17:43.4221685Z         首个分块 xStart=1600 yStart=150 raw=21 bytes, 共 40 块
+2026-11-10T06:17:43.4222054Z 
+2026-11-10T06:17:43.4318188Z {"ts":"2026-11-10T06:17:39.4023843+00:00","lvl":"info","ev":"chunks.full","conn":"c1","x":2100,"y":349,"sections":40,"skipped":0,"force":true,"total":40}
+2026-11-10T06:17:43.4320114Z {"ts":"2026-11-10T06:17:39.4063765+00:00","lvl":"warn","ev":"spawn.fallback","conn":"c1","requested":"-1,-1","using":"2100,349"}
+2026-11-10T06:17:43.5178682Z panel-wneg
+2026-11-10T06:17:43.5272204Z ##[group]Run docker run -d --name panel-b7 --restart=no -e PROOF_MODE=off \
+2026-11-10T06:17:43.5274001Z [36;1mdocker run -d --name panel-b7 --restart=no -e PROOF_MODE=off \[0m
+2026-11-10T06:17:43.5274751Z [36;1m  -e SEND_MSG7_AFTER_3=true -e MSG7_INCLUDE_WELCOME=true -e MSG3_VARIANT=flags1 \[0m
+2026-11-10T06:17:43.5275522Z [36;1m  -e WORLD_ON_HELLO=off \[0m
+2026-11-10T06:17:43.5275963Z [36;1m  -p 17785:7777 -v "$PWD/server/dist:/app" -w /app \[0m
+2026-11-10T06:17:43.5276593Z [36;1m  mcr.microsoft.com/dotnet/runtime:8.0 \[0m
+2026-11-10T06:17:43.5277101Z [36;1m  dotnet BunnyLoader.Server.dll --port 7777[0m
+2026-11-10T06:17:43.5277459Z [36;1mfor i in $(seq 1 30); do[0m
+2026-11-10T06:17:43.5278106Z [36;1m  docker logs panel-b7 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1[0m
+2026-11-10T06:17:43.5278811Z [36;1mdone[0m
+2026-11-10T06:17:43.5279186Z [36;1mpython3 tools/fake_client.py 127.0.0.1 17785 msg7[0m
+2026-11-10T06:17:43.5279735Z [36;1mdocker rm -f panel-b7[0m
+2026-11-10T06:17:43.5311759Z shell: /usr/bin/bash -e {0}
+2026-11-10T06:17:43.5312150Z ##[endgroup]
+2026-11-10T06:17:43.5678425Z 6dd73e967b2809ec2be6481721deaf7a14399b0b6fb119135ab9e2cdf90e63fc
+2026-11-10T06:17:44.7483880Z 连接 127.0.0.1:17785  变体=msg7
+2026-11-10T06:17:44.7505304Z   PASS  回复 id = 3
+2026-11-10T06:17:44.7527762Z   PASS  消息 3 负载（msg7）
+2026-11-10T06:17:44.7545195Z   PASS  消息7之前的欢迎包: id = 82 (NetModules)
+2026-11-10T06:17:44.7546111Z   PASS  消息7之前的欢迎包: 模块 0xB17F
+2026-11-10T06:17:44.7564836Z   PASS  消息7之前的欢迎包: kind = 200
+2026-11-10T06:17:44.7574605Z   PASS  消息7之前的欢迎包: 长度 4（含 rules）
+2026-11-10T06:17:44.7575788Z   PASS  紧接着收到 id = 7 (WorldData)
+2026-11-10T06:17:44.7576341Z   PASS  世界头可解析
+2026-11-10T06:17:44.7576777Z   PASS  世界头被完整消费
+2026-11-10T06:17:44.7577010Z 
+2026-11-10T06:17:44.8535929Z panel-b7
+2026-11-10T06:17:44.8585495Z ##[group]Run docker run -d --name panel-b7o --restart=no -e PROOF_MODE=off \
+2026-11-10T06:17:44.8586294Z [36;1mdocker run -d --name panel-b7o --restart=no -e PROOF_MODE=off \[0m
+2026-11-10T06:17:44.8586922Z [36;1m  -e SEND_MSG7_AFTER_3=true -e MSG7_INCLUDE_WELCOME=false -e MSG3_VARIANT=flags1 \[0m
+2026-11-10T06:17:44.8587494Z [36;1m  -e WORLD_ON_HELLO=off \[0m
+2026-11-10T06:17:44.8587921Z [36;1m  -p 17786:7777 -v "$PWD/server/dist:/app" -w /app \[0m
+2026-11-10T06:17:44.8588373Z [36;1m  mcr.microsoft.com/dotnet/runtime:8.0 \[0m
+2026-11-10T06:17:44.8588875Z [36;1m  dotnet BunnyLoader.Server.dll --port 7777[0m
+2026-11-10T06:17:44.8589324Z [36;1mfor i in $(seq 1 30); do[0m
+2026-11-10T06:17:44.8589819Z [36;1m  docker logs panel-b7o 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1[0m
+2026-11-10T06:17:44.8590316Z [36;1mdone[0m
+2026-11-10T06:17:44.8590699Z [36;1mpython3 tools/fake_client.py 127.0.0.1 17786 msg7only[0m
+2026-11-10T06:17:44.8591301Z [36;1mdocker rm -f panel-b7o[0m
+2026-11-10T06:17:44.8619336Z shell: /usr/bin/bash -e {0}
+2026-11-10T06:17:44.8619658Z ##[endgroup]
+2026-11-10T06:17:44.8861570Z cf198e7933e34cc5f3e3e8df4701f975525bd5bf24992cceb3baa3809fc324e1
+2026-11-10T06:17:46.0858326Z 连接 127.0.0.1:17786  变体=msg7only
+2026-11-10T06:17:46.0859367Z   PASS  回复 id = 3
+2026-11-10T06:17:46.0885380Z   PASS  消息 3 负载（msg7only）
+2026-11-10T06:17:46.0902737Z   PASS  紧接着收到 id = 7 (WorldData)
+2026-11-10T06:17:46.0904153Z   PASS  世界头可解析
+2026-11-10T06:17:46.0924972Z   PASS  世界头被完整消费
+2026-11-10T06:17:46.0925333Z 
+2026-11-10T06:17:46.1816965Z panel-b7o
+2026-11-10T06:17:46.1880153Z ##[group]Run docker run -d --name panel-cand --restart=no -e WORLD_ON_HELLO=off -e PROOF_MODE=off \
+2026-11-10T06:17:46.1880842Z [36;1mdocker run -d --name panel-cand --restart=no -e WORLD_ON_HELLO=off -e PROOF_MODE=off \[0m
+2026-11-10T06:17:46.1881286Z [36;1m  -e MSG3_CANDIDATES=auto \[0m
+2026-11-10T06:17:46.1881609Z [36;1m  -p 17784:7777 -v "$PWD/server/dist:/app" -w /app \[0m
+2026-11-10T06:17:46.1881932Z [36;1m  mcr.microsoft.com/dotnet/runtime:8.0 \[0m
+2026-11-10T06:17:46.1882502Z [36;1m  dotnet BunnyLoader.Server.dll --port 7777[0m
+2026-11-10T06:17:46.1882824Z [36;1mfor i in $(seq 1 30); do[0m
+2026-11-10T06:17:46.1883186Z [36;1m  docker logs panel-cand 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1[0m
+2026-11-10T06:17:46.1884518Z [36;1mdone[0m
+2026-11-10T06:17:46.1884914Z [36;1mdocker logs panel-cand || true[0m
+2026-11-10T06:17:46.1885268Z [36;1mpython3 tools/fake_client.py 127.0.0.1 17784 hex:00000000000000000000000000000000[0m
+2026-11-10T06:17:46.1885753Z [36;1mdocker rm -f panel-cand[0m
+2026-11-10T06:17:46.1906394Z shell: /usr/bin/bash -e {0}
+2026-11-10T06:17:46.1906695Z ##[endgroup]
+2026-11-10T06:17:46.2153438Z 2ea24d4d4476283a6fda5b308b4f755915b534d2773827a17c97501fab586965
+2026-11-10T06:17:47.3767188Z {"ts":"2026-11-10T06:17:46.3685165+00:00","lvl":"warn","ev":"config.missing","path":"/app/config/server.json","note":"使用内置默认值；可用环境变量覆盖"}
+2026-11-10T06:17:47.3769287Z {"ts":"2026-11-10T06:17:46.3756808+00:00","lvl":"info","ev":"server.start","host":"0.0.0.0","port":7777,"name":"Bunny Loader Server","world":"Bunny World","msg3":"auto(flags+bool1 -> slot -> flags+bool0)","skipWelcomePack":false,"mods":0,"worldFile":"(flat)","capture":"(off)","env":"PROOF_MODE=off,WORLD_ON_HELLO=off,MSG3_CANDIDATES=auto","note":"R2：握手 + 世界头；方块数据在 R3"}
+2026-11-10T06:17:51.9792272Z 连接 127.0.0.1:17784  变体=hex:00000000000000000000000000000000
+2026-11-10T06:17:51.9793206Z   PASS  回复 id = 3
+2026-11-10T06:17:51.9794450Z   PASS  消息 3 负载（hex:00000000000000000000000000000000）
+2026-11-10T06:17:51.9795104Z   PASS  消息3之后静默（等客户端发 68）
+2026-11-10T06:17:51.9795541Z   PASS  68 之后的欢迎包: id = 82 (NetModules)
+2026-11-10T06:17:51.9796004Z   PASS  68 之后的欢迎包: 模块 0xB17F
+2026-11-10T06:17:51.9796404Z   PASS  68 之后的欢迎包: kind = 200
+2026-11-10T06:17:51.9796846Z   PASS  68 之后的欢迎包: 长度 4（含 rules）
+2026-11-10T06:17:51.9797269Z   PASS  回复 id = 7 (WorldData)
+2026-11-10T06:17:51.9797656Z   PASS  世界名可解析
+2026-11-10T06:17:51.9798034Z   PASS  负载被完整消费
+2026-11-10T06:17:51.9798406Z   PASS  尺寸有效
+2026-11-10T06:17:51.9798726Z   PASS  出生点在界内
+2026-11-10T06:17:51.9799217Z         世界: 'Bunny World' 4200x1200 spawn=(2100,349) payload=175
+2026-11-10T06:17:51.9799739Z   PASS  收到至少 1 个分块
+2026-11-10T06:17:51.9800109Z   PASS  首个分块头 = 200x150
+2026-11-10T06:17:51.9800473Z   PASS  发 12 之后连接仍存活
+2026-11-10T06:17:51.9800896Z         首个分块 xStart=1600 yStart=150 raw=21 bytes, 共 40 块
+2026-11-10T06:17:51.9801284Z 
+2026-11-10T06:17:52.0803250Z panel-cand
+2026-11-10T06:17:52.0862400Z ##[group]Run docker run -d --name panel-silent --restart=no -e WORLD_ON_HELLO=off -e PROOF_MODE=off \
+2026-11-10T06:17:52.0863351Z [36;1mdocker run -d --name panel-silent --restart=no -e WORLD_ON_HELLO=off -e PROOF_MODE=off \[0m
+2026-11-10T06:17:52.0869024Z [36;1m  -e SKIP_WELCOME_PACK=true -e MSG3_VARIANT=flags1 \[0m
+2026-11-10T06:17:52.0869448Z [36;1m  -e WORLD_ON_HELLO=off \[0m
+2026-11-10T06:17:52.0869947Z [36;1m  -p 17783:7777 -v "$PWD/server/dist:/app" -w /app \[0m
+2026-11-10T06:17:52.0870389Z [36;1m  mcr.microsoft.com/dotnet/runtime:8.0 \[0m
+2026-11-10T06:17:52.0870872Z [36;1m  dotnet BunnyLoader.Server.dll --port 7777[0m
+2026-11-10T06:17:52.0871331Z [36;1mfor i in $(seq 1 30); do[0m
+2026-11-10T06:17:52.0871794Z [36;1m  docker logs panel-silent 2>&1 | grep -q '"ev":"server.start"' && break; sleep 1[0m
+2026-11-10T06:17:52.0872334Z [36;1mdone[0m
+2026-11-10T06:17:52.0874607Z [36;1mdocker logs panel-silent || true[0m
+2026-11-10T06:17:52.0875252Z [36;1mpython3 tools/fake_client.py 127.0.0.1 17783 silent[0m
+2026-11-10T06:17:52.0875720Z [36;1mdocker rm -f panel-silent[0m
+2026-11-10T06:17:52.0932684Z shell: /usr/bin/bash -e {0}
+2026-11-10T06:17:52.0933067Z ##[endgroup]
+2026-11-10T06:17:52.1204096Z 3c1b9aa9f1b790b449788e8b95b43a05f6cd9470e669db5c186189db970a4494
+2026-11-10T06:17:53.2929872Z {"ts":"2026-11-10T06:17:52.2869145+00:00","lvl":"warn","ev":"config.missing","path":"/app/config/server.json","note":"使用内置默认值；可用环境变量覆盖"}
+2026-11-10T06:17:53.2931860Z {"ts":"2026-11-10T06:17:52.2940425+00:00","lvl":"info","ev":"server.start","host":"0.0.0.0","port":7777,"name":"Bunny Loader Server","world":"Bunny World","msg3":"flags+True","skipWelcomePack":true,"mods":0,"worldFile":"(flat)","capture":"(off)","env":"PROOF_MODE=off,WORLD_ON_HELLO=off,SKIP_WELCOME_PACK=True,MSG3_VARIANT=flags1","note":"R2：握手 + 世界头；方块数据在 R3"}
+2026-11-10T06:17:55.3372313Z 连接 127.0.0.1:17783  变体=silent
+2026-11-10T06:17:55.3406082Z   PASS  回复 id = 3
+2026-11-10T06:17:55.3406752Z   PASS  消息 3 负载（silent）
+2026-11-10T06:17:55.3407426Z   PASS  消息3之后静默：2 秒内零字节
+2026-11-10T06:17:55.3407665Z 
+2026-11-10T06:17:55.4348716Z panel-silent
+2026-11-10T06:17:55.4619743Z ##[group]Run cd server/dist
+2026-11-10T06:17:55.4619995Z [36;1mcd server/dist[0m
+2026-11-10T06:17:55.4620195Z [36;1m# publish 只产出编译物，配置与自检向量要单独放进去，[0m
+2026-11-10T06:17:55.4620421Z [36;1m# 否则文档里列出的 config/ 与 testdata/ 解压后不存在。[0m
+2026-11-10T06:17:55.4620652Z [36;1mcp ../start.sh start.sh[0m
+2026-11-10T06:17:55.4620862Z [36;1mchmod +x start.sh[0m
+2026-11-10T06:17:55.4621061Z [36;1mmkdir -p config testdata[0m
+2026-11-10T06:17:55.4621295Z [36;1mcp ../config/server.json config/[0m
+2026-11-10T06:17:55.4621551Z [36;1mcp ../testdata/handshake-vectors.json testdata/[0m
+2026-11-10T06:17:55.4621795Z [36;1mrm -f *.pdb[0m
+2026-11-10T06:17:55.4622001Z [36;1mzip -r ../bunny-loader-server-panel.zip .[0m
+2026-11-10T06:17:55.4622229Z [36;1mcd ../..[0m
+2026-11-10T06:17:55.4622420Z [36;1mecho "--- 包内容 ---"[0m
+2026-11-10T06:17:55.4622645Z [36;1munzip -l server/bunny-loader-server-panel.zip[0m
+2026-11-10T06:17:55.4622916Z [36;1mls -lh server/bunny-loader-server-panel.zip[0m
+2026-11-10T06:17:55.4623234Z [36;1msha256sum server/bunny-loader-server-panel.zip[0m
+2026-11-10T06:17:55.4646409Z shell: /usr/bin/bash -e {0}
+2026-11-10T06:17:55.4646626Z ##[endgroup]
+2026-11-10T06:17:55.5351054Z   adding: BunnyLoader.Server.dll (deflated 59%)
+2026-11-10T06:17:55.5351629Z   adding: testdata/ (stored 0%)
+2026-11-10T06:17:55.5352155Z   adding: testdata/handshake-vectors.json (deflated 67%)
+2026-11-10T06:17:55.5383772Z   adding: BunnyLoader.Server (deflated 59%)
+2026-11-10T06:17:55.5384341Z   adding: BunnyLoader.Server.deps.json (deflated 52%)
+2026-11-10T06:17:55.5385102Z   adding: BunnyLoader.Server.runtimeconfig.json (deflated 45%)
+2026-11-10T06:17:55.5385631Z   adding: config/ (stored 0%)
+2026-11-10T06:17:55.5386040Z   adding: config/server.json (deflated 42%)
+2026-11-10T06:17:55.5386383Z   adding: start.sh (deflated 34%)
+2026-11-10T06:17:55.5391415Z --- 包内容 ---
+2026-11-10T06:17:55.5776143Z Archive:  server/bunny-loader-server-panel.zip
+2026-11-10T06:17:55.5776874Z   Length      Date    Time    Name
+2026-11-10T06:17:55.5779876Z ---------  ---------- -----   ----
+2026-11-10T06:17:55.5780332Z    142848  2026-11-10 06:17   BunnyLoader.Server.dll
+2026-11-10T06:17:55.5780688Z         0  2026-11-10 06:17   testdata/
+2026-11-10T06:17:55.5781079Z      1289  2026-11-10 06:17   testdata/handshake-vectors.json
+2026-11-10T06:17:55.5781502Z     72504  2026-11-10 06:17   BunnyLoader.Server
+2026-11-10T06:17:55.5781950Z       424  2026-11-10 06:17   BunnyLoader.Server.deps.json
+2026-11-10T06:17:55.5782487Z       467  2026-11-10 06:17   BunnyLoader.Server.runtimeconfig.json
+2026-11-10T06:17:55.5782903Z         0  2026-11-10 06:17   config/
+2026-11-10T06:17:55.5783269Z      1895  2026-11-10 06:17   config/server.json
+2026-11-10T06:17:55.5783944Z      1377  2026-11-10 06:17   start.sh
+2026-11-10T06:17:55.5784338Z ---------                     -------
+2026-11-10T06:17:55.5784714Z    220804                     9 files
+2026-11-10T06:17:55.5790868Z -rw-r--r-- 1 runner runner 91K Nov 10 06:17 server/bunny-loader-server-panel.zip
+2026-11-10T06:17:55.5815722Z 10eaa15284ac3ce68504500e709c80aaf93a1185e79f3cf54535f0e9752ae536  server/bunny-loader-server-panel.zip
+2026-11-10T06:17:55.5858976Z ##[group]Run actions/upload-artifact@v4
+2026-11-10T06:17:55.5859191Z with:
+2026-11-10T06:17:55.5859357Z   name: bunny-loader-server-panel
+2026-11-10T06:17:55.5859578Z   path: server/bunny-loader-server-panel.zip
+2026-11-10T06:17:55.5859805Z   if-no-files-found: error
+2026-11-10T06:17:55.5860129Z   compression-level: 6
+2026-11-10T06:17:55.5860298Z   overwrite: false
+2026-11-10T06:17:55.5860465Z   include-hidden-files: false
+2026-11-10T06:17:55.5860651Z ##[endgroup]
+2026-11-10T06:17:55.7219331Z (node:5166) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-10T06:17:55.7220254Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-10T06:17:55.7294027Z With the provided path, there will be 1 file uploaded
+2026-11-10T06:17:55.7334319Z Artifact name is valid!
+2026-11-10T06:17:55.7344382Z Root directory input is valid!
+2026-11-10T06:17:56.0187454Z Beginning upload of artifact content to blob storage
+2026-11-10T06:17:56.2311268Z (node:5166) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-11-10T06:17:56.2886178Z Uploaded bytes 91895
+2026-11-10T06:17:56.3104708Z Finished uploading artifact content to blob storage!
+2026-11-10T06:17:56.3105708Z SHA256 digest of uploaded artifact zip is 5929b39d0394cdcf38495ed6f80017669b5a7b28ca03ff6a7b065771ffc31949
+2026-11-10T06:17:56.3106532Z Finalizing artifact upload
+2026-11-10T06:17:56.6453070Z Artifact bunny-loader-server-panel.zip successfully finalized. Artifact ID 13739992331
+2026-11-10T06:17:56.6454239Z Artifact bunny-loader-server-panel has been successfully uploaded! Final size is 91895 bytes. Artifact ID is 13739992331
+2026-11-10T06:17:56.6459513Z Artifact download URL: https://github.com/lutqiu1121-cpu/BunnyLoader-Server/actions/runs/42767422173/artifacts/13739992331
+2026-11-10T06:17:56.6604956Z ##[group]Run gh release view panel >/dev/null 2>&1 || \
+2026-11-10T06:17:56.6605304Z [36;1mgh release view panel >/dev/null 2>&1 || \[0m
+2026-11-10T06:17:56.6605549Z [36;1m  gh release create panel \[0m
+2026-11-10T06:17:56.6605778Z [36;1m    --title "Panel build (latest)" \[0m
+2026-11-10T06:17:56.6606272Z [36;1m    --notes "框架依赖版：面板自带 .NET 8 即可运行。解压后 sh start.sh（或 dotnet BunnyLoader.Server.dll --port 端口）。每次推送 main 都会原地更新这一个文件。"[0m
+2026-11-10T06:17:56.6606740Z [36;1mgh release upload panel server/bunny-loader-server-panel.zip --clobber[0m
+2026-11-10T06:17:56.6607132Z [36;1mgh release view panel --json assets --jq '.assets[] | "\(.name)  \(.size) bytes"'[0m
+2026-11-10T06:17:56.6628919Z shell: /usr/bin/bash -e {0}
+2026-11-10T06:17:56.6629158Z env:
+2026-11-10T06:17:56.6631023Z   GH_TOKEN: ***
+2026-11-10T06:17:56.6631203Z ##[endgroup]
+2026-11-10T06:18:01.0809721Z bunny-loader-server-panel.zip  92629 bytes
+2026-11-10T06:18:01.0904463Z Post job cleanup.
+2026-11-10T06:18:01.1655167Z [command]/usr/bin/git version
+2026-11-10T06:18:01.1707362Z git version 2.56.0
+2026-11-10T06:18:01.1765829Z Temporarily overriding HOME='/home/runner/work/_temp/3c5a66d4-951f-43b2-a079-fb6c247d35d6' before making global git config changes
+2026-11-10T06:18:01.1766770Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-10T06:18:01.1770099Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/BunnyLoader-Server/BunnyLoader-Server
+2026-11-10T06:18:01.1853943Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-10T06:18:01.1864186Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-10T06:18:01.2178096Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-10T06:18:01.2226188Z http.https://github.com/.extraheader
+2026-11-10T06:18:01.2240589Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-11-10T06:18:01.2293968Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-10T06:18:01.2581501Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-10T06:18:01.2614796Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-10T06:18:01.2871602Z Cleaning up orphan processes
+2026-11-10T06:18:01.3099219Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
