@@ -287,13 +287,21 @@ def pcap_flow(sock: socket.socket) -> int:
     ident, payload = recv_frame(sock)
     check_welcome(ident, payload, "68 之后的欢迎包")
 
-    # 上报角色（whoAmI=255）：只应回 4 和 14，然后闭嘴
-    sync_payload = b"\xff" + string("Tester") + b"\x00\x00\x00\x00"
+    # 上报角色：40 字节，whoAmI=FF，坐标是 NaN（全 FF）
+    name = string("Tester")
+    filler = b"\x00" * (40 - 1 - len(name) - 8)
+    sync_payload = b"\xff" + name + filler + b"\xff" * 8
+    assert len(sync_payload) == 40, len(sync_payload)
     sock.sendall(frame(4, sync_payload))
 
     ident, payload = recv_frame(sock)
     check("id:4 被回显", ident == 4, ident)
+    check("id:4 长度不变（40）", len(payload) == 40, len(payload))
     check("whoAmI 改写为 1", payload[:1] == b"\x01", payload[:2].hex())
+    import struct as _s
+    cx = _s.unpack_from("<f", payload, 40 - 8)[0]
+    cy = _s.unpack_from("<f", payload, 40 - 4)[0]
+    check("NaN 坐标被覆写", abs(cx - 2105.0) < 0.5 and abs(cy - 312.0) < 0.5, f"{cx},{cy}")
 
     ident, payload = recv_frame(sock)
     check("收到 id:14 激活", ident == 14 and payload[:2] == b"\x01\x01", f"{ident} {payload.hex()}")
@@ -336,6 +344,12 @@ def pcap_flow(sock: socket.socket) -> int:
     controls = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00"
     sock.sendall(frame(13, controls))
     sock.sendall(frame(14, b"\x00\x01"))
+
+    # id:5 必须原样回传
+    equip = b"\x00\x00\x00\x00\x00\x00\x00\x01\x02\x03"
+    sock.sendall(frame(5, equip))
+    ident, payload = recv_frame(sock)
+    check("id:5 原样回传", ident == 5 and payload == equip, f"{ident} {payload.hex()}")
 
     # 血量由客户端决定：只回显，不覆盖
     hp = b"\x00" + (400).to_bytes(2, "little") + (400).to_bytes(2, "little") + (200).to_bytes(2, "little") + (200).to_bytes(2, "little")

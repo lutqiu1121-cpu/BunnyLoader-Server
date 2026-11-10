@@ -59,6 +59,8 @@ internal sealed class Session : ISessionTicker
     private int _controlsReceived;
     private bool _spawnSent;
     private byte[]? _syncEcho;
+    private int _equipRecv;
+    private int _equipSent;
     private byte[]? _lastHealth;
     private byte[]? _lastMana;
     private long _lastTimeoutLogMs;
@@ -654,16 +656,36 @@ internal sealed class Session : ISessionTicker
 
             case MessageId.SyncPlayer:
             {
-                _log.Info("player.sync",
-                    ("conn", _id),
-                    ("len", payload.Length),
-                    ("hex", Codec.Hex(payload, 24)));
-
-                // 把 whoAmI 从 255 改写成分配到的槽位，再回显
                 byte[] echo = (byte[])payload.Clone();
-                byte original = echo.Length > 0 ? echo[0] : (byte)0xFF;
-                if (echo.Length > 0)
-                    echo[0] = PlayerSlot;
+
+                if (echo.Length == 0)
+                {
+                    _log.Warn("player.sync.empty", ("conn", _id));
+                    break;
+                }
+
+                byte whoAmI = echo[0];
+                echo[0] = PlayerSlot;
+
+                // 只在「两个坐标都是全 FF（NaN）」时原地覆写，绝不猜测偏移
+                int coordOffset = -1;
+                for (int i = 1; i + 8 <= echo.Length; i++)
+                {
+                    bool xNaN = echo[i] == 0xFF && echo[i + 1] == 0xFF && echo[i + 2] == 0xFF && echo[i + 3] == 0xFF;
+                    bool yNaN = echo[i + 4] == 0xFF && echo[i + 5] == 0xFF && echo[i + 6] == 0xFF && echo[i + 7] == 0xFF;
+                    if (xNaN && yNaN) { coordOffset = i; break; }
+                }
+
+                string before = Codec.Hex(echo, 24);
+
+                if (coordOffset >= 0)
+                {
+                    BinaryPrimitives.WriteSingleLittleEndian(echo.AsSpan(coordOffset, 4), WorldSpawnX);
+                    BinaryPrimitives.WriteSingleLittleEndian(echo.AsSpan(coordOffset + 4, 4), WorldSpawnY);
+                }
+
+                if (echo.Length != payload.Length)
+                    throw new InvalidOperationException($"id:4 长度被改变: recv={payload.Length} send={echo.Length}");
 
                 _syncEcho = echo;
 
@@ -671,13 +693,32 @@ internal sealed class Session : ISessionTicker
 
                 _log.Info("player.sync.echoed",
                     ("conn", _id),
-                    ("whoAmI", $"0x{original:X2} -> 0x{PlayerSlot:X2}"));
+                    ("recvLen", payload.Length),
+                    ("sendLen", echo.Length),
+                    ("whoAmI", $"0x{whoAmI:X2} -> 0x{PlayerSlot:X2}"),
+                    ("coordOffset", coordOffset),
+                    ("before", before),
+                    ("after", Codec.Hex(echo, 24)));
 
-                // 激活实体
                 await SendAsync(stream, Codec.Frame(MessageId.PlayerActive, new[] { PlayerSlot, (byte)1 }), cancellationToken);
                 _log.Info("player.active.sent", ("conn", _id), ("slot", PlayerSlot));
+                break;
+            }
 
-                // 之后闭嘴：世界数据、49、12 全部等 id:6
+            case MessageId.SyncEquipment:
+            {
+                // 原样回传，长度与内容一个字节都不改
+                _equipRecv++;
+
+                await SendAsync(stream, Codec.Frame(MessageId.SyncEquipment, payload), cancellationToken);
+                _equipSent++;
+
+                _log.Info("player.equip.echoed",
+                    ("conn", _id),
+                    ("recvLen", payload.Length),
+                    ("sendLen", payload.Length),
+                    ("recvCount", _equipRecv),
+                    ("sentCount", _equipSent));
                 break;
             }
 
