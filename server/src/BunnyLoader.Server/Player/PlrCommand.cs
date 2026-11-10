@@ -621,6 +621,16 @@ public static class PlrCommand
                 hairRow = row;
         }
 
+        // 把对照明细打出来：这是「ff ff ff ff 归属」的完整推理链，便于离线复核
+        foreach (string line in cmp2.Details)
+            log.Info("plr.id4.match", ("source", "selftest-known-prefix"), ("detail", line));
+        log.Info("plr.id4.conclusion",
+            ("source", "selftest-known-prefix"),
+            ("answer", cmp2.Answer),
+            ("hypotheses", cmp2.HypothesisSummary),
+            ("confirmedRows", cmp2.Table.Count(r => r.Confirmed)),
+            ("totalRows", cmp2.Table.Count));
+
         ok &= Check(log, "对照自检：字段表把 hairColor 标为已确认",
             hairRow is not null && hairRow.Value.Offset == 16 && hairRow.Value.Confirmed,
             hairRow is null ? "缺少 hairColor 行" : $"offset={hairRow.Value.Offset} confirmed={hairRow.Value.Confirmed}");
