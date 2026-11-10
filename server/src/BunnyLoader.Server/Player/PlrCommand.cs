@@ -691,8 +691,8 @@ public static class PlrCommand
 
                 if (payload.Length > 0)
                 {
-                    PlayerFileData sample = PlayerFileReader.ReadFromFile(real[0]);
-                    Id4Comparison c = CompareId4(payload, sample);
+                    PlayerFileData realData = PlayerFileReader.ReadFromFile(real[0]);
+                    Id4Comparison c = CompareId4(payload, realData);
 
                     foreach (string line in c.Details)
                         log.Info("plr.id4.match", ("source", "real"), ("detail", line));
