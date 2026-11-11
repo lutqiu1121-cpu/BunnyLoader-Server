@@ -33,13 +33,13 @@
   "immutable": false,
   "prerelease": false,
   "created_at": "2026-11-07T19:14:22Z",
-  "updated_at": "2026-11-11T10:26:39Z",
+  "updated_at": "2026-11-11T10:41:16Z",
   "published_at": "2026-11-07T19:14:55Z",
   "assets": [
     {
-      "url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/releases/assets/735090394",
-      "id": 735090394,
-      "node_id": "RA_kwDOVmVOdM4r0Jba",
+      "url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/releases/assets/735135508",
+      "id": 735135508,
+      "node_id": "RA_kwDOVmVOdM4r0UcU",
       "name": "bunny-loader-server-panel.zip",
       "label": "",
       "uploader": {
@@ -65,11 +65,11 @@
       },
       "content_type": "application/zip",
       "state": "uploaded",
-      "size": 118057,
-      "digest": "sha256:b15e6858b5674354c93eff1b26616126b4ddf63106089ab66b8add963c1614aa",
+      "size": 117917,
+      "digest": "sha256:afc3b4bc01432984b2aef204389f0f9c6fadb8973747587c37586e48d8e952ed",
       "download_count": 0,
-      "created_at": "2026-11-11T10:26:38Z",
-      "updated_at": "2026-11-11T10:26:39Z",
+      "created_at": "2026-11-11T10:41:16Z",
+      "updated_at": "2026-11-11T10:41:16Z",
       "browser_download_url": "https://github.com/lutqiu1121-cpu/BunnyLoader-Server/releases/download/panel/bunny-loader-server-panel.zip"
     }
   ],
