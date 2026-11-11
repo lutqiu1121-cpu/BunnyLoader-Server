@@ -2,21 +2,21 @@
   "total_count": 2,
   "jobs": [
     {
-      "id": 129777593119,
-      "run_id": 42800837899,
+      "id": 130456581111,
+      "run_id": 43000933403,
       "workflow_name": "build",
       "head_branch": "main",
-      "run_url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/actions/runs/42800837899",
+      "run_url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/actions/runs/43000933403",
       "run_attempt": 1,
-      "node_id": "CR_kwDOVmVOdM8AAAAeN1jrHw",
-      "head_sha": "19cf71226bc6c9dcf3ea99eaeeb311b8b0002bd2",
-      "url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/actions/jobs/129777593119",
-      "html_url": "https://github.com/lutqiu1121-cpu/BunnyLoader-Server/actions/runs/42800837899/job/129777593119",
+      "node_id": "CR_kwDOVmVOdM8AAAAeX9Fz9w",
+      "head_sha": "3415fc292ea71d2a667b2b38fe49f4d84e7cc9e8",
+      "url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/actions/jobs/130456581111",
+      "html_url": "https://github.com/lutqiu1121-cpu/BunnyLoader-Server/actions/runs/43000933403/job/130456581111",
       "status": "completed",
-      "conclusion": "success",
-      "created_at": "2026-11-10T10:38:19Z",
-      "started_at": "2026-11-10T10:38:21Z",
-      "completed_at": "2026-11-10T10:39:38Z",
+      "conclusion": "failure",
+      "created_at": "2026-11-11T10:07:27Z",
+      "started_at": "2026-11-11T10:07:29Z",
+      "completed_at": "2026-11-11T10:08:08Z",
       "name": "panel package (framework-dependent)",
       "steps": [
         {
@@ -24,235 +24,235 @@
           "status": "completed",
           "conclusion": "success",
           "number": 1,
-          "started_at": "2026-11-10T10:38:22Z",
-          "completed_at": "2026-11-10T10:38:23Z"
+          "started_at": "2026-11-11T10:07:30Z",
+          "completed_at": "2026-11-11T10:07:30Z"
         },
         {
           "name": "Checkout",
           "status": "completed",
           "conclusion": "success",
           "number": 2,
-          "started_at": "2026-11-10T10:38:23Z",
-          "completed_at": "2026-11-10T10:38:24Z"
+          "started_at": "2026-11-11T10:07:30Z",
+          "completed_at": "2026-11-11T10:07:32Z"
         },
         {
           "name": "Publish (framework-dependent)",
           "status": "completed",
           "conclusion": "success",
           "number": 3,
-          "started_at": "2026-11-10T10:38:24Z",
-          "completed_at": "2026-11-10T10:38:44Z"
+          "started_at": "2026-11-11T10:07:32Z",
+          "completed_at": "2026-11-11T10:07:56Z"
         },
         {
           "name": "Print effective config (--port wins over everything)",
           "status": "completed",
           "conclusion": "success",
           "number": 4,
-          "started_at": "2026-11-10T10:38:44Z",
-          "completed_at": "2026-11-10T10:38:44Z"
+          "started_at": "2026-11-11T10:07:56Z",
+          "completed_at": "2026-11-11T10:07:57Z"
         },
         {
           "name": "Variant flags+bool1",
           "status": "completed",
           "conclusion": "success",
           "number": 5,
-          "started_at": "2026-11-10T10:38:44Z",
-          "completed_at": "2026-11-10T10:38:46Z"
+          "started_at": "2026-11-11T10:07:57Z",
+          "completed_at": "2026-11-11T10:07:59Z"
         },
         {
           "name": "Variant slot (1 byte)",
           "status": "completed",
           "conclusion": "success",
           "number": 6,
-          "started_at": "2026-11-10T10:38:46Z",
-          "completed_at": "2026-11-10T10:38:48Z"
+          "started_at": "2026-11-11T10:07:59Z",
+          "completed_at": "2026-11-11T10:08:01Z"
         },
         {
           "name": "Variant flags+bool0",
           "status": "completed",
           "conclusion": "success",
           "number": 7,
-          "started_at": "2026-11-10T10:38:48Z",
-          "completed_at": "2026-11-10T10:38:50Z"
+          "started_at": "2026-11-11T10:08:01Z",
+          "completed_at": "2026-11-11T10:08:02Z"
         },
         {
           "name": ".plr parser selftest (published dll)",
           "status": "completed",
           "conclusion": "success",
           "number": 8,
-          "started_at": "2026-11-10T10:38:50Z",
-          "completed_at": "2026-11-10T10:38:51Z"
+          "started_at": "2026-11-11T10:08:02Z",
+          "completed_at": "2026-11-11T10:08:03Z"
         },
         {
           "name": "严格状态机 — 26 字节证明 + 回执 + 163 + 进世界",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "failure",
           "number": 9,
-          "started_at": "2026-11-10T10:38:51Z",
-          "completed_at": "2026-11-10T10:38:54Z"
+          "started_at": "2026-11-11T10:08:03Z",
+          "completed_at": "2026-11-11T10:08:05Z"
         },
         {
           "name": "严格状态机 — DISABLE_163 对照组",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 10,
-          "started_at": "2026-11-10T10:38:54Z",
-          "completed_at": "2026-11-10T10:38:55Z"
+          "started_at": "2026-11-11T10:08:05Z",
+          "completed_at": "2026-11-11T10:08:05Z"
         },
         {
           "name": "严格状态机 — 验证前发 Hello 必须断开",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 11,
-          "started_at": "2026-11-10T10:38:55Z",
-          "completed_at": "2026-11-10T10:38:57Z"
+          "started_at": "2026-11-11T10:08:05Z",
+          "completed_at": "2026-11-11T10:08:05Z"
         },
         {
           "name": "Proof off — 老客户端直接发帧（legacy 兼容）",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 12,
-          "started_at": "2026-11-10T10:38:57Z",
-          "completed_at": "2026-11-10T10:39:03Z"
+          "started_at": "2026-11-11T10:08:05Z",
+          "completed_at": "2026-11-11T10:08:05Z"
         },
         {
           "name": "Real world — 解析真实 1.4.5.8 存档",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 13,
-          "started_at": "2026-11-10T10:39:03Z",
-          "completed_at": "2026-11-10T10:39:03Z"
+          "started_at": "2026-11-11T10:08:05Z",
+          "completed_at": "2026-11-11T10:08:05Z"
         },
         {
           "name": "World file — 解析 .wld 并打印摘要",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 14,
-          "started_at": "2026-11-10T10:39:03Z",
-          "completed_at": "2026-11-10T10:39:04Z"
+          "started_at": "2026-11-11T10:08:05Z",
+          "completed_at": "2026-11-11T10:08:05Z"
         },
         {
           "name": "World file — 用 .wld 起服务并进世界",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 15,
-          "started_at": "2026-11-10T10:39:04Z",
-          "completed_at": "2026-11-10T10:39:08Z"
+          "started_at": "2026-11-11T10:08:05Z",
+          "completed_at": "2026-11-11T10:08:05Z"
         },
         {
           "name": "World — 平坦世界分块（8 -> 7/9/10×N/49）",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 16,
-          "started_at": "2026-11-10T10:39:08Z",
-          "completed_at": "2026-11-10T10:39:14Z"
+          "started_at": "2026-11-11T10:08:05Z",
+          "completed_at": "2026-11-11T10:08:05Z"
         },
         {
           "name": "World fallback — 客户端发 (-1,-1) 时应回退到出生点",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 17,
-          "started_at": "2026-11-10T10:39:14Z",
-          "completed_at": "2026-11-10T10:39:20Z"
+          "started_at": "2026-11-11T10:08:05Z",
+          "completed_at": "2026-11-11T10:08:05Z"
         },
         {
           "name": "Bundle — 消息3 + 欢迎 + 7（同一次 write）",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 18,
-          "started_at": "2026-11-10T10:39:20Z",
-          "completed_at": "2026-11-10T10:39:21Z"
+          "started_at": "2026-11-11T10:08:05Z",
+          "completed_at": "2026-11-11T10:08:05Z"
         },
         {
           "name": "Bundle — 消息3 + 7（无欢迎，用于对照）",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 19,
-          "started_at": "2026-11-10T10:39:21Z",
-          "completed_at": "2026-11-10T10:39:23Z"
+          "started_at": "2026-11-11T10:08:05Z",
+          "completed_at": "2026-11-11T10:08:05Z"
         },
         {
           "name": "Candidates rotation — MSG3_CANDIDATES=auto（第1次应为 16 字节补零）",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 20,
-          "started_at": "2026-11-10T10:39:23Z",
-          "completed_at": "2026-11-10T10:39:29Z"
+          "started_at": "2026-11-11T10:08:05Z",
+          "completed_at": "2026-11-11T10:08:05Z"
         },
         {
           "name": "Isolation — SKIP_WELCOME_PACK=true（消息3后必须零字节）",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 21,
-          "started_at": "2026-11-10T10:39:29Z",
-          "completed_at": "2026-11-10T10:39:32Z"
+          "started_at": "2026-11-11T10:08:05Z",
+          "completed_at": "2026-11-11T10:08:05Z"
         },
         {
           "name": "Package",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 22,
-          "started_at": "2026-11-10T10:39:32Z",
-          "completed_at": "2026-11-10T10:39:32Z"
+          "started_at": "2026-11-11T10:08:05Z",
+          "completed_at": "2026-11-11T10:08:05Z"
         },
         {
           "name": "Upload artifact",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 23,
-          "started_at": "2026-11-10T10:39:32Z",
-          "completed_at": "2026-11-10T10:39:34Z"
+          "started_at": "2026-11-11T10:08:05Z",
+          "completed_at": "2026-11-11T10:08:05Z"
         },
         {
           "name": "Publish release asset",
           "status": "completed",
-          "conclusion": "success",
+          "conclusion": "skipped",
           "number": 24,
-          "started_at": "2026-11-10T10:39:34Z",
-          "completed_at": "2026-11-10T10:39:36Z"
+          "started_at": "2026-11-11T10:08:05Z",
+          "completed_at": "2026-11-11T10:08:05Z"
         },
         {
           "name": "Post Checkout",
           "status": "completed",
           "conclusion": "success",
           "number": 48,
-          "started_at": "2026-11-10T10:39:36Z",
-          "completed_at": "2026-11-10T10:39:36Z"
+          "started_at": "2026-11-11T10:08:05Z",
+          "completed_at": "2026-11-11T10:08:05Z"
         },
         {
           "name": "Complete job",
           "status": "completed",
           "conclusion": "success",
           "number": 49,
-          "started_at": "2026-11-10T10:39:36Z",
-          "completed_at": "2026-11-10T10:39:37Z"
+          "started_at": "2026-11-11T10:08:05Z",
+          "completed_at": "2026-11-11T10:08:05Z"
         }
       ],
-      "check_run_url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/check-runs/129777593119",
+      "check_run_url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/check-runs/130456581111",
       "labels": [
         "ubuntu-latest"
       ],
-      "runner_id": 1000000308,
-      "runner_name": "GitHub Actions 1000000308",
+      "runner_id": 1000000314,
+      "runner_name": "GitHub Actions 1000000314",
       "runner_group_id": 0,
       "runner_group_name": "GitHub Actions"
     },
     {
-      "id": 129777593420,
-      "run_id": 42800837899,
+      "id": 130456581408,
+      "run_id": 43000933403,
       "workflow_name": "build",
       "head_branch": "main",
-      "run_url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/actions/runs/42800837899",
+      "run_url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/actions/runs/43000933403",
       "run_attempt": 1,
-      "node_id": "CR_kwDOVmVOdM8AAAAeN1jsTA",
-      "head_sha": "19cf71226bc6c9dcf3ea99eaeeb311b8b0002bd2",
-      "url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/actions/jobs/129777593420",
-      "html_url": "https://github.com/lutqiu1121-cpu/BunnyLoader-Server/actions/runs/42800837899/job/129777593420",
+      "node_id": "CR_kwDOVmVOdM8AAAAeX9F1IA",
+      "head_sha": "3415fc292ea71d2a667b2b38fe49f4d84e7cc9e8",
+      "url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/actions/jobs/130456581408",
+      "html_url": "https://github.com/lutqiu1121-cpu/BunnyLoader-Server/actions/runs/43000933403/job/130456581408",
       "status": "completed",
       "conclusion": "success",
-      "created_at": "2026-11-10T10:38:19Z",
-      "started_at": "2026-11-10T10:38:21Z",
-      "completed_at": "2026-11-10T10:38:51Z",
+      "created_at": "2026-11-11T10:07:27Z",
+      "started_at": "2026-11-11T10:07:29Z",
+      "completed_at": "2026-11-11T10:08:06Z",
       "name": "docker build + selftest",
       "steps": [
         {
@@ -260,120 +260,120 @@
           "status": "completed",
           "conclusion": "success",
           "number": 1,
-          "started_at": "2026-11-10T10:38:22Z",
-          "completed_at": "2026-11-10T10:38:22Z"
+          "started_at": "2026-11-11T10:07:29Z",
+          "completed_at": "2026-11-11T10:07:30Z"
         },
         {
           "name": "Checkout",
           "status": "completed",
           "conclusion": "success",
           "number": 2,
-          "started_at": "2026-11-10T10:38:22Z",
-          "completed_at": "2026-11-10T10:38:23Z"
+          "started_at": "2026-11-11T10:07:30Z",
+          "completed_at": "2026-11-11T10:07:31Z"
         },
         {
           "name": "Toolchain",
           "status": "completed",
           "conclusion": "success",
           "number": 3,
-          "started_at": "2026-11-10T10:38:23Z",
-          "completed_at": "2026-11-10T10:38:23Z"
+          "started_at": "2026-11-11T10:07:31Z",
+          "completed_at": "2026-11-11T10:07:31Z"
         },
         {
           "name": "启动命令红线自检",
           "status": "completed",
           "conclusion": "success",
           "number": 4,
-          "started_at": "2026-11-10T10:38:23Z",
-          "completed_at": "2026-11-10T10:38:23Z"
+          "started_at": "2026-11-11T10:07:31Z",
+          "completed_at": "2026-11-11T10:07:31Z"
         },
         {
           "name": "Docker build",
           "status": "completed",
           "conclusion": "success",
           "number": 5,
-          "started_at": "2026-11-10T10:38:23Z",
-          "completed_at": "2026-11-10T10:38:46Z"
+          "started_at": "2026-11-11T10:07:31Z",
+          "completed_at": "2026-11-11T10:08:01Z"
         },
         {
           "name": "C# selftest (golden vectors)",
           "status": "completed",
           "conclusion": "success",
           "number": 6,
-          "started_at": "2026-11-10T10:38:46Z",
-          "completed_at": "2026-11-10T10:38:46Z"
+          "started_at": "2026-11-11T10:08:01Z",
+          "completed_at": "2026-11-11T10:08:01Z"
         },
         {
           "name": ".plr parser selftest (synthetic v319)",
           "status": "completed",
           "conclusion": "success",
           "number": 7,
-          "started_at": "2026-11-10T10:38:46Z",
-          "completed_at": "2026-11-10T10:38:47Z"
+          "started_at": "2026-11-11T10:08:01Z",
+          "completed_at": "2026-11-11T10:08:01Z"
         },
         {
           "name": "Python reference selftest",
           "status": "completed",
           "conclusion": "success",
           "number": 8,
-          "started_at": "2026-11-10T10:38:47Z",
-          "completed_at": "2026-11-10T10:38:47Z"
+          "started_at": "2026-11-11T10:08:01Z",
+          "completed_at": "2026-11-11T10:08:01Z"
         },
         {
           "name": "Start server",
           "status": "completed",
           "conclusion": "success",
           "number": 9,
-          "started_at": "2026-11-10T10:38:47Z",
-          "completed_at": "2026-11-10T10:38:48Z"
+          "started_at": "2026-11-11T10:08:01Z",
+          "completed_at": "2026-11-11T10:08:03Z"
         },
         {
           "name": "Handshake end-to-end (fake BL client)",
           "status": "completed",
           "conclusion": "success",
           "number": 10,
-          "started_at": "2026-11-10T10:38:48Z",
-          "completed_at": "2026-11-10T10:38:48Z"
+          "started_at": "2026-11-11T10:08:03Z",
+          "completed_at": "2026-11-11T10:08:03Z"
         },
         {
           "name": "Server logs",
           "status": "completed",
           "conclusion": "success",
           "number": 11,
-          "started_at": "2026-11-10T10:38:48Z",
-          "completed_at": "2026-11-10T10:38:48Z"
+          "started_at": "2026-11-11T10:08:03Z",
+          "completed_at": "2026-11-11T10:08:03Z"
         },
         {
           "name": "Stop server",
           "status": "completed",
           "conclusion": "success",
           "number": 12,
-          "started_at": "2026-11-10T10:38:48Z",
-          "completed_at": "2026-11-10T10:38:49Z"
+          "started_at": "2026-11-11T10:08:03Z",
+          "completed_at": "2026-11-11T10:08:03Z"
         },
         {
           "name": "Post Checkout",
           "status": "completed",
           "conclusion": "success",
           "number": 24,
-          "started_at": "2026-11-10T10:38:49Z",
-          "completed_at": "2026-11-10T10:38:49Z"
+          "started_at": "2026-11-11T10:08:03Z",
+          "completed_at": "2026-11-11T10:08:03Z"
         },
         {
           "name": "Complete job",
           "status": "completed",
           "conclusion": "success",
           "number": 25,
-          "started_at": "2026-11-10T10:38:49Z",
-          "completed_at": "2026-11-10T10:38:49Z"
+          "started_at": "2026-11-11T10:08:03Z",
+          "completed_at": "2026-11-11T10:08:04Z"
         }
       ],
-      "check_run_url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/check-runs/129777593420",
+      "check_run_url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/check-runs/130456581408",
       "labels": [
         "ubuntu-latest"
       ],
-      "runner_id": 1000000309,
-      "runner_name": "GitHub Actions 1000000309",
+      "runner_id": 1000000315,
+      "runner_name": "GitHub Actions 1000000315",
       "runner_group_id": 0,
       "runner_group_name": "GitHub Actions"
     }

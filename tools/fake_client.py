@@ -306,12 +306,41 @@ def pcap_flow(sock: socket.socket) -> int:
     ident, payload = recv_frame(sock)
     check("收到 id:14 激活", ident == 14 and payload[:2] == b"\x01\x01", f"{ident} {payload.hex()}")
 
-    sock.settimeout(0.4)
-    try:
-        early = sock.recv(64)
-    except socket.timeout:
-        early = None
-    check("激活之后静默（等 id:6）", early is None, early[:16].hex() if early else None)
+    # R7：服务端若加载了 .plr（SSC 开），会在回显后紧跟 id:16 / id:42 / id:5×槽位。
+    # 这里把这段窗口读干净：只允许这三个号，其它任何消息都算异常。
+    sock.settimeout(0.6)
+    ssc = []
+    unexpected = None
+    while True:
+        try:
+            ident, payload = recv_frame(sock)
+        except socket.timeout:
+            break
+        if ident not in (5, 16, 42):
+            unexpected = (ident, payload)
+            break
+        ssc.append((ident, payload))
+    sock.settimeout(6)
+
+    check("激活之后的窗口里只有 SSC 消息（5/16/42）", unexpected is None,
+          f"{unexpected[0]} {unexpected[1].hex()}" if unexpected else None)
+
+    ssc5 = [p for i, p in ssc if i == 5]
+    ssc16 = [p for i, p in ssc if i == 16]
+    ssc42 = [p for i, p in ssc if i == 42]
+    if ssc:
+        check("SSC id:5 帧长为 8 字节", all(len(p) == 8 for p in ssc5), [len(p) for p in ssc5][:3])
+        check("SSC id:16 帧长为 9 字节", all(len(p) == 9 for p in ssc16), [len(p) for p in ssc16][:3])
+        check("SSC id:42 帧长为 5 字节", all(len(p) == 5 for p in ssc42), [len(p) for p in ssc42][:3])
+        check("SSC 至少下发一条 id:5", len(ssc5) >= 1, len(ssc5))
+        life = ssc16[0] if ssc16 else b""
+        if len(life) == 9:
+            cur = int.from_bytes(life[1:3], "little")
+            mx = int.from_bytes(life[3:5], "little")
+            check("SSC 生命来自存档（1..500）", 1 <= cur <= mx <= 500, f"{cur}/{mx}")
+        print(f"[info] SSC 帧：id:5 × {len(ssc5)}，id:16 × {len(ssc16)}，id:42 × {len(ssc42)}")
+    else:
+        check("SSC 未启用时激活后静默（等 id:6）", True)
 
     # 请求世界：7 -> 40 块 -> 49 -> 14 -> 12 -> 129（id:4 不重放）
     sock.settimeout(15)
