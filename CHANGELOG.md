@@ -148,3 +148,60 @@ payload `22..23 = 69 5a` = eyeColor `#695a4b` 的前两字节。
    若后续要用 .plr 构造 id:5/SSC，需先补齐这段。
 2. `.plr` 里 `hair=196`，但 id:4 的 `payload[2]=0x02`；而 `payload[7]=0xc4=196`。
    暂记为「候选观察」，需要第二个不同角色的样本才能判定。
+
+---
+
+## 2026-11-11 | R7：id:4 硬闸门 40 字节 + 固定魔改布局 + SSC 权威下发
+
+### 0. 先核正一个关键误读（否则整轮会改错方向）
+
+日志里 `{"ev":"frame.send","id":"4","len":43}` 的 **43 是整帧长度，不是 payload 长度**：
+`frame.Length = 2 字节长度前缀 + 1 字节消息号 + payload`，40 字节 payload 的 id:4 整帧正好 **43**。
+同一条日志可自证：`id:3 len:5`（payload 2 字节）、`id:82 len:7`（payload 4 字节）。
+若真发出 43 字节 payload，整帧会是 **46**，日志里不存在。
+
+本轮新增 `payloadLen` 字段并把 id:4 的 hex 改成不截断，从此不可能再被误读。
+
+### 1. 只允许 40 字节的 id:4
+
+- 全仓只有**一处**发送 id:4：`Session.cs` 收到客户端 id:4 时的原样回显。
+- 在底层 `SendAsync` 加硬闸门：`id == 4 && payloadLen != 40` → 记 `frame.send.fatal` 并**抛异常**，禁止发送。
+
+### 2. 放弃「原版 SyncPlayer 布局」，改用实测固定布局
+
+`Protocol/SyncPlayer4.cs` 重写（不再有「标准布局走位 / 假设枚举 / name 长度 1254992」那套猜测）：
+
+| 偏移 | 长度 | 字段 | 依据 |
+|---|---|---|---|
+| 0 | 1 | playerId | 实测 0x01 |
+| 1 | 1 | skinVariant | 实测 0x07 = .plr 的 skinVariant 7 |
+| 2 | 1 | 未知 | 实测 0x02，暂无对应 |
+| 3..6 | 4 | **f32 0.2**（0x3e4ccccd） | 客户端自加字段 |
+| 7 | 1 | hair | 实测 0xc4 = 196 = .plr 的 hair 196 |
+| 8..11 | 4 | name（`03` + `43 75 70`） | "Cup" |
+| 12 | 1 | hairDye | 0 = .plr 的 hairDye 0 |
+| 13..14 | 2 | hideVisuals | 0,0 = .plr |
+| 15 | 1 | hideMisc | 0 = .plr |
+| 16..36 | 21 | 7 个颜色 RGB | **7/7 与 .plr 逐字节一致** |
+| 37 | 1 | difficulty | 0 = .plr |
+| 38..39 | 2 | 尾部 | 实测 `10 00` |
+
+回传统一走 `SyncPlayer4.BuildEcho`：原样 Clone，**只改第 0 字节 whoAmI**。
+注：`[7]=0xc4` 属于浮动块，名字从 **8** 开始；`c4 03 43 / 75 70 00` 的读法会把名字错位一字节。
+
+### 3. SSC 权威下发（新增 `Player/PlayerSsc.cs`）
+
+- `.plr` 自动发现（**启动命令不变**）：`--player-file` → `PLAYER_FILE` → `player.plr` → `debug/*.plr`。
+- 收到 id:4 回显后立即下发：
+  - `id:16`（PlayerHealth）`player, life, lifeMax, mana, manaMax` = 9 字节
+  - `id:42`（PlayerMana）`player, mana, manaMax` = 5 字节
+  - `id:5`（SyncEquipment/槽位）`player, slot, itemId, prefix, stack` = 8 字节，逐槽一条
+- 槽位映射：0..49 背包、50..53 钱币、54..57 弹药、59..78 装备、79..88 染料、89..93 杂项装备、94..98 杂项染料。
+- 只发一次（`_sscSent`）；无 `.plr` 时记 `ssc.disabled` 且不下发，服务照常跑。
+
+### 4. 测试与 CI
+
+- 自检换成**真实 40 字节金标**：逐字段 + 7 色 7/7 + 回传逐字节 + 39 字节非法包不解析。
+- e2e 增加：`payloadLen=40` 硬门禁、`ssc.loaded`/`ssc.sent`、`id:5 ≥ 97` 帧、`id:16`/`id:42` 各 ≥1。
+- 打包把 `debug/Cup.plr` 一起打进去，面板不用额外上传。
+- 启动命令红线未变，自检脚本通过。
