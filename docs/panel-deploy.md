@@ -843,3 +843,59 @@ id:4 对照：颜色起点 **16**；`payload[16..18]=ff ff ff`=hairColor，`[19.
 > 若 16 是 underShirt，则按标准顺序它只能位于 28 —— 与实测冲突。
 
 未识别部分：`parsedOffset=3703` / 明文 4000，尾部约 297 字节尚未建模（含重复的 30 字节块）。
+
+---
+
+## 12. SSC（服务器权威角色）：R7 新增
+
+### 12.1 它做什么
+
+服务器从 `.plr` 读出**权威**角色的生命、魔力、背包，收到客户端 id:4（角色外观）后立刻下发：
+
+| 消息 | 号 | 字段 | 字节数 |
+|---|---|---|---|
+| 生命+魔力 | `16` | player, life, lifeMax, mana, manaMax | 9 |
+| 魔力 | `42` | player, mana, manaMax | 5 |
+| 槽位 | `5` | player, slot, itemId, prefix, stack | 8（每槽一条） |
+
+槽位映射：`0..49` 背包、`50..53` 钱币、`54..57` 弹药、`59..78` 装备、`79..88` 染料、
+`89..93` 杂项装备、`94..98` 杂项染料 —— 共 98 条。
+
+### 12.2 存档从哪来（启动命令不变）
+
+按顺序找，第一个存在的就用：
+
+1. `--player-file <path>`（命令行，可选）
+2. `PLAYER_FILE` 环境变量（可选）
+3. `player.plr`（程序目录或当前目录）
+4. `debug/*.plr`（程序目录或当前目录，取名字排序第一个）
+
+包里已经放了 `player.plr`，所以**什么都不用配**。换角色就换这个文件。
+
+### 12.3 怎么确认生效
+
+启动后日志里应出现：
+
+```json
+{"ev":"ssc.loaded","file":".../player.plr","source":"auto","player":"Cup","life":"100/100","mana":"20/20","slots":98,"nonEmpty":3,"colors":"#ffffff/#ffbba9/..."}
+```
+
+客户端连上后：
+
+```json
+{"ev":"ssc.sent","conn":"c1","player":"Cup","life":"100/100","mana":"20/20","slots":98,"nonEmpty":3}
+{"ev":"ssc.slot","conn":"c1","slot":0,"itemId":3507,"stack":1,"prefix":0}
+```
+
+没有 `.plr` 时只记 `ssc.disabled`，**服务照常跑**（只是不下发背包/生命）。
+
+### 12.4 id:4 的 40 字节硬闸门
+
+`SendAsync` 里禁止任何非 40 字节的 id:4：
+
+```
+id==4 且 payloadLen!=40  →  frame.send.fatal + 抛异常（不发）
+```
+
+日志里的 `"len":43` 是**整帧长度**（2 字节长度前缀 + 1 字节消息号 + 40），
+`"payloadLen":40` 才是 payload；两者同时出现，不会再被误读成 43 字节 payload。

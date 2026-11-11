@@ -1,17 +1,16 @@
 # prebuilt/ —— 可直接上传到面板的包
 
-`bunny-loader-server-panel.zip` 是 **R6 第一层（.plr 解析器，只读离线工具）** 的可运行产物，由 CI 构建并放在这里便于直接下载。
+`bunny-loader-server-panel.zip` 是 **R7（id:4 硬闸门 40 字节 + 固定魔改布局 + SSC 权威下发）** 的可运行产物，由 CI 构建并放在这里便于直接下载。
 
 > 若本目录暂时为空：说明代码刚更新、CI 尚未跑完。稍等几分钟，或直接从
 > Releases 标签 `panel` 下载同名文件。
 
 - 构建方式：Docker 里 `dotnet publish -c Release`（框架依赖，面板自带 .NET 8 即可）
 - 重新构建：`./server/build-panel.sh`
-- 对应提交：`19cf712`（分支 `main`，CI 全绿）
-- ZIP 大小 / SHA-256（本目录这一份，113349 字节）：
-  `20724a77e4d5aa7e01fc157548a439cd333a5443534cd3b173edfbf40c299af8`
-- 包内 `BunnyLoader.Server.dll` 大小 / SHA-256：`193536` 字节 /
-  `26fe19dc80419773ad57fb922d315c99261bf995e7a10813cff7e439f841091d`
+- 对应提交：`e0db8bc`（分支 `main`，CI 全绿）
+- ZIP 大小（本目录这一份）：`118057` 字节（含 `player.plr`，比上一版大 4708 字节）
+- 包内 `BunnyLoader.Server.dll` 大小 / SHA-256：`196096` 字节 /
+  `4e0455b10e3aedfd8aa56e7b55d9aa5104ede66c434750f2dd0fd78f9da5a0c0`
   —— 这是**确定性构建**，与 Releases 里最新资产内的 DLL 逐字节相同（已实测核对）；
   ZIP 因内部时间戳每次重新打包都会变哈希，**认 DLL 的哈希**，不要认 ZIP 的。
 - 部署说明：[../docs/panel-deploy.md](../docs/panel-deploy.md)
@@ -31,25 +30,29 @@ BunnyLoader.Server.dll               主程序
 BunnyLoader.Server.runtimeconfig.json
 BunnyLoader.Server.deps.json
 BunnyLoader.Server                   可选：直接 ./ 运行
+player.plr                           SSC 用的玩家存档（自动发现，免参数）
 config/server.json                   可选
 testdata/handshake-vectors.json      自检用
 start.sh                             R10 才允许用的入口脚本
 ```
 
-## 本包相对上一版的差异（本轮）
+## 本包相对上一版的差异（本轮 R7）
 
-- 新增 **`.plr` 解析器**（离线只读，不接 Session、不影响任何下发逻辑）：
-  三个新参数 `--parse-plr <path>`、`--sync-raw <hex>`、`--plr-selftest`。
-- `.plr` 是 **AES-128-CBC** 加密（Key=IV=`h3y_gUyZ` 的 UTF-16LE，无填充），解析器自动判断明文/密文；
-  解密后头部不是 `relogic` 就报错停止，**不猜字段**。
-- 输出：前 32 字节 hex、版本、加密判断依据、解密后前 32 字节、逐字段（偏移+长度+值）、
-  7 个颜色（hex + RGB）、生命魔力、前 10 个背包槽；完整物品栏写到 `debug/plr-inventory-<名字>.log`。
-- 给 `--sync-raw` 时把 id:4 的 40 字节 payload 与 .plr 的权威颜色逐字节对照，
-  产出 `plr.id4.field` 字段表（`confirmed:true` = 与该颜色逐字节一致）与 `plr.id4.conclusion` 结论。
-- 服务端运行行为**零变化**：id:4 仍原样回显、不改写、不重放。
-- 日志补全：`frame.recv` 对 id:4 **不再截断到 24 字节**；`syncplayer.echoed` 新增 `hex`，
-  把实际发出的 40 字节完整打印。（`syncplayer.raw` 原本就打印满 40 字节。）
-- `debug/` 内置真实 `Cup.plr` 与 id:4 前缀文件，CI 会对其做回归断言。
+1. **只允许 40 字节的 id:4**
+   - 全仓只有一处发送 id:4（收到时的原样回显）；`SendAsync` 里加了硬闸门：
+     `id==4 且 payloadLen!=40` → 记 `frame.send.fatal` 并抛异常，**禁止发送**。
+   - `frame.send` 新增 `payloadLen` 字段：日志里的 `len` 是**整帧长度**（2 字节前缀 + 1 字节消息号 + payload），
+     所以 40 字节 payload 的 id:4 整帧是 **43**，不是 payload 43 字节。
+2. **放弃「原版 SyncPlayer 布局」解析**，改为实测固定偏移（不再有假设枚举 / 1254992 那套）：
+   `[3..6]=f32 0.2`、`[7]=hair`、`[8..11]=0x03+"Cup"`、`[16..36]=7 色`、`[37]=difficulty`、`[38..39]=尾部`。
+   回传统一 `BuildEcho`：原样 Clone，只改第 0 字节 whoAmI。
+3. **SSC 权威下发**（新增，收到 id:4 回显后立刻发）：
+   - `id:16` 生命+魔力（9 字节）、`id:42` 魔力（5 字节）、`id:5` 每个槽位一条（8 字节，共 98 槽）
+   - 数值全部来自 `player.plr`；日志 `ssc.loaded` / `ssc.sent` / `ssc.slot`
+   - 换成别的角色：把 `player.plr` 换成同名文件即可，或启动时加 `--player-file <path>`
+4. 日志：`syncplayer.raw`（完整 40 字节）、`syncplayer.fields`（逐字段）、`syncplayer.color`（7 条）、
+   `syncplayer.echoed`（实际发出的 hex）。
+5. 打包内含 `player.plr`，面板上传后开箱即用，**启动命令完全不变**。
 
 ## 注意
 

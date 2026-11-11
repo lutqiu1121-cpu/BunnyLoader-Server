@@ -399,6 +399,8 @@ jobs:
           cp ../testdata/handshake-vectors.json testdata/
           # SSC 需要玩家存档：放到包根 player.plr（自动发现第 2 优先级，免建目录、免 root 权限问题）
           cp ../../debug/Cup.plr player.plr
+          # 容器内以 root 跑过一次 selftest 会在 dist 留下 root 拥有的空 debug/，清掉再打包
+          sudo rm -rf debug || true
           rm -f *.pdb
           zip -r ../bunny-loader-server-panel.zip .
           cd ../..
