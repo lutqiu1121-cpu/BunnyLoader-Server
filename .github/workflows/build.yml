@@ -398,7 +398,7 @@ jobs:
           cp ../config/server.json config/
           cp ../testdata/handshake-vectors.json testdata/
           # SSC 需要玩家存档：把真实 .plr 一起打进去（启动命令不变，自动发现 debug/*.plr）
-          cp ../debug/Cup.plr debug/Cup.plr
+          cp ../../debug/Cup.plr debug/Cup.plr
           rm -f *.pdb
           zip -r ../bunny-loader-server-panel.zip .
           cd ../..
