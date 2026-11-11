@@ -23,3 +23,6 @@ _*.zip
 # 面板发布产物（由 CI / build-panel.sh 生成，不入库）
 server/dist/
 server/*.zip
+
+# 临时直链/日志
+.signed
