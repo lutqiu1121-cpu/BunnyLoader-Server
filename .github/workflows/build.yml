@@ -394,11 +394,11 @@ jobs:
           # 否则文档里列出的 config/ 与 testdata/ 解压后不存在。
           cp ../start.sh start.sh
           chmod +x start.sh
-          mkdir -p config testdata debug
+          mkdir -p config testdata
           cp ../config/server.json config/
           cp ../testdata/handshake-vectors.json testdata/
-          # SSC 需要玩家存档：把真实 .plr 一起打进去（启动命令不变，自动发现 debug/*.plr）
-          cp ../../debug/Cup.plr debug/Cup.plr
+          # SSC 需要玩家存档：放到包根 player.plr（自动发现第 2 优先级，免建目录、免 root 权限问题）
+          cp ../../debug/Cup.plr player.plr
           rm -f *.pdb
           zip -r ../bunny-loader-server-panel.zip .
           cd ../..
