@@ -29,6 +29,7 @@ public static class Program
         string? worldPath = null;
         bool worldInfo = false;
         string? cliProof = null;
+        string? playerFilePath = null;
         string? parsePlrPath = null;
         string? syncRawHex = null;
         bool plrSelftest = false;
@@ -77,6 +78,9 @@ public static class Program
                     break;
                 case "--selftest":
                     selftest = true;
+                    break;
+                case "--player-file":
+                    if (!TryValue(args, ref i, out playerFilePath)) return 2;
                     break;
                 case "--parse-plr":
                     if (!TryValue(args, ref i, out parsePlrPath)) return 2;
@@ -307,6 +311,24 @@ public static class Program
         int counter = 0;
         try
         {
+            // SSC：把 .plr 的权威数据读进来（一次），每连接用于下发 id:16/id:42/id:5。
+            // 找不到 .plr 就只记录 ssc.disabled，服务照常跑（不下发）。
+            string? sscPath = playerFilePath
+                ?? Environment.GetEnvironmentVariable("PLAYER_FILE");
+            PlayerSsc? ssc = PlayerSsc.TryLoad(sscPath, log);
+            if (ssc is not null)
+            {
+                log.Info("ssc.loaded",
+                    ("file", ssc.SourcePath),
+                    ("source", string.IsNullOrWhiteSpace(sscPath) ? "auto" : "explicit"),
+                    ("player", ssc.Data.Name),
+                    ("life", $"{ssc.Data.Health}/{ssc.Data.HealthMax}"),
+                    ("mana", $"{ssc.Data.Mana}/{ssc.Data.ManaMax}"),
+                    ("slots", ssc.Slots.Count),
+                    ("nonEmpty", ssc.NonEmptySlots),
+                    ("colors", string.Join("/", ssc.Data.ColorsInPacketOrder.Select(c => c.Color.Hex))));
+            }
+
             while (!shutdown.IsCancellationRequested)
             {
                 TcpClient client;
@@ -331,7 +353,7 @@ public static class Program
                     ? null
                     : new CaptureWriter(captureDirectory, connectionId, log);
 
-                Session session = new(client, connectionId, counter, config, log, capture, world);
+                Session session = new(client, connectionId, counter, config, log, capture, world, ssc);
                 _ = Task.Run(async () =>
                 {
                     try
@@ -405,6 +427,7 @@ public static class Program
         Console.WriteLine("  --world <path>       用原版 .wld 作为真实世界（否则用平坦世界）");
         Console.WriteLine("  --world-info <path>  只解析 .wld 并打印摘要后退出");
         Console.WriteLine("  --proof <auto|on|off> 二开版纯文本握手：auto=先探测（默认）");
+        Console.WriteLine("  --player-file <path> SSC 用的 .plr；缺省自动发现 player.plr / debug/*.plr");
         Console.WriteLine("  --parse-plr <path>   只解析 .plr（AES-128 自动解密）并打印字段，退出；不联网");
         Console.WriteLine("  --sync-raw <hex>     配合 --parse-plr：给出 id:4 的完整 payload，做颜色对照");
         Console.WriteLine("  --plr-selftest       用合成 v319 存档自检 .plr 解析器后退出");

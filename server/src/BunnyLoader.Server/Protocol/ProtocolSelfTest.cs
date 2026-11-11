@@ -97,70 +97,56 @@ public static class ProtocolSelfTest
     {
         bool ok = true;
 
-        // 人类实测日志里的前 24 字节（其余补零到 40）。它只有一个 4 字节 FF 段。
-        byte[] sample = new byte[40];
-        Convert.FromHexString("010702d0cc4c3ec40343757000000000ffffffffbba9695a").CopyTo(sample, 0);
+        // ===== 金标：手机客户端实测发来的完整 40 字节（不是构造出来的） =====
+        const string hex =
+            "01 07 02 d0 cc 4c 3e c4 03 43 75 70 00 00 00 00 ff ff ff ff bb a9 69 5a 4b "
+            + "ff ff ff ff ff ff ab c0 ab ff ff ff 00 10 00";
 
-        SyncPlayer4.Report report = SyncPlayer4.Analyze(sample);
+        byte[] sample = Convert.FromHexString(hex.Replace(" ", ""));
+        ok &= Check(log, "id:4 金标长度 = 40", sample.Length == SyncPlayer4.PayloadLength, sample.Length);
 
-        ok &= Check(log, "id:4 完整 hex 不截断（40 字节 = 40 个空格分隔 token）",
-            report.HexSpaced.Split(' ').Length == 40, report.HexSpaced.Split(' ').Length);
-        ok &= Check(log, "id:4 len = 40", report.Length == 40, report.Length);
-        ok &= Check(log, "id:4 playerId = 0x01", report.PlayerId == 0x01, report.PlayerId);
-        ok &= Check(log, "id:4 skinVariant = 0x07", report.SkinVariant == 0x07, report.SkinVariant);
-        ok &= Check(log, "id:4 hair = 0x02", report.Hair == 0x02, report.Hair);
+        SyncPlayer4.Report r = SyncPlayer4.Analyze(sample);
 
-        // 标准布局必须被判定为「走不通」——0xd0 cc 4c 起始的 7bit 长度解出 1254992，远超剩余字节。
-        ok &= Check(log, "id:4 标准 name 布局判为不成立", !report.StandardLayoutOk, report.StandardLayoutOk);
-        ok &= Check(log, "id:4 name 长度前缀解出 1254992", report.NameLengthClaimed == 1254992, report.NameLengthClaimed);
-        ok &= Check(log, "id:4 断点原因非空", report.Derail.Length > 8, report.Derail);
+        ok &= Check(log, "id:4 判定长度合法", r.LengthOk, r.LengthOk);
+        ok &= Check(log, "id:4 完整 hex 不截断（40 个 token）", r.HexSpaced.Split(' ').Length == 40, r.HexSpaced.Split(' ').Length);
 
-        // 偏移 8 = 0x03 + "Cup"：这是实测样本里唯一像名字的地方，必须被列出来。
-        ok &= Check(log, "id:4 名字候选包含 8:len=3:Cup", report.NameCandidates.Contains("8:len=3:\"Cup\""), report.NameCandidates);
+        // 魔改布局逐字段（与 .plr 交叉验证过的偏移）
+        ok &= Check(log, "id:4 [0] playerId = 0x01", r.PlayerId == 0x01, r.PlayerId);
+        ok &= Check(log, "id:4 [1] skinVariant = 7（.plr 也是 7）", r.SkinVariant == 7, r.SkinVariant);
+        ok &= Check(log, "id:4 [3..6] = f32 0.2", Math.Abs(r.FloatField - 0.2f) < 1e-6, r.FloatField);
+        ok &= Check(log, "id:4 [7] hair = 196（.plr 也是 196）", r.Hair == 196, r.Hair);
+        ok &= Check(log, "id:4 [8..11] name = Cup（1 字节前缀）", r.Name == "Cup" && r.NamePrefixBytes == 1, r.Name);
+        ok &= Check(log, "id:4 [12] hairDye = 0", r.HairDye == 0, r.HairDye);
+        ok &= Check(log, "id:4 [13..14] hideVisuals = 0,0", r.HideVisual0 == 0 && r.HideVisual1 == 0, $"{r.HideVisual0},{r.HideVisual1}");
+        ok &= Check(log, "id:4 [15] hideMisc = 0", r.HideMisc == 0, r.HideMisc);
 
-        // 16-19 是全 FF，但没有连续 8 个 FF —— 这正是上一轮 coordOffset=-1 的原因。
-        ok &= Check(log, "id:4 没有连续 8 字节 FF（upptr 断言的其实是颜色区）", report.NanPairOffset == -1, report.NanPairOffset);
-        ok &= Check(log, "id:4 识别到 16 处的 ff ff ff ff",
-            SyncPlayer4.FirstFullByteRun(sample, 0xFF, 4) == 16,
-            SyncPlayer4.FirstFullByteRun(sample, 0xFF, 4));
+        // 7 个颜色：与 .plr 逐字节一致（这是布局正确的最硬证据）
+        string[] expected = { "#ffffff", "#ffbba9", "#695a4b", "#ffffff", "#ffffff", "#abc0ab", "#ffffff" };
+        var colors = r.Colors;
+        ok &= Check(log, "id:4 有 7 个颜色", colors.Length == 7, colors.Length);
+        for (int i = 0; i < colors.Length && i < expected.Length; i++)
+        {
+            ok &= Check(log, $"id:4 [16+3×{i}] {colors[i].Name} = {expected[i]}",
+                colors[i].Hex == expected[i], colors[i].Hex);
+        }
 
-        // 标准布局所需最小长度 > 40：说明这个客户端的 SyncPlayer 不是标准全量布局。
-        ok &= Check(log, "id:4 标准布局最小长度 > 40", report.MinStd > 40, report.MinStd);
+        ok &= Check(log, "id:4 [37] difficulty = 0", r.Difficulty == 0, r.Difficulty);
+        ok &= Check(log, "id:4 [38..39] tail = 1000", r.Tail == "1000", r.Tail);
 
-        // ---- 假设枚举：这是本轮「找出 ff ff ff ff 是谁」的核心工具 ----
-        // 实测样本里名字唯一可能在偏移 8（0x03 + "Cup"），枚举必须自己找到它并给出 rest=28。
-        ok &= Check(log, "id:4 假设枚举给出 rest=28", report.Hypotheses.Contains("rest=28"), report.Hypotheses);
-        ok &= Check(log, "id:4 假设枚举找到 name@8", report.Hypotheses.Contains("name@8"), report.Hypotheses);
+        // ===== 回传：原样 Clone，只改第 0 字节 =====
+        byte[] echo = SyncPlayer4.BuildEcho(sample, 0x01);
+        ok &= Check(log, "id:4 回传长度 = 40", echo.Length == 40, echo.Length);
+        ok &= Check(log, "id:4 回传 [0] = whoAmI", echo[0] == 0x01, echo[0]);
+        ok &= Check(log, "id:4 回传 [1..39] 与原包逐字节相同",
+            echo.AsSpan(1).SequenceEqual(sample.AsSpan(1)), SyncPlayer4.ToSpacedHex(echo));
 
-        // 反过来验证枚举器本身没写错：按标准 1.4.5.8 布局造一个 51 字节的包，必须被精确命中，
-        // 且 map 里的 hairDye / 第一个发色要逐字节对上（对不上就说明枚举器在瞎报）。
-        byte[] standard = new byte[51];
-        int o = 0;
-        standard[o++] = 0x01;
-        standard[o++] = 0x07;
-        standard[o++] = 0x02;
-        standard[o++] = 0x03;
-        standard[o++] = (byte)'C';
-        standard[o++] = (byte)'u';
-        standard[o++] = (byte)'p';
-        standard[o++] = 0x05;               // hairDye
-        standard[o++] = 0x12;               // hairColor[0] = #123456
-        standard[o++] = 0x34;
-        standard[o++] = 0x56;
-        o += 6 * 3;                         // 其余 6 个发色
-        o += 6 * 3;                         // 6 个身体色
-        standard[o++] = 0x00;               // difficulty
-        standard[o++] = 0x0a;               // hideVisuals
-        standard[o++] = 0x00;               // hideVisuals2
-        standard[o++] = 0x40;               // hideMisc
+        byte[] echo2 = SyncPlayer4.BuildEcho(sample, 0x07);
+        ok &= Check(log, "id:4 改 whoAmI 不改其它字节", echo2[0] == 0x07 && echo2.AsSpan(1).SequenceEqual(sample.AsSpan(1)), echo2[0]);
 
-        ok &= Check(log, "标准布局样本构造为 51 字节", o == standard.Length, $"{o}/{standard.Length}");
-
-        SyncPlayer4.Report std = SyncPlayer4.Analyze(standard);
-        ok &= Check(log, "标准布局 51 字节被枚举精确命中（13c3B）",
-            std.Hypotheses.Contains("13c3B"), std.Hypotheses);
-        ok &= Check(log, "标准布局 map: hairDye@7=0x05", std.Hypotheses.Contains("hairDye@7=0x05"), std.Hypotheses);
-        ok &= Check(log, "标准布局 map: c0@8=#123456", std.Hypotheses.Contains("c0@8=#123456"), std.Hypotheses);
+        // ===== 长度不是 40：不许猜字段 =====
+        byte[] shortPack = sample.AsSpan(0, 39).ToArray();
+        SyncPlayer4.Report bad = SyncPlayer4.Analyze(shortPack);
+        ok &= Check(log, "id:4 39 字节被判为非法且不解析字段", !bad.LengthOk && bad.Fields.Contains("不猜"), bad.Fields);
 
         return ok;
     }

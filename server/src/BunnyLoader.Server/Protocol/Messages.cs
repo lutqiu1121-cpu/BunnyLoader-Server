@@ -9,6 +9,7 @@ public static class MessageId
     public const byte Kick = 2;
     public const byte ConnectionApproved = 3;
     public const byte SyncPlayer = 4;
+    /// <summary>5 号：槽位同步（原版枚举里叫 SyncEquipment；player, slot, itemId, prefix, stack）。</summary>
     public const byte SyncEquipment = 5;
     public const byte RequestWorldData = 6;
     public const byte WorldData = 7;
@@ -17,6 +18,7 @@ public static class MessageId
     public const byte TileSection = 10;
     public const byte PlayerControls = 13;
     public const byte PlayerActive = 14;
+    /// <summary>16 号：生命+魔力（player, life, lifeMax, mana, manaMax）。</summary>
     public const byte PlayerHealth = 16;
     public const byte PlayerMana = 42;
     public const byte StartPlaying = 49;

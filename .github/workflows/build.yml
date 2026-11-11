@@ -153,7 +153,7 @@ jobs:
         run: |
           docker run -d --name panel-doc --restart=no \
             -e PROOF_MODE=on -e MSG3_VARIANT=flags1 \
-            -p 17790:7777 -v "$PWD/server/dist:/app" -w /app \
+            -p 17790:7777 -v "$PWD/server/dist:/app" -v "$PWD/debug:/app/debug" -w /app \
             mcr.microsoft.com/dotnet/runtime:8.0 \
             dotnet BunnyLoader.Server.dll --port 7777
           for i in $(seq 1 30); do
@@ -166,12 +166,35 @@ jobs:
           docker logs panel-doc | grep -q '"ev":"syncplayer.raw"' \
             || { echo "缺少 syncplayer.raw（完整 40 字节 hex）"; docker logs panel-doc | tail -40; exit 1; }
           docker logs panel-doc | grep '"ev":"syncplayer.raw"' | head -1
-          docker logs panel-doc | grep -q '"ev":"syncplayer.layout"' \
-            || { echo "缺少 syncplayer.layout（逐字段走位）"; exit 1; }
-          docker logs panel-doc | grep '"ev":"syncplayer.layout"' | head -1
-          docker logs panel-doc | grep -q '"ev":"syncplayer.hypotheses"' \
-            || { echo "缺少 syncplayer.hypotheses（假设枚举）"; exit 1; }
-          docker logs panel-doc | grep '"ev":"syncplayer.hypotheses"' | head -1
+          docker logs panel-doc | grep -q '"ev":"syncplayer.fields"' \
+            || { echo "缺少 syncplayer.fields（固定偏移逐字段）"; exit 1; }
+          docker logs panel-doc | grep '"ev":"syncplayer.fields"' | head -1
+
+          # 7 个颜色必须逐条打出来（每色一行，带 hex）
+          c_color=$(docker logs panel-doc | grep -c '"ev":"syncplayer.color"')
+          echo "syncplayer.color 行数 = $c_color"
+          [ "$c_color" -ge 7 ] || { echo "颜色行只有 $c_color 条，应 ≥7"; exit 1; }
+
+          # 硬闸门：任何一次 id:4 发送都必须是 40 字节 payload（整帧 43 = 2+1+40）
+          bad4=$(docker logs panel-doc | grep '"ev":"frame.send"' | grep '"name":"SyncPlayer"' | grep -vc '"payloadLen":40' || true)
+          echo "非 40 字节的 id:4 发送次数 = $bad4"
+          [ "$bad4" -eq 0 ] || { echo "存在非 40 字节的 id:4"; docker logs panel-doc | grep '"name":"SyncPlayer"'; exit 1; }
+
+          # SSC：.plr 必须被加载，生命/魔力/背包必须真的下发
+          docker logs panel-doc | grep -q '"ev":"ssc.loaded"' \
+            || { echo "缺少 ssc.loaded（.plr 没被加载）"; exit 1; }
+          docker logs panel-doc | grep '"ev":"ssc.loaded"' | head -1
+          docker logs panel-doc | grep '"ev":"ssc.sent"' | head -1
+
+          ssc5=$(docker logs panel-doc | grep '"ev":"frame.send"' | grep -c '"id":"5"' || true)
+          echo "id:5（槽位）下发帧数 = $ssc5"
+          [ "$ssc5" -ge 97 ] || { echo "id:5 只有 $ssc5 帧，应 ≥97"; exit 1; }
+
+          for m in 16 42; do
+            n=$(docker logs panel-doc | grep '"ev":"frame.send"' | grep -c "\"id\":\"$m\"" || true)
+            echo "id:$m 下发帧数 = $n"
+            [ "$n" -ge 1 ] || { echo "缺少 id:$m 下发"; exit 1; }
+          done
 
           # 第 8 章验收 (5)：同一条会话里 id:4 只能发一次（收到时立即回显那一次）。
           # 只数 frame.send（frame.recv 也会打印 "name":"SyncPlayer"）。
@@ -371,9 +394,11 @@ jobs:
           # 否则文档里列出的 config/ 与 testdata/ 解压后不存在。
           cp ../start.sh start.sh
           chmod +x start.sh
-          mkdir -p config testdata
+          mkdir -p config testdata debug
           cp ../config/server.json config/
           cp ../testdata/handshake-vectors.json testdata/
+          # SSC 需要玩家存档：把真实 .plr 一起打进去（启动命令不变，自动发现 debug/*.plr）
+          cp ../debug/Cup.plr debug/Cup.plr
           rm -f *.pdb
           zip -r ../bunny-loader-server-panel.zip .
           cd ../..
