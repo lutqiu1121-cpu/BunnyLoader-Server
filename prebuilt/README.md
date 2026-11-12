@@ -1,16 +1,16 @@
 # prebuilt/ —— 可直接上传到面板的包
 
-`bunny-loader-server-panel.zip` 是 **R7（id:4 硬闸门 40 字节 + 固定魔改布局 + SSC 权威下发）** 的可运行产物，由 CI 构建并放在这里便于直接下载。
+`bunny-loader-server-panel.zip` 是 **R7.1（按实测字节收紧 5/16/42/12，SSC 改到 id:6 之后）** 的可运行产物，由 CI 构建并放在这里便于直接下载。
 
 > 若本目录暂时为空：说明代码刚更新、CI 尚未跑完。稍等几分钟，或直接从
 > Releases 标签 `panel` 下载同名文件。
 
 - 构建方式：Docker 里 `dotnet publish -c Release`（框架依赖，面板自带 .NET 8 即可）
 - 重新构建：`./server/build-panel.sh`
-- 对应提交：`e0db8bc`（分支 `main`，CI 全绿）
-- ZIP 大小（本目录这一份）：`118057` 字节（含 `player.plr`，比上一版大 4708 字节）
-- 包内 `BunnyLoader.Server.dll` 大小 / SHA-256：`196096` 字节 /
-  `4e0455b10e3aedfd8aa56e7b55d9aa5104ede66c434750f2dd0fd78f9da5a0c0`
+- 对应提交：`8940de5`（分支 `main`，CI 全绿）
+- ZIP 大小（本目录这一份）：`118195` 字节（含 `player.plr`）
+- 包内 `BunnyLoader.Server.dll` 大小 / SHA-256：`197120` 字节 /
+  `3abeb07a170770dbadef16b1cd1af1628469c07ac9802309ec666b758a25075b`
   —— 这是**确定性构建**，与 Releases 里最新资产内的 DLL 逐字节相同（已实测核对）；
   ZIP 因内部时间戳每次重新打包都会变哈希，**认 DLL 的哈希**，不要认 ZIP 的。
 - 部署说明：[../docs/panel-deploy.md](../docs/panel-deploy.md)
