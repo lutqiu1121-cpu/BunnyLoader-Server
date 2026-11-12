@@ -829,6 +829,7 @@ internal sealed class Session : ISessionTicker
 
                 // ===== 动态档案：按 id:4 里的名字加载/创建 .plr =====
                 await LoadProfileAsync(stream, report.Name, cancellationToken);
+                break;
             }
 
             case MessageId.SyncEquipment:
