@@ -390,15 +390,20 @@ def pcap_flow(sock: socket.socket) -> int:
               ids.index(49) < ids.index(12) < ids.index(129), ids[-10:])
     print(f"        序列: 分块={sections} ids={ids[:12]}…")
 
-    # R5：控制包只更新内存（节流广播），不再无脑回显。
-    # 位置固定从偏移 6 开始、单位像素：这里发一个真实的 14 字节控制帧（2105,312 格）。
+    # R8 最高优先级：这条 14 字节的 id:13 里含 0x8000（short.MinValue），
+    # 旧代码 Math.Abs(ReadInt16) 会抛 OverflowException 打死连接。现在服务端零解析、只忽略。
     sock.settimeout(6)
-    controls = bytearray(14)
-    controls[0] = 0x01
+    killer = bytearray.fromhex("014010008000 008e034700b09a45".replace(" ", ""))
+    assert len(killer) == 14, len(killer)
+    sock.sendall(frame(13, bytes(killer)))
+
+    # 紧接着发一条正常的 14 字节控制帧（同样是旧逻辑会解析的形状），也必须活着
+    normal = bytearray(14)
+    normal[0] = 0x01
     import struct as _s
-    _s.pack_into("<f", controls, 6, 2105 * 16 + 8)
-    _s.pack_into("<f", controls, 10, 312 * 16)
-    sock.sendall(frame(13, bytes(controls)))
+    _s.pack_into("<f", normal, 6, 2105 * 16 + 8)
+    _s.pack_into("<f", normal, 10, 312 * 16)
+    sock.sendall(frame(13, bytes(normal)))
     sock.sendall(frame(14, b"\x00\x01"))
 
     # id:5 必须原样回传（R7.1 实测 9 字节：player, slot, stack, prefix, itemId, tail）
@@ -406,6 +411,7 @@ def pcap_flow(sock: socket.socket) -> int:
     sock.sendall(frame(5, equip))
     ident, payload = expect_frame(sock, 5)
     check("id:5 原样回传", ident == 5 and payload == equip, f"{ident} {payload.hex()}")
+    check("发过含 0x8000 的 id:13 之后连接仍存活（没被 OverflowException 打死）", ident == 5, ident)
 
     # 血量由客户端决定：只回显，不覆盖
     hp = b"\x00" + (400).to_bytes(2, "little") + (400).to_bytes(2, "little")

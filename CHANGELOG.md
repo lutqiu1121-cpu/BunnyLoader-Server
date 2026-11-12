@@ -274,3 +274,54 @@ id:129 FinishedConnecting
 - 自检新增金标：`id:16=0164006400`、`id:42=0114001400`、`id:5=010000010024b30d00`、`id:12=013908380100000000`。
 - 假客户端改为按实测字节发送 5/16，并断言「id:4 之后静默」「49 之后严格 = 16 → 42 → 98×5 → 14 → 12」。
 - CI 新增长度红线：4/16/42/5/12 的 `payloadLen` 逐一核对，非规定长度直接失败。
+
+---
+
+## 2026-11-12 | R8：彻底修掉 id:13 崩溃 + 真正的动态玩家档案（SSC）
+
+### 1. id:13 崩溃（最高优先级）
+
+实测字节 `01 40 10 00 80 00 00 8e 03 47 00 b0 9a 45`：
+- `payload[1:3]` = 4160（无害）
+- `payload[3:5]` = **0x8000 = -32768** → 旧代码 `Math.Abs(ReadInt16(...))` 抛
+  `OverflowException("Negating the minimum value ...")`，整条连接直接死。
+
+修法（按技术主管要求，不做任何猜测性解析）：
+- `id:13` 分支**零解析**：不读坐标、不调 `Math.Abs`，只记录 `LastControls`/计数/原始 hex，不回发。
+- 删掉 `posOffset6Ok/posTile/posPixel` 那套诊断解析。
+- `ProcessFramesAsync` 增加**单帧兜底**：任何 `DispatchAsync` 抛出的异常都被 catch，
+  记 `frame.handle.error`（id/长度/hex/异常类型），丢弃该帧，连接继续；`OperationCanceledException` 照常上抛。
+
+### 2. 动态玩家档案（真 SSC，服务端权威）
+
+新增 `Player/PlayerProfile.cs` + `Player/PlayerProfileStore.cs`：
+
+1. 收到 `id:4` → 从 40 字节里取出名字（偏移 8：1 字节长度前缀 + UTF-8）。
+2. 找 `Players/<名字>.plr`：
+   - **存在** → 直接加载（`ssc.profile.loaded`）。
+   - **不存在** → 用模板造开荒档：名字写入、**100/100 生命、20/20 魔力**、清空背包/钱币/弹药/装备/染料/容器，
+     发铜短剑 3507 / 铜镐 3509 / 铜斧 3506（原版新角色三件套），立刻加密落盘（`ssc.profile.created`）。
+3. 内存缓存（按名字，大小写不敏感）；玩家退出时写回（`ssc.profile.saved`）。
+4. 保存是**打补丁**不是重建：在解密后的明文上按字段偏移改名（长度可变→整体平移）、改生命魔力、改槽位，
+   未建模的尾部字节原样保留；写盘走「临时文件 → 回读解析校验 → 原子替换」。
+
+目录与模板：
+- 档案目录：`--players <dir>` → `PLAYERS_DIR` → `<程序目录>/Players`
+- 模板：`Players/.template.plr` → `player.plr` → `debug/Cup.plr` → `debug/*.plr`
+- 找不到模板 → 记 `ssc.store.disabled`，SSC 关闭，服务照常跑（绝不写半截文件）。
+
+### 3. 强制覆盖客户端本地数据
+
+档案就绪后生成 SSC 帧队列（`id:16` 5B → `id:42` 5B → 98×`id:5` 9B）：
+- 若 `id:49` 还没发 → 由 `world.tail` 在 49 之后插入；
+- 若客户端先发了 `id:6`（49 已发）→ 档案就绪瞬间立即补发（`ssc.flush`）。
+两条路径都保证「**在 id:49 之后**、长度固定、内容为服务器档案」。
+
+### 4. 测试
+
+- `--plr-selftest` 新增档案回归：模板 → 建 `Tester` → 校验 100/100、20/20、3507/3509/3506、
+  第 4 槽起为空 → 改 180/200、60/80、槽 5 itemId 42×3 → 保存 → 新仓库重载 → 逐项复核。
+- 假客户端发送**含 0x8000 的 id:13**，随后发正常 id:5，断言仍收到回显（连接没被打死）。
+- CI 断言：无 `conn.error` / 无 `OverflowException`、`ssc.store.ready`、`ssc.profile.created`、
+  `ssc.profile.saved`、`server/dist/Players/Tester.plr` 落盘且能被 `--parse-plr` 重新读出。
+- 包内模板改为 `Players/.template.plr`（不再有写死的 `player.plr`）。

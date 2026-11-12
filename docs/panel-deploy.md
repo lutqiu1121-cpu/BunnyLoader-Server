@@ -918,3 +918,39 @@ id==4 且 payloadLen!=40  →  frame.send.fatal + 抛异常（不发）
 收到 `id:4` 时**只**回显 40 字节，不发 14、不发 SSC —— 否则包会在客户端请求世界前被丢弃。
 
 `SendAsync` 对 4/16/42/5/12 做长度硬校验，不符即 `frame.send.fatal` 并抛异常，禁止发送。
+---
+
+## 13. R8：动态玩家档案（每个玩家自己的 .plr）
+
+### 13.1 工作方式
+
+1. 客户端发 `id:4`（角色外观 40 字节）→ 服务端从偏移 8 取名字（1 字节长度前缀 + UTF-8）。
+2. 找 `Players/<名字>.plr`：
+   - 有 → 加载（日志 `ssc.profile.loaded`）
+   - 没有 → 用模板造开荒档：100/100 生命、20/20 魔力、清空全部物品、给铜短剑/铜镐/铜斧，
+     立刻落盘（日志 `ssc.profile.created`）
+3. 玩家退出 → 写回（日志 `ssc.profile.saved`）。
+4. 在 `id:49` 之后强制下发 `id:16`(5B) → `id:42`(5B) → 98×`id:5`(9B)，覆盖客户端本地数据。
+
+### 13.2 目录与模板
+
+| 用途 | 位置 | 覆盖方式 |
+|---|---|---|
+| 档案目录 | `<程序目录>/Players` | `--players <dir>` 或 `PLAYERS_DIR` |
+| 模板 | `Players/.template.plr` | 放你自己的 `.plr` 即可换开荒外观 |
+
+模板缺失时日志 `ssc.store.disabled`，SSC 不下发，服务照常跑。
+
+### 13.3 手工验证
+
+```bash
+ls -l Players/                 # 每个连过的玩家一个 <名字>.plr
+# 想给某人换开荒数据：删掉他的 .plr，下次登录会重新建档
+rm -f Players/Cup.plr
+```
+
+### 13.4 id:13 稳定性
+
+客户端控制包（id:13）现在**完全不解析**：内含 `0x8000` 也不会再触发
+`Math.Abs(short.MinValue)` 的 `OverflowException`。任何单帧解析异常都被 catch 掉，
+只记 `frame.handle.error`，不会打死连接或进程。

@@ -81,11 +81,14 @@ internal sealed class Session : ISessionTicker
     private int _lastSectionX = int.MinValue;
     private int _lastSectionY = int.MinValue;
     private DateTime _lastSectionAt = DateTime.MinValue;
-    private readonly PlayerSsc? _ssc;
-    private bool _sscSent;
+    private readonly PlayerProfileStore? _store;
+    private PlayerProfile? _profile;
+    private List<byte[]> _sscQueue = new();
+    private bool _sscBuilt;
+    private bool _tailSent;
 
     public Session(TcpClient client, string id, int sequence, ServerConfig config, JsonLogger log,
-                   CaptureWriter? capture, WldWorld? worldFile, PlayerSsc? ssc = null)
+                   CaptureWriter? capture, WldWorld? worldFile, PlayerProfileStore? store = null)
     {
         _client = client;
         _id = id;
@@ -93,7 +96,7 @@ internal sealed class Session : ISessionTicker
         _config = config;
         _log = log;
         _capture = capture;
-        _ssc = ssc;
+        _store = store;
 
         _wld = worldFile;
 
@@ -168,6 +171,10 @@ internal sealed class Session : ISessionTicker
             if (_tick is not null)
                 await _tick.StopAsync();
 
+            // 玩家退出：把内存里的档案写回 Players/<名字>.plr（改动只在这里落盘）
+            if (_profile is not null && _store is not null)
+                _store.SaveProfile(_profile);
+
             // 验收用：一次会话里每个消息号各收/发了几帧（id:4 是否重复发送、有没有 id:13 一目了然）。
             _log.Info("traffic.summary",
                 ("conn", _id),
@@ -212,7 +219,27 @@ internal sealed class Session : ISessionTicker
             byte[] payload = inbox.GetRange(3, frameLength - 3).ToArray();
             inbox.RemoveRange(0, frameLength);
 
-            await DispatchAsync(stream, id, payload, inbox, cancellationToken);
+            // 单帧兜底：任何畸形数据只丢这一帧，绝不让整个服务端/连接因解析异常崩掉。
+            try
+            {
+                await DispatchAsync(stream, id, payload, inbox, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception e)
+            {
+                _log.Error("frame.handle.error",
+                    ("conn", _id),
+                    ("id", id),
+                    ("name", Messages.Name(id)),
+                    ("payloadLen", payload.Length),
+                    ("hex", Codec.Hex(payload, 24)),
+                    ("type", e.GetType().Name),
+                    ("message", e.Message),
+                    ("action", "丢弃该帧，连接继续"));
+            }
         }
     }
 
@@ -560,7 +587,7 @@ internal sealed class Session : ISessionTicker
                     tail.Add(Messages.StartPlayingPacket());
                 }
 
-                tail.AddRange(BuildSscFrames());
+                tail.AddRange(TakeSscFrames());
 
                 tail.Add(Codec.Frame(MessageId.PlayerActive, new[] { PlayerSlot, (byte)1 }));
 
@@ -576,6 +603,8 @@ internal sealed class Session : ISessionTicker
                     tail.Add(Messages.FinishedConnectingPacket());
                 }
 
+                _tailSent = true;
+
                 if (tail.Count > 0)
                     await SendBundleAsync(stream, tail, cancellationToken);
 
@@ -584,7 +613,8 @@ internal sealed class Session : ISessionTicker
                     ("frames", tail.Count),
                     ("ids", string.Join(",", tail.Select(f => f[2]))),
                     ("sync4", "not-replayed"),
-                    ("ssc", _sscSent ? $"16+42+{(_ssc?.Slots.Count ?? 0)}x5" : "off"),
+                    ("ssc", _sscBuilt ? $"16+42+{PlayerSsc.MapSlots(_profile?.Data ?? new PlayerFileData()).Count}x5" : "off"),
+                    ("player", _profile?.Name ?? "?"),
                     ("note", "7 -> 10x40 -> 49 -> [SSC] -> 14 -> 12(9B) -> 129；id:4 收到时已回显，这里不重放"));
                 break;
             }
@@ -796,7 +826,9 @@ internal sealed class Session : ISessionTicker
                     ("count", _syncRecvCount),
                     ("alsoSent", "none"),
                     ("note", "只原样 Clone 回传（仅 whoAmI）；不发 14、不发 SSC；SSC 延迟到 id:6 之后"));
-                break;
+
+                // ===== 动态档案：按 id:4 里的名字加载/创建 .plr =====
+                await LoadProfileAsync(stream, report.Name, cancellationToken);
             }
 
             case MessageId.SyncEquipment:
@@ -829,35 +861,24 @@ internal sealed class Session : ISessionTicker
 
             case MessageId.PlayerControls:
             {
-                // 只更新内存里的状态，**不立刻回发**；由 TickEngine 统一节流广播。
+                // R8（技术主管最高优先级）：**绝对禁止解析坐标、绝对禁止 Math.Abs**。
+                // 实测 14 字节里含 0x8000（short.MinValue），Math.Abs 会抛
+                // OverflowException("Negating the minimum value ...") 把连接打死。
+                // 这里只记录原始字节，不读任何字段、不回发。
                 _player.LastControls = payload;
                 _player.LastSeenMs = (long)_clock.Elapsed.TotalMilliseconds;
-
-                // 本轮只做诊断：状态更新保持原样（按旧逻辑读 i16），
-                // 但额外用正确偏移解析一次位置写进日志——这条是判断「摇杆是否真的解锁」的证据。
-                if (payload.Length >= 9)
-                {
-                    _player.TileX = Math.Abs(BinaryPrimitives.ReadInt16LittleEndian(payload.AsSpan(1, 2)));
-                    _player.TileY = Math.Abs(BinaryPrimitives.ReadInt16LittleEndian(payload.AsSpan(3, 2)));
-                }
 
                 _controlsReceived++;
 
                 if (_controlsReceived % 60 == 1)
                 {
-                    bool parsed = PlayerControls13.TryParsePosition(payload, out float pixelX, out float pixelY, out int posTileX, out int posTileY);
-
                     _log.Info("controls.update",
                         ("conn", _id),
-                        ("x", _player.TileX),
-                        ("y", _player.TileY),
                         ("count", _controlsReceived),
                         ("len", payload.Length),
                         ("hex", Codec.Hex(payload, 32)),
-                        ("posOffset6Ok", parsed),
-                        ("posTile", parsed ? $"{posTileX},{posTileY}" : "-"),
-                        ("posPixel", parsed ? $"{pixelX},{pixelY}" : "-"),
-                        ("note", "posTile/posPixel 是按偏移 6 解析的候选读法，仅供诊断，不参与状态"));
+                        ("parsed", false),
+                        ("note", "不解析坐标（0x8000 会让 Math.Abs 抛 OverflowException）"));
                 }
                 break;
             }
@@ -909,43 +930,99 @@ internal sealed class Session : ISessionTicker
     }
 
     /// <summary>
-    /// SSC 帧队列（技术主管 R7.1 规格，字节长度固定）：
-    ///   id:16 = 5 字节（player, life, lifeMax）
-    ///   id:42 = 5 字节（player, mana, manaMax）
-    ///   id:5  = 9 字节 × 98 槽（player, slot, stack, prefix, itemId, tail）
-    /// 生产者：启动时已从 .plr 解析好的 _ssc；消费者：id:6 的 tail（49 之后、14 之前）。
-    /// 只发一次（_sscSent），重复的 id:6 不会重复下发。
+    /// 收到 id:4 后按名字取档案：有则读，无则造开荒档并落盘。
+    /// 档案就绪后立刻把 SSC 帧排好队：
+    ///   - 若 world.tail（含 id:49）还没发 → 由 tail 在 49 之后插进去；
+    ///   - 若 tail 已经发过（客户端先 6 后 4）→ 立刻补发，仍然是「49 之后」。
     /// </summary>
-    private List<byte[]> BuildSscFrames()
+    private async Task LoadProfileAsync(NetworkStream stream, string name, CancellationToken cancellationToken)
     {
-        var frames = new List<byte[]>();
+        if (_sscBuilt || _store is null)
+            return;
 
-        if (_ssc is null || _sscSent)
-            return frames;
+        string clean = PlayerProfileStore.Sanitize(name);
+        if (clean.Length == 0)
+        {
+            _log.Warn("ssc.profile.skipped", ("conn", _id), ("raw", name), ("note", "id:4 里没有可用名字，SSC 关闭"));
+            return;
+        }
 
-        _sscSent = true;
+        _profile = _store.LoadOrCreate(clean);
+        if (_profile is null)
+        {
+            _log.Warn("ssc.profile.unavailable", ("conn", _id), ("name", clean));
+            return;
+        }
 
-        PlayerFileData d = _ssc.Data;
+        _sscBuilt = true;
+        _sscQueue = BuildSscFrames(_profile);
+
+        if (_tailSent && _sscQueue.Count > 0)
+        {
+            // 客户端先请求了世界（49 已发）：现在补发，顺序仍是 49 之后
+            _log.Info("ssc.flush",
+                ("conn", _id),
+                ("player", _profile.Name),
+                ("frames", _sscQueue.Count),
+                ("reason", "id:6 早于 id:4，档案就绪后立即补发"));
+
+            await SendBundleAsync(stream, _sscQueue, cancellationToken);
+            _sscQueue.Clear();
+        }
+    }
+
+    /// <summary>取走 SSC 队列（tail 用，只取一次）。</summary>
+    private List<byte[]> TakeSscFrames()
+    {
+        if (_sscQueue.Count == 0)
+            return new List<byte[]>();
+
+        List<byte[]> frames = _sscQueue;
+        _sscQueue = new List<byte[]>();
+
+        if (_profile is not null)
+        {
+            _log.Info("ssc.sent",
+                ("conn", _id),
+                ("file", _profile.Path),
+                ("player", _profile.Name),
+                ("new", _profile.IsNew),
+                ("life", $"{_profile.Health}/{_profile.HealthMax}"),
+                ("mana", $"{_profile.Mana}/{_profile.ManaMax}"),
+                ("slots", frames.Count - 2),
+                ("nonEmpty", _profile.Data.Inventory.Count(i => !i.IsEmpty)),
+                ("order", "49 -> 16(5B) -> 42(5B) -> 98x5(9B) -> 14 -> 12(9B) -> 129"),
+                ("queueAt", "id:4 之后入队，id:6 tail 里 49 之后发送"));
+        }
+
+        return frames;
+    }
+
+    /// <summary>
+    /// 把档案转成 SSC 帧：id:16(5B) → id:42(5B) → 每个槽位一条 id:5(9B)。
+    /// </summary>
+    private List<byte[]> BuildSscFrames(PlayerProfile profile)
+    {
+        var frames = new List<byte[]>(100);
         byte player = PlayerSlot;
 
-        int life = Math.Clamp(d.Health, 0, short.MaxValue);
-        int lifeMax = Math.Clamp(d.HealthMax, 1, short.MaxValue);
-        int mana = Math.Clamp(d.Mana, 0, short.MaxValue);
-        int manaMax = Math.Clamp(d.ManaMax, 0, short.MaxValue);
+        int life = Math.Clamp(profile.Data.Health, 0, short.MaxValue);
+        int lifeMax = Math.Clamp(profile.Data.HealthMax, 1, short.MaxValue);
+        int mana = Math.Clamp(profile.Data.Mana, 0, short.MaxValue);
+        int manaMax = Math.Clamp(profile.Data.ManaMax, 0, short.MaxValue);
 
         frames.Add(Codec.Frame(MessageId.PlayerHealth, PlayerSsc.LifePayload(player, life, lifeMax)));
         frames.Add(Codec.Frame(MessageId.PlayerMana, PlayerSsc.ManaPayload(player, mana, manaMax)));
 
-        int sent = 0;
-        foreach ((int slot, PlayerItem item) in _ssc.Slots)
+        foreach ((int slot, PlayerItem item) in PlayerSsc.MapSlots(profile.Data))
         {
             frames.Add(Codec.Frame(MessageId.SyncEquipment, PlayerSsc.InventorySlotPayload(player, slot, item)));
-            sent++;
 
             if (!item.IsEmpty)
             {
                 _log.Info("ssc.slot",
                     ("conn", _id),
+                    ("player", profile.Name),
                     ("slot", slot),
                     ("itemId", item.Id),
                     ("stack", item.Count),
@@ -953,65 +1030,20 @@ internal sealed class Session : ISessionTicker
             }
         }
 
-        _log.Info("ssc.sent",
+        _log.Info("ssc.profile.ready",
             ("conn", _id),
-            ("file", _ssc.SourcePath),
-            ("player", d.Name),
+            ("player", profile.Name),
+            ("file", profile.Path),
+            ("new", profile.IsNew),
             ("life", $"{life}/{lifeMax}"),
             ("mana", $"{mana}/{manaMax}"),
-            ("slots", sent),
-            ("nonEmpty", _ssc.NonEmptySlots),
-            ("order", "49 -> 16(5B) -> 42(5B) -> 98x5(9B) -> 14 -> 12(9B) -> 129"),
-            ("queueAt", "id:6 tail"),
-            ("note", "数值来自 .plr；不再在 id:4 时发送"));
+            ("frames", frames.Count));
 
         return frames;
     }
 
     /// <summary>
-    /// 固定长度消息的硬闸门（R7.1）。**所有出站路径都必须先过这里**：
-    ///   4 → 40，16 → 5，42 → 5，5 → 9，12 → 9
-    /// 长度不符 → frame.send.fatal + 抛异常，禁止发送。
-    /// </summary>
-    private void EnsureFrameLength(byte[] frame)
-    {
-        if (frame.Length < 3)
-            return;
-
-        int expectedLen = frame[2] switch
-        {
-            MessageId.SyncPlayer => SyncPlayer4.PayloadLength,
-            MessageId.PlayerHealth => 5,
-            MessageId.PlayerMana => 5,
-            MessageId.SyncEquipment => 9,
-            MessageId.PlayerSpawn => 9,
-            _ => -1,
-        };
-
-        if (expectedLen < 0)
-            return;
-
-        int payloadLen = frame.Length - 3;
-        if (payloadLen == expectedLen)
-            return;
-
-        string name = Messages.Name(frame[2]);
-
-        _log.Error("frame.send.fatal",
-            ("conn", _id),
-            ("id", frame[2]),
-            ("name", name),
-            ("payloadLen", payloadLen),
-            ("expected", expectedLen),
-            ("frameLen", frame.Length),
-            ("hex", Codec.Hex(frame.AsSpan(3), frame.Length - 3)),
-            ("reason", $"id:{frame[2]} 的 payload 必须正好 {expectedLen} 字节，禁止发送"));
-
-        throw new InvalidOperationException(
-            $"禁止发送 {payloadLen} 字节的 id:{frame[2]}（{name}，要求 {expectedLen} 字节）：客户端收到错误长度会死锁");
-    }
-
-    private async Task SendAsync(NetworkStream stream, byte[] frame, CancellationToken cancellationToken)
+    /// 固定长度消息的硬闸门（R7.1）    private async Task SendAsync(NetworkStream stream, byte[] frame, CancellationToken cancellationToken)
     {
         // 固定长度消息先过硬闸门（4→40, 16→5, 42→5, 5→9, 12→9）
         EnsureFrameLength(frame);

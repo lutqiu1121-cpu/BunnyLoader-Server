@@ -730,6 +730,61 @@ public static class PlrCommand
         string invLog = Path.Combine(AppContext.BaseDirectory, "debug", $"plr-inventory-{SafeName(data.Name)}.log");
         ok &= Check(log, "CLI 自检：物品栏日志已写出", File.Exists(invLog), invLog);
 
+        // ===== 动态档案（R8）：模板 → 新角色 → 改名/改血/发装备 → 落盘 → 重新加载 =====
+        string storeDir = Path.Combine(dir, "Players");
+        if (Directory.Exists(storeDir))
+            Directory.Delete(storeDir, recursive: true);
+
+        Directory.CreateDirectory(storeDir);
+
+        // 自检不依赖外部 .plr：直接拿刚合成的 v319 样本当模板
+        File.WriteAllBytes(Path.Combine(storeDir, ".template.plr"), encrypted);
+        ok &= Check(log, "档案自检：模板 .template.plr 已就位",
+            File.Exists(Path.Combine(storeDir, ".template.plr")), true);
+
+        PlayerProfileStore? store = PlayerProfileStore.TryCreate(storeDir, log);
+        ok &= Check(log, "档案自检：仓库创建成功（模板可用）", store is not null, store?.TemplatePath);
+
+        if (store is not null)
+        {
+            PlayerProfile? p = store.LoadOrCreate("Tester");
+            ok &= Check(log, "档案自检：新玩家档案已创建", p is not null, p?.Path);
+
+            if (p is not null)
+            {
+                string expectPath = Path.Combine(storeDir, "Tester.plr");
+                ok &= Check(log, "档案自检：文件路径 = Players/Tester.plr", p.Path == expectPath, p.Path);
+                ok &= Check(log, "档案自检：文件已落盘", File.Exists(expectPath), expectPath);
+                ok &= Check(log, "档案自检：名字 = Tester", p.Name == "Tester", p.Name);
+                ok &= Check(log, "档案自检：生命 = 100/100", p.Health == 100 && p.HealthMax == 100, $"{p.Health}/{p.HealthMax}");
+                ok &= Check(log, "档案自检：魔力 = 20/20", p.Mana == 20 && p.ManaMax == 20, $"{p.Mana}/{p.ManaMax}");
+
+                int[] ids = p.Data.Inventory.Take(3).Select(i => i.Id).ToArray();
+                ok &= Check(log, "档案自检：开荒装备 = 3507/3509/3506",
+                    ids.SequenceEqual(new[] { 3507, 3509, 3506 }), string.Join("/", ids));
+                ok &= Check(log, "档案自检：背包第 4 槽起为空",
+                    p.Data.Inventory.Skip(3).All(i => i.IsEmpty), p.Data.Inventory.Count(i => !i.IsEmpty));
+
+                // 改数据 → 保存 → 用新仓库重新加载（模拟「玩家退出后重连」）
+                p.SetLife(180, 200);
+                p.SetMana(60, 80);
+                p.SetSlot(5, 42, 3, 0);
+                store.SaveProfile(p);
+
+                PlayerProfileStore? store2 = PlayerProfileStore.TryCreate(storeDir, log);
+                PlayerProfile? p2 = store2?.LoadOrCreate("Tester");
+                ok &= Check(log, "档案自检：重载后生命 = 180/200",
+                    p2 is not null && p2.Health == 180 && p2.HealthMax == 200, $"{p2?.Health}/{p2?.HealthMax}");
+                ok &= Check(log, "档案自检：重载后魔力 = 60/80",
+                    p2 is not null && p2.Mana == 60 && p2.ManaMax == 80, $"{p2?.Mana}/{p2?.ManaMax}");
+                ok &= Check(log, "档案自检：重载后槽 5 = itemId 42 ×3",
+                    p2 is not null && p2.Data.Inventory[5].Id == 42 && p2.Data.Inventory[5].Count == 3,
+                    p2 is null ? "null" : $"{p2.Data.Inventory[5].Id}x{p2.Data.Inventory[5].Count}");
+                ok &= Check(log, "档案自检：存档仍是合法 .plr（可解密可解析）",
+                    p2 is not null && p2.Data.Version == 319, p2?.Data.Version);
+            }
+        }
+
         return ok;
     }
 

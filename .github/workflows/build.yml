@@ -209,6 +209,35 @@ jobs:
             echo "id:4 回显时还发了别的东西"; docker logs panel-doc | grep syncplayer.echoed; exit 1
           fi
 
+          # R8-1 崩溃回归：含 0x8000 的 id:13 绝不允许打死连接/进程
+          if docker logs panel-doc | grep '"ev":"conn.error"'; then
+            echo "出现 conn.error（连接级异常）"; docker logs panel-doc | grep '"ev":"conn.error"'; exit 1
+          fi
+          if docker logs panel-doc | grep -q 'OverflowException'; then
+            echo "出现 OverflowException（Math.Abs 崩溃回归）"; exit 1
+          fi
+          docker logs panel-doc | grep -q '"ev":"frame.handle.error"' \
+            && { echo "单帧处理异常（应尽量没有）"; docker logs panel-doc | grep frame.handle.error; }
+
+          # R8-2 动态档案：仓库就绪 + 新玩家建档 + 落盘 + 退出保存
+          docker logs panel-doc | grep '"ev":"ssc.store.ready"' | head -1
+          docker logs panel-doc | grep -q '"ev":"ssc.profile.created"' \
+            || { echo "缺少 ssc.profile.created（新玩家没有建档）"; docker logs panel-doc | grep ssc.; exit 1; }
+          docker logs panel-doc | grep '"ev":"ssc.profile.created"' | head -1
+          docker logs panel-doc | grep '"ev":"ssc.profile.saved"' | head -1
+          [ -f "server/dist/Players/Tester.plr" ] \
+            || { echo "Players/Tester.plr 没有落盘"; ls -l server/dist/Players 2>&1; exit 1; }
+          echo "档案文件：" $(ls -l server/dist/Players/Tester.plr)
+
+          # 建档内容：能被 --parse-plr 重新读出、名字是 Tester
+          docker run --rm -v "$PWD/server/dist:/app" -w /app \
+            mcr.microsoft.com/dotnet/runtime:8.0 \
+            dotnet BunnyLoader.Server.dll --parse-plr Players/Tester.plr > plr-check.txt 2>&1 || true
+          grep -o '"ev":"plr.field","name":"name","offset":[0-9]*,"len":[0-9]*,"value":"[^"]*"' plr-check.txt | head -1
+          grep -q '"value":"\\"Tester\\""' plr-check.txt \
+            || grep -q 'Tester' plr-check.txt \
+            || { echo "Players/Tester.plr 解析不出名字 Tester"; tail -20 plr-check.txt; exit 1; }
+
           # 第 8 章验收 (5)：同一条会话里 id:4 只能发一次（收到时立即回显那一次）。
           # 只数 frame.send（frame.recv 也会打印 "name":"SyncPlayer"）。
           sync4=$(docker logs panel-doc | grep -c '"ev":"frame.send".*"name":"SyncPlayer"')
@@ -407,13 +436,14 @@ jobs:
           # 否则文档里列出的 config/ 与 testdata/ 解压后不存在。
           cp ../start.sh start.sh
           chmod +x start.sh
-          mkdir -p config testdata
+          mkdir -p config testdata Players
           cp ../config/server.json config/
           cp ../testdata/handshake-vectors.json testdata/
-          # SSC 需要玩家存档：放到包根 player.plr（自动发现第 2 优先级，免建目录、免 root 权限问题）
-          cp ../../debug/Cup.plr player.plr
+          # 动态档案的**模板**：新玩家用它生成开荒档（玩家自己的档在 Players/<名字>.plr）
+          cp ../../debug/Cup.plr Players/.template.plr
+          rm -f player.plr
           # 容器内以 root 跑过一次 selftest 会在 dist 留下 root 拥有的空 debug/，清掉再打包
-          sudo rm -rf debug || true
+          sudo rm -rf debug debug2 || true
           rm -f *.pdb
           zip -r ../bunny-loader-server-panel.zip .
           cd ../..
