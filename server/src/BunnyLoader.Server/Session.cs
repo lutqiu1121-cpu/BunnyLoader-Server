@@ -1043,7 +1043,48 @@ internal sealed class Session : ISessionTicker
     }
 
     /// <summary>
-    /// 固定长度消息的硬闸门（R7.1）    private async Task SendAsync(NetworkStream stream, byte[] frame, CancellationToken cancellationToken)
+    /// 固定长度消息的硬闸门（R8）：4→40，16→5，42→5，5→9，12→9。
+    /// **所有出站路径都必须先过这里**：长度不符 → frame.send.fatal + 抛异常，禁止发送。
+    /// </summary>
+    private void EnsureFrameLength(byte[] frame)
+    {
+        if (frame.Length < 3)
+            return;
+
+        int expectedLen = frame[2] switch
+        {
+            MessageId.SyncPlayer => SyncPlayer4.PayloadLength,
+            MessageId.PlayerHealth => 5,
+            MessageId.PlayerMana => 5,
+            MessageId.SyncEquipment => 9,
+            MessageId.PlayerSpawn => 9,
+            _ => -1,
+        };
+
+        if (expectedLen < 0)
+            return;
+
+        int payloadLen = frame.Length - 3;
+        if (payloadLen == expectedLen)
+            return;
+
+        string name = Messages.Name(frame[2]);
+
+        _log.Error("frame.send.fatal",
+            ("conn", _id),
+            ("id", frame[2]),
+            ("name", name),
+            ("payloadLen", payloadLen),
+            ("expected", expectedLen),
+            ("frameLen", frame.Length),
+            ("hex", Codec.Hex(frame.AsSpan(3), frame.Length - 3)),
+            ("reason", $"id:{frame[2]} 的 payload 必须正好 {expectedLen} 字节，禁止发送"));
+
+        throw new InvalidOperationException(
+            $"禁止发送 {payloadLen} 字节的 id:{frame[2]}（{name}，要求 {expectedLen} 字节）：客户端收到错误长度会死锁");
+    }
+
+    private async Task SendAsync(NetworkStream stream, byte[] frame, CancellationToken cancellationToken)
     {
         // 固定长度消息先过硬闸门（4→40, 16→5, 42→5, 5→9, 12→9）
         EnsureFrameLength(frame);
