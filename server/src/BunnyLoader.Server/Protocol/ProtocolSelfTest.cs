@@ -1,5 +1,7 @@
 using System.Text.Json;
 
+using BunnyLoader.Server.Player;
+
 namespace BunnyLoader.Server.Protocol;
 
 /// <summary>
@@ -203,9 +205,29 @@ public static class ProtocolSelfTest
             ok &= Check(log, $"帧头 id={id} 消息号一致", idOk, frame[2]);
         }
 
-        // id:12 的负载固定 15 字节（u8 + i16 + i16 + i32 + i16 + i16 + u8 + u8），整帧 18。
+        // id:12 的负载固定 9 字节（u8 + i16 + i16 + 4 字节 0），整帧 12。
+        // 金标：01 39 08 38 01 00 00 00 00（技术主管实测字节）
         byte[] spawn = Messages.PlayerSpawnPacket(1, 2105, 312);
-        ok &= Check(log, "id:12 负载 15 字节 / 整帧 18 字节", spawn.Length == 18 && spawn.Length - 3 == 15, spawn.Length);
+        ok &= Check(log, "id:12 负载 9 字节 / 整帧 12 字节", spawn.Length == 12 && spawn.Length - 3 == 9, spawn.Length);
+        ok &= Check(log, "id:12 金标字节 = 01 39 08 38 01 00 00 00 00",
+            Convert.ToHexString(spawn.AsSpan(3)).ToLowerInvariant() == "013908380100000000",
+            Convert.ToHexString(spawn.AsSpan(3)).ToLowerInvariant());
+
+        // ===== R7.1 固定长度金标（来自客户端实测字节，不许再变）=====
+        byte[] life = PlayerSsc.LifePayload(1, 100, 100);
+        ok &= Check(log, "id:16 payload = 5 字节", life.Length == 5, life.Length);
+        ok &= Check(log, "id:16 金标 = 01 64 00 64 00",
+            Convert.ToHexString(life).ToLowerInvariant() == "0164006400", Convert.ToHexString(life));
+
+        byte[] mana = PlayerSsc.ManaPayload(1, 20, 20);
+        ok &= Check(log, "id:42 payload = 5 字节", mana.Length == 5, mana.Length);
+        ok &= Check(log, "id:42 金标 = 01 14 00 14 00",
+            Convert.ToHexString(mana).ToLowerInvariant() == "0114001400", Convert.ToHexString(mana));
+
+        byte[] slot = PlayerSsc.InventorySlotPayload(1, 0, new PlayerItem { Id = 3507, Count = 1, Prefix = 0x24 });
+        ok &= Check(log, "id:5 payload = 9 字节", slot.Length == 9, slot.Length);
+        ok &= Check(log, "id:5 金标 = 01 00 00 01 00 24 b3 0d 00",
+            Convert.ToHexString(slot).ToLowerInvariant() == "010000010024b30d00", Convert.ToHexString(slot));
 
         return ok;
     }

@@ -548,7 +548,10 @@ internal sealed class Session : ISessionTicker
                 // 2. 全量 40 个分块，不做任何拦截
                 await SendFullAreaAsync(stream, WorldSpawnX, WorldSpawnY, cancellationToken, force: true);
 
-                // 3. 开始游戏 -> 4 -> 14 -> 12 -> 129
+                // 3. 开始游戏 -> [SSC] -> 14 -> 12 -> 129
+                // 技术主管 R7.1 指定顺序：
+                //   7 -> 40×10 -> 49 -> (16 -> 42 -> 98×5) -> 14 -> 12 -> 129
+                // SSC 必须夹在 49 之后、14 之前；id:4 不在这里重放（收到时已回显过）。
                 var tail = new List<byte[]>();
 
                 if (!_startPlayingSent)
@@ -557,8 +560,7 @@ internal sealed class Session : ISessionTicker
                     tail.Add(Messages.StartPlayingPacket());
                 }
 
-                // id:4 不在 tail 重放：客户端发来 id:4 时已经立即回显过一次（技术主管批注），
-                // 这里再放一次就是同一次会话里的第二次发送。顺序因此是 7 -> 10×40 -> 49 -> 14 -> 12 -> 129。
+                tail.AddRange(BuildSscFrames());
 
                 tail.Add(Codec.Frame(MessageId.PlayerActive, new[] { PlayerSlot, (byte)1 }));
 
@@ -582,7 +584,8 @@ internal sealed class Session : ISessionTicker
                     ("frames", tail.Count),
                     ("ids", string.Join(",", tail.Select(f => f[2]))),
                     ("sync4", "not-replayed"),
-                    ("note", "49 -> 14 -> 12 -> 129；id:4 已在收到时立即回显，这里不重放"));
+                    ("ssc", _sscSent ? $"16+42+{(_ssc?.Slots.Count ?? 0)}x5" : "off"),
+                    ("note", "7 -> 10x40 -> 49 -> [SSC] -> 14 -> 12(9B) -> 129；id:4 收到时已回显，这里不重放"));
                 break;
             }
 
@@ -673,17 +676,48 @@ internal sealed class Session : ISessionTicker
             case MessageId.PlayerHealth:
             {
                 // 客户端上报的血量与上限：只记录 + 原样回显，绝不覆盖（生命水晶/死亡重连都要尊重）
-                string hex = Codec.Hex(payload, 12);
+                // R7.1：id:16 只允许 5 字节（player, life, lifeMax），别的长度一律不回显。
+                _log.Info("player.health",
+                    ("conn", _id),
+                    ("payloadLen", payload.Length),
+                    ("hex", Codec.Hex(payload, 12)));
+
+                if (payload.Length != 5)
+                {
+                    _lastHealth = null;
+                    _log.Warn("player.health.badlen",
+                        ("conn", _id),
+                        ("payloadLen", payload.Length),
+                        ("expected", 5),
+                        ("note", "id:16 只接受 5 字节；不回显、不缓存"));
+                    break;
+                }
+
                 _lastHealth = payload;
-                _log.Info("player.health", ("conn", _id), ("hex", hex));
                 await SendAsync(stream, Codec.Frame(MessageId.PlayerHealth, payload), cancellationToken);
                 break;
             }
 
             case MessageId.PlayerMana:
             {
+                // R7.1：id:42 只允许 5 字节（player, mana, manaMax）。
+                _log.Info("player.mana",
+                    ("conn", _id),
+                    ("payloadLen", payload.Length),
+                    ("hex", Codec.Hex(payload, 12)));
+
+                if (payload.Length != 5)
+                {
+                    _lastMana = null;
+                    _log.Warn("player.mana.badlen",
+                        ("conn", _id),
+                        ("payloadLen", payload.Length),
+                        ("expected", 5),
+                        ("note", "id:42 只接受 5 字节；不回显、不缓存"));
+                    break;
+                }
+
                 _lastMana = payload;
-                _log.Info("player.mana", ("conn", _id), ("hex", Codec.Hex(payload, 12)));
                 await SendAsync(stream, Codec.Frame(MessageId.PlayerMana, payload), cancellationToken);
                 break;
             }
@@ -747,10 +781,10 @@ internal sealed class Session : ISessionTicker
                 if (echo.Length != payload.Length)
                     throw new InvalidOperationException($"id:4 长度被改变: recv={payload.Length} send={echo.Length}");
 
-                // ===== 发送语义（技术主管批注）：立即原样回显、**不缓存**、tail 不重放 =====
+                // ===== 发送语义（技术主管 R7.1 批注，优先级最高）=====
+                // 收到 id:4 时**只**原样回显 40 字节：不发 id:14，不发任何 SSC 包。
+                // 此时客户端还没请求世界（id:6），早发的包会被丢弃；SSC 全部改到 id:6 的 49 之后。
                 await SendAsync(stream, Codec.Frame(MessageId.SyncPlayer, echo), cancellationToken);
-
-                await SendAsync(stream, Codec.Frame(MessageId.PlayerActive, new[] { PlayerSlot, (byte)1 }), cancellationToken);
 
                 _log.Info("syncplayer.echoed",
                     ("conn", _id),
@@ -760,17 +794,26 @@ internal sealed class Session : ISessionTicker
                     ("frameLen", echo.Length + 3),
                     ("hex", SyncPlayer4.ToSpacedHex(echo)),
                     ("count", _syncRecvCount),
-                    ("note", "原样 Clone 回传（仅 whoAmI）；立即 14；不写缓存，world.tail 不重放 id:4"));
-
-                // ===== SSC：用 .plr 的权威数据下发生命/魔力/背包 =====
-                await SendSscAsync(stream, cancellationToken);
+                    ("alsoSent", "none"),
+                    ("note", "只原样 Clone 回传（仅 whoAmI）；不发 14、不发 SSC；SSC 延迟到 id:6 之后"));
                 break;
             }
 
             case MessageId.SyncEquipment:
             {
-                // 原样回传，长度与内容一个字节都不改
+                // 原样回传；R7.1：只允许 9 字节（player, slot, stack, prefix, itemId, tail）
                 _equipRecv++;
+
+                if (payload.Length != 9)
+                {
+                    _log.Warn("player.equip.badlen",
+                        ("conn", _id),
+                        ("recvLen", payload.Length),
+                        ("expected", 9),
+                        ("hex", Codec.Hex(payload, 12)),
+                        ("note", "id:5 只接受 9 字节；不回显"));
+                    break;
+                }
 
                 await SendAsync(stream, Codec.Frame(MessageId.SyncEquipment, payload), cancellationToken);
                 _equipSent++;
@@ -866,33 +909,37 @@ internal sealed class Session : ISessionTicker
     }
 
     /// <summary>
-    /// SSC 下发：id:16（生命+魔力）、id:42（魔力）、id:5（每个槽位一条）。
-    /// 数据全部来自 .plr 的权威值；没有 .plr 就什么都不发（SSC 关闭）。
-    /// 只发一次（_sscSent），避免客户端重发 id:4 时刷屏。
+    /// SSC 帧队列（技术主管 R7.1 规格，字节长度固定）：
+    ///   id:16 = 5 字节（player, life, lifeMax）
+    ///   id:42 = 5 字节（player, mana, manaMax）
+    ///   id:5  = 9 字节 × 98 槽（player, slot, stack, prefix, itemId, tail）
+    /// 生产者：启动时已从 .plr 解析好的 _ssc；消费者：id:6 的 tail（49 之后、14 之前）。
+    /// 只发一次（_sscSent），重复的 id:6 不会重复下发。
     /// </summary>
-    private async Task SendSscAsync(NetworkStream stream, CancellationToken cancellationToken)
+    private List<byte[]> BuildSscFrames()
     {
+        var frames = new List<byte[]>();
+
         if (_ssc is null || _sscSent)
-            return;
+            return frames;
 
         _sscSent = true;
 
         PlayerFileData d = _ssc.Data;
         byte player = PlayerSlot;
 
-        int life = Math.Clamp(d.Health, 0, 500);
-        int lifeMax = Math.Clamp(d.HealthMax, 1, 500);
-        int mana = Math.Clamp(d.Mana, 0, 400);
-        int manaMax = Math.Clamp(d.ManaMax, 0, 400);
+        int life = Math.Clamp(d.Health, 0, short.MaxValue);
+        int lifeMax = Math.Clamp(d.HealthMax, 1, short.MaxValue);
+        int mana = Math.Clamp(d.Mana, 0, short.MaxValue);
+        int manaMax = Math.Clamp(d.ManaMax, 0, short.MaxValue);
 
-        await SendAsync(stream, Codec.Frame(MessageId.PlayerHealth, PlayerSsc.LifePayload(player, life, lifeMax, mana, manaMax)), cancellationToken);
-        await SendAsync(stream, Codec.Frame(MessageId.PlayerMana, PlayerSsc.ManaPayload(player, mana, manaMax)), cancellationToken);
+        frames.Add(Codec.Frame(MessageId.PlayerHealth, PlayerSsc.LifePayload(player, life, lifeMax)));
+        frames.Add(Codec.Frame(MessageId.PlayerMana, PlayerSsc.ManaPayload(player, mana, manaMax)));
 
         int sent = 0;
         foreach ((int slot, PlayerItem item) in _ssc.Slots)
         {
-            byte[] payload = PlayerSsc.InventorySlotPayload(player, slot, item);
-            await SendAsync(stream, Codec.Frame(MessageId.SyncEquipment, payload), cancellationToken);
+            frames.Add(Codec.Frame(MessageId.SyncEquipment, PlayerSsc.InventorySlotPayload(player, slot, item)));
             sent++;
 
             if (!item.IsEmpty)
@@ -914,31 +961,49 @@ internal sealed class Session : ISessionTicker
             ("mana", $"{mana}/{manaMax}"),
             ("slots", sent),
             ("nonEmpty", _ssc.NonEmptySlots),
-            ("note", "id:16(PlayerHealth) -> id:42(PlayerMana) -> id:5(SyncEquipment) × 槽位；数值来自 .plr"));
+            ("order", "49 -> 16(5B) -> 42(5B) -> 98x5(9B) -> 14 -> 12(9B) -> 129"),
+            ("queueAt", "id:6 tail"),
+            ("note", "数值来自 .plr；不再在 id:4 时发送"));
+
+        return frames;
     }
 
     private async Task SendAsync(NetworkStream stream, byte[] frame, CancellationToken cancellationToken)
     {
-        // ===== 硬闸门：id:4 只允许 40 字节 payload =====
+        // ===== 硬闸门：固定长度消息一律只允许实测长度 =====
         // 注意 len 的口径：frame.Length = 2 字节长度前缀 + 1 字节消息号 + payload。
         // 所以 40 字节 payload 的 id:4 整帧是 43 —— 日志里的 "len":43 是帧长，不是 payload 长。
-        if (frame.Length >= 3 && frame[2] == MessageId.SyncPlayer)
+        int? wantLen = frame.Length >= 3
+            ? frame[2] switch
+            {
+                MessageId.SyncPlayer => SyncPlayer4.PayloadLength,   // 40
+                MessageId.PlayerHealth => 5,                          // player + life + lifeMax
+                MessageId.PlayerMana => 5,                            // player + mana + manaMax
+                MessageId.SyncEquipment => 9,                         // player + slot + stack + prefix + itemId + tail
+                MessageId.PlayerSpawn => 9,                           // player + x + y + 4B
+                _ => (int?)null,
+            }
+            : null;
+
+        if (frame.Length >= 3 && wantLen is int expectedLen)
         {
             int payloadLen = frame.Length - 3;
-            if (payloadLen != SyncPlayer4.PayloadLength)
+            if (payloadLen != expectedLen)
             {
+                string name = Messages.Name(frame[2]);
+
                 _log.Error("frame.send.fatal",
                     ("conn", _id),
-                    ("id", 4),
-                    ("name", "SyncPlayer"),
+                    ("id", frame[2]),
+                    ("name", name),
                     ("payloadLen", payloadLen),
-                    ("expected", SyncPlayer4.PayloadLength),
+                    ("expected", expectedLen),
                     ("frameLen", frame.Length),
                     ("hex", Codec.Hex(frame.AsSpan(3), frame.Length - 3)),
-                    ("reason", "id:4 的 payload 必须正好 40 字节，禁止发送"));
+                    ("reason", $"id:{frame[2]} 的 payload 必须正好 {expectedLen} 字节，禁止发送"));
 
                 throw new InvalidOperationException(
-                    $"禁止发送 {payloadLen} 字节的 id:4（要求 {SyncPlayer4.PayloadLength}）：客户端收到非 40 字节会死锁");
+                    $"禁止发送 {payloadLen} 字节的 id:{frame[2]}（{name}，要求 {expectedLen} 字节）：客户端收到错误长度会死锁");
             }
         }
 

@@ -100,17 +100,19 @@ public static class Messages
         return Codec.Frame(MessageId.PlayerHealth, payload);
     }
 
+    /// <summary>
+    /// 消息 12（PlayerSpawn）：**payload 固定 9 字节**（整帧 12）。
+    /// 布局（技术主管给出的实测字节 `01 39 08 38 01 00 00 00 00`）：
+    ///   u8 player, i16 spawnX, i16 spawnY, 4 字节 0。
+    /// 之前发的 15 字节（多带 respawn 相关字段）会让客户端读残，本轮按实测收窄。
+    /// </summary>
     public static byte[] PlayerSpawnPacket(byte player, short spawnX, short spawnY)
     {
-        byte[] payload = new byte[15];
+        byte[] payload = new byte[9];
         payload[0] = player;
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(1, 2), spawnX);
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(3, 2), spawnY);
-        BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(5, 4), 0);
-        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(9, 2), 0);
-        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(11, 2), 0);
-        payload[13] = 0;
-        payload[14] = 0;
+        // 5..8 保持 0
         return Codec.Frame(MessageId.PlayerSpawn, payload);
     }
 

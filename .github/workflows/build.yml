@@ -196,6 +196,19 @@ jobs:
             [ "$n" -ge 1 ] || { echo "缺少 id:$m 下发"; exit 1; }
           done
 
+          # R7.1 长度红线：16/42 必须 5 字节、5/12 必须 9 字节、4 必须 40 字节
+          for pair in "4:40" "16:5" "42:5" "5:9" "12:9"; do
+            mid=${pair%%:*}; want=${pair##*:}
+            bad=$(docker logs panel-doc | grep '"ev":"frame.send"' | grep "\"id\":\"$mid\"" | grep -vc "\"payloadLen\":$want" || true)
+            echo "id:$mid 非 $want 字节发送次数 = $bad"
+            [ "$bad" -eq 0 ] || { echo "id:$mid 存在非 $want 字节的发送"; docker logs panel-doc | grep "\"id\":\"$mid\""; exit 1; }
+          done
+
+          # SSC 队列时机：只能出现在 id:6 之后（world.tail 里），不允许在 id:4 之后立刻发
+          if docker logs panel-doc | grep '"ev":"syncplayer.echoed"' | grep -qv '"alsoSent":"none"'; then
+            echo "id:4 回显时还发了别的东西"; docker logs panel-doc | grep syncplayer.echoed; exit 1
+          fi
+
           # 第 8 章验收 (5)：同一条会话里 id:4 只能发一次（收到时立即回显那一次）。
           # 只数 frame.send（frame.recv 也会打印 "name":"SyncPlayer"）。
           sync4=$(docker logs panel-doc | grep -c '"ev":"frame.send".*"name":"SyncPlayer"')

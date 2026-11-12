@@ -5,10 +5,15 @@ namespace BunnyLoader.Server.Player;
 /// <summary>
 /// SSC（服务器端角色）：把 .plr 的权威数据下发到客户端。
 ///
-/// 三个消息（Terraria 1.4.5.x 的消息号与字段）：
-///   id:5  PlayerInventorySlot — byte player, int16 slot, int16 itemId, byte prefix, int16 stack  (=8B)
-///   id:16 PlayerLife           — byte player, int16 life, int16 lifeMax, int16 mana, int16 manaMax (=9B)
-///   id:42 PlayerMana           — byte player, int16 mana, int16 manaMax                            (=5B)
+/// 三个消息（**按技术主管给出的客户端实测字节，不是猜的原版布局**）：
+///   id:16 PlayerLife   — byte player, int16 life, int16 lifeMax                     = 5B
+///                        金标：`01 64 00 64 00`
+///   id:42 PlayerMana   — byte player, int16 mana, int16 manaMax                     = 5B
+///                        金标：`01 14 00 14 00`
+///   id:5  槽位         — byte player, int16 slot, int16 stack, byte prefix,
+///                        int16 itemId, byte tail                                   = 9B
+///                        金标（客户端发来的真实 9 字节）：`01 00 00 01 00 24 b3 0d 00`
+///                        → player=1, slot=0, stack=1, prefix=0x24, itemId=0x0db3(3507), tail=0
 ///
 /// 槽位映射（Player.inventory 索引）：
 ///   0..49  主背包   ← .plr Inventory(50)
@@ -122,27 +127,29 @@ public sealed class PlayerSsc
         }
     }
 
-    /// <summary>id:5 的单槽 payload（8 字节）。</summary>
+    /// <summary>
+    /// id:5 的单槽 payload，**9 字节**，字段顺序严格按客户端实测：
+    ///   [0] player  [1..2] slot  [3..4] stack  [5] prefix  [6..7] itemId  [8] tail(=0)
+    /// </summary>
     public static byte[] InventorySlotPayload(byte player, int slot, PlayerItem item)
-    {
-        byte[] payload = new byte[8];
-        payload[0] = player;
-        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(1, 2), (short)slot);
-        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(3, 2), (short)item.Id);
-        payload[5] = (byte)item.Prefix;
-        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(6, 2), (short)Math.Clamp(item.Count, 0, short.MaxValue));
-        return payload;
-    }
-
-    /// <summary>id:16 的 payload（9 字节）：生命 + 魔力一起。</summary>
-    public static byte[] LifePayload(byte player, int life, int lifeMax, int mana, int manaMax)
     {
         byte[] payload = new byte[9];
         payload[0] = player;
+        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(1, 2), (short)slot);
+        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(3, 2), (short)Math.Clamp(item.Count, 0, short.MaxValue));
+        payload[5] = (byte)item.Prefix;
+        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(6, 2), (short)item.Id);
+        payload[8] = 0;                       // tail，实测恒为 0
+        return payload;
+    }
+
+    /// <summary>id:16 的 payload，**5 字节**：player, life, lifeMax（金标 `01 64 00 64 00`）。</summary>
+    public static byte[] LifePayload(byte player, int life, int lifeMax)
+    {
+        byte[] payload = new byte[5];
+        payload[0] = player;
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(1, 2), (short)Math.Clamp(life, 0, short.MaxValue));
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(3, 2), (short)Math.Clamp(lifeMax, 0, short.MaxValue));
-        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(5, 2), (short)Math.Clamp(mana, 0, short.MaxValue));
-        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(7, 2), (short)Math.Clamp(manaMax, 0, short.MaxValue));
         return payload;
     }
 

@@ -303,54 +303,32 @@ def pcap_flow(sock: socket.socket) -> int:
     check("id:4 除 whoAmI 外一个字节都没被改（诊断轮不得改写坐标/颜色）",
           payload == expected_echo, payload.hex())
 
-    ident, payload = recv_frame(sock)
-    check("收到 id:14 激活", ident == 14 and payload[:2] == b"\x01\x01", f"{ident} {payload.hex()}")
-
-    # R7：服务端若加载了 .plr（SSC 开），会在回显后紧跟 id:16 / id:42 / id:5×槽位。
-    # 这里把这段窗口读干净：只允许这三个号，其它任何消息都算异常。
-    sock.settimeout(0.6)
-    ssc = []
-    unexpected = None
-    while True:
-        try:
+    # R7.1：收到 id:4 时服务端**只**回显 40 字节——不发 id:14，不发任何 SSC 包。
+    # （此时客户端还没发 id:6，早发的包会被丢弃。）
+    sock.settimeout(0.7)
+    early = []
+    try:
+        while True:
             ident, payload = recv_frame(sock)
-        except socket.timeout:
-            break
-        if ident not in (5, 16, 42):
-            unexpected = (ident, payload)
-            break
-        ssc.append((ident, payload))
+            early.append((ident, payload))
+    except socket.timeout:
+        pass
     sock.settimeout(6)
 
-    check("激活之后的窗口里只有 SSC 消息（5/16/42）", unexpected is None,
-          f"{unexpected[0]} {unexpected[1].hex()}" if unexpected else None)
-
-    ssc5 = [p for i, p in ssc if i == 5]
-    ssc16 = [p for i, p in ssc if i == 16]
-    ssc42 = [p for i, p in ssc if i == 42]
-    if ssc:
-        check("SSC id:5 帧长为 8 字节", all(len(p) == 8 for p in ssc5), [len(p) for p in ssc5][:3])
-        check("SSC id:16 帧长为 9 字节", all(len(p) == 9 for p in ssc16), [len(p) for p in ssc16][:3])
-        check("SSC id:42 帧长为 5 字节", all(len(p) == 5 for p in ssc42), [len(p) for p in ssc42][:3])
-        check("SSC 至少下发一条 id:5", len(ssc5) >= 1, len(ssc5))
-        life = ssc16[0] if ssc16 else b""
-        if len(life) == 9:
-            cur = int.from_bytes(life[1:3], "little")
-            mx = int.from_bytes(life[3:5], "little")
-            check("SSC 生命来自存档（1..500）", 1 <= cur <= mx <= 500, f"{cur}/{mx}")
-        print(f"[info] SSC 帧：id:5 × {len(ssc5)}，id:16 × {len(ssc16)}，id:42 × {len(ssc42)}")
-    else:
-        check("SSC 未启用时激活后静默（等 id:6）", True)
+    check("id:4 之后只回显、不跟 14、不跟 SSC（静默）", early == [],
+          [(i, p.hex()[:24]) for i, p in early][:3])
 
     # 请求世界：7 -> 40 块 -> 49 -> 14 -> 12 -> 129（id:4 不重放）
     sock.settimeout(15)
     sock.sendall(frame(6, b""))
 
     ids = []
+    payloads = {}
     sections = 0
-    for _ in range(200):
+    for _ in range(400):
         ident, payload = recv_frame(sock)
         ids.append(ident)
+        payloads.setdefault(ident, []).append(payload)
         if ident == 10:
             sections += 1
         if ident == 129:
@@ -367,6 +345,43 @@ def pcap_flow(sock: socket.socket) -> int:
 
     tail_ids = [i for i in ids if i in (49, 14, 12, 129)]
     check("tail 顺序 = 49 -> 14 -> 12 -> 129", tail_ids == [49, 14, 12, 129], tail_ids)
+
+    # R7.1：SSC 必须且只能在 49 之后、14 之前，顺序 16 -> 42 -> 98×5
+    block = ids[ids.index(49) + 1:ids.index(129)] if 49 in ids and 129 in ids else []
+    if 16 in ids:
+        expected = [16, 42] + [5] * 98 + [14, 12]
+        check("49 之后严格 = 16 -> 42 -> 98×5 -> 14 -> 12", block == expected,
+              f"{block[:6]}…{block[-4:]} (len={len(block)})")
+        l16 = payloads.get(16, [[]])[0]
+        l42 = payloads.get(42, [[]])[0]
+        check("id:16 payload = 5 字节（player+life+lifeMax）", len(l16) == 5, len(l16))
+        check("id:42 payload = 5 字节（player+mana+manaMax）", len(l42) == 5, len(l42))
+        bad5 = [len(p) for p in payloads.get(5, []) if len(p) != 9]
+        check("全部 id:5 payload = 9 字节", bad5 == [], bad5[:5])
+        if len(l16) == 5:
+            cur = int.from_bytes(l16[1:3], "little")
+            mx = int.from_bytes(l16[3:5], "little")
+            check("SSC 生命来自存档（1..500）", 1 <= cur <= mx <= 500, f"{cur}/{mx}")
+        if len(l42) == 5:
+            mcur = int.from_bytes(l42[1:3], "little")
+            mmx = int.from_bytes(l42[3:5], "little")
+            check("SSC 魔力来自存档（0..400）", 0 <= mcur <= mmx <= 400, f"{mcur}/{mmx}")
+        slot0 = payloads.get(5, [b""])[0]
+        if len(slot0) == 9:
+            check("id:5 槽 0 = .plr 的 itemId 3507 / stack 1",
+                  int.from_bytes(slot0[6:8], "little") == 3507
+                  and int.from_bytes(slot0[3:5], "little") == 1,
+                  slot0.hex())
+        print(f"[info] SSC 帧：16×{len(payloads.get(16, []))}，42×{len(payloads.get(42, []))}，5×{len(payloads.get(5, []))}")
+    else:
+        check("未加载 .plr 时 49 之后只有 14 -> 12", block == [14, 12], block)
+
+    # id:12 payload 必须 9 字节：01 39 08 38 01 00 00 00 00
+    spawn = payloads.get(12, [b""])[0]
+    check("id:12 payload = 9 字节", len(spawn) == 9, len(spawn))
+    if len(spawn) == 9:
+        check("id:12 金标 = 01 39 08 38 01 00 00 00 00",
+              spawn == bytearray.fromhex("01390838" + "0100000000"), spawn.hex())
     if 49 in ids and 12 in ids and 129 in ids:
         check("顺序 49 -> ... -> 12 -> 129",
               ids.index(49) < ids.index(12) < ids.index(129), ids[-10:])
@@ -383,14 +398,14 @@ def pcap_flow(sock: socket.socket) -> int:
     sock.sendall(frame(13, bytes(controls)))
     sock.sendall(frame(14, b"\x00\x01"))
 
-    # id:5 必须原样回传
-    equip = b"\x00\x00\x00\x00\x00\x00\x00\x01\x02\x03"
+    # id:5 必须原样回传（R7.1 实测 9 字节：player, slot, stack, prefix, itemId, tail）
+    equip = bytearray.fromhex("010000010024b30d00")
     sock.sendall(frame(5, equip))
     ident, payload = expect_frame(sock, 5)
     check("id:5 原样回传", ident == 5 and payload == equip, f"{ident} {payload.hex()}")
 
     # 血量由客户端决定：只回显，不覆盖
-    hp = b"\x00" + (400).to_bytes(2, "little") + (400).to_bytes(2, "little") + (200).to_bytes(2, "little") + (200).to_bytes(2, "little")
+    hp = b"\x00" + (400).to_bytes(2, "little") + (400).to_bytes(2, "little")
     sock.sendall(frame(16, hp))
     ident, payload = expect_frame(sock, 16)
     check("id:16 被原样回显（不覆盖 400 血）", ident == 16 and payload == hp, f"{ident} {payload.hex()}")
