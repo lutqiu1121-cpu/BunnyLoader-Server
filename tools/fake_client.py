@@ -376,12 +376,15 @@ def pcap_flow(sock: socket.socket) -> int:
     else:
         check("未加载 .plr 时 49 之后只有 14 -> 12", block == [14, 12], block)
 
-    # id:12 payload 必须 9 字节：01 39 08 38 01 00 00 00 00
+    # id:12 payload 必须 9 字节：player, x, y, 0000 0000（坐标随世界而定）
     spawn = payloads.get(12, [b""])[0]
     check("id:12 payload = 9 字节", len(spawn) == 9, len(spawn))
     if len(spawn) == 9:
-        check("id:12 金标 = 01 39 08 38 01 00 00 00 00",
-              spawn == bytearray.fromhex("01390838" + "0100000000"), spawn.hex())
+        sx = int.from_bytes(spawn[1:3], "little", signed=True)
+        sy = int.from_bytes(spawn[3:5], "little", signed=True)
+        check("id:12 尾部 4 字节为 0", spawn[5:9] == b"\x00\x00\x00\x00", spawn.hex())
+        check("id:12 坐标在世界范围内", 0 <= sx <= 8400 and 0 <= sy <= 2400, f"{sx},{sy}")
+        print(f"[info] id:12 = {spawn.hex()}  (x={sx}, y={sy})")
     if 49 in ids and 12 in ids and 129 in ids:
         check("顺序 49 -> ... -> 12 -> 129",
               ids.index(49) < ids.index(12) < ids.index(129), ids[-10:])
