@@ -186,6 +186,18 @@ public sealed class PlayerProfile
         return data;
     }
 
+    /// <summary>补零到 AES 块边界（16 字节）。</summary>
+    private static byte[] PadToBlock(byte[] plain)
+    {
+        int pad = (16 - plain.Length % 16) % 16;
+        if (pad == 0)
+            return plain;
+
+        byte[] padded = new byte[plain.Length + pad];
+        plain.CopyTo(padded, 0);
+        return padded;
+    }
+
     private static byte[] Splice(byte[] source, int offset, int removeLength, byte[] insert)
     {
         byte[] result = new byte[source.Length - removeLength + insert.Length];
@@ -195,14 +207,19 @@ public sealed class PlayerProfile
         return result;
     }
 
-    /// <summary>保存（AES 加密 → 临时文件 → 原子替换）。</summary>
+    /// <summary>
+    /// 保存（AES 加密 → 临时文件 → 回读校验 → 原子替换）。
+    ///
+    /// 注意：改名会让明文长度变化，而 AES-CBC 无填充要求长度是 16 的倍数，
+    /// 所以落盘前补零到 16 字节边界（读取端本来就容忍尾部未建模字节）。
+    /// </summary>
     public void Save()
     {
         string? dir = System.IO.Path.GetDirectoryName(Path);
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
 
-        byte[] cipher = PlayerFileReader.EncryptAesCbc(_plain);
+        byte[] cipher = PlayerFileReader.EncryptAesCbc(PadToBlock(_plain));
         string tmp = Path + ".tmp";
         File.WriteAllBytes(tmp, cipher);
 
