@@ -968,44 +968,53 @@ internal sealed class Session : ISessionTicker
         return frames;
     }
 
+    /// <summary>
+    /// 固定长度消息的硬闸门（R7.1）。**所有出站路径都必须先过这里**：
+    ///   4 → 40，16 → 5，42 → 5，5 → 9，12 → 9
+    /// 长度不符 → frame.send.fatal + 抛异常，禁止发送。
+    /// </summary>
+    private void EnsureFrameLength(byte[] frame)
+    {
+        if (frame.Length < 3)
+            return;
+
+        int expectedLen = frame[2] switch
+        {
+            MessageId.SyncPlayer => SyncPlayer4.PayloadLength,
+            MessageId.PlayerHealth => 5,
+            MessageId.PlayerMana => 5,
+            MessageId.SyncEquipment => 9,
+            MessageId.PlayerSpawn => 9,
+            _ => -1,
+        };
+
+        if (expectedLen < 0)
+            return;
+
+        int payloadLen = frame.Length - 3;
+        if (payloadLen == expectedLen)
+            return;
+
+        string name = Messages.Name(frame[2]);
+
+        _log.Error("frame.send.fatal",
+            ("conn", _id),
+            ("id", frame[2]),
+            ("name", name),
+            ("payloadLen", payloadLen),
+            ("expected", expectedLen),
+            ("frameLen", frame.Length),
+            ("hex", Codec.Hex(frame.AsSpan(3), frame.Length - 3)),
+            ("reason", $"id:{frame[2]} 的 payload 必须正好 {expectedLen} 字节，禁止发送"));
+
+        throw new InvalidOperationException(
+            $"禁止发送 {payloadLen} 字节的 id:{frame[2]}（{name}，要求 {expectedLen} 字节）：客户端收到错误长度会死锁");
+    }
+
     private async Task SendAsync(NetworkStream stream, byte[] frame, CancellationToken cancellationToken)
     {
-        // ===== 硬闸门：固定长度消息一律只允许实测长度 =====
-        // 注意 len 的口径：frame.Length = 2 字节长度前缀 + 1 字节消息号 + payload。
-        // 所以 40 字节 payload 的 id:4 整帧是 43 —— 日志里的 "len":43 是帧长，不是 payload 长。
-        int? wantLen = frame.Length >= 3
-            ? frame[2] switch
-            {
-                MessageId.SyncPlayer => SyncPlayer4.PayloadLength,   // 40
-                MessageId.PlayerHealth => 5,                          // player + life + lifeMax
-                MessageId.PlayerMana => 5,                            // player + mana + manaMax
-                MessageId.SyncEquipment => 9,                         // player + slot + stack + prefix + itemId + tail
-                MessageId.PlayerSpawn => 9,                           // player + x + y + 4B
-                _ => (int?)null,
-            }
-            : null;
-
-        if (frame.Length >= 3 && wantLen is int expectedLen)
-        {
-            int payloadLen = frame.Length - 3;
-            if (payloadLen != expectedLen)
-            {
-                string name = Messages.Name(frame[2]);
-
-                _log.Error("frame.send.fatal",
-                    ("conn", _id),
-                    ("id", frame[2]),
-                    ("name", name),
-                    ("payloadLen", payloadLen),
-                    ("expected", expectedLen),
-                    ("frameLen", frame.Length),
-                    ("hex", Codec.Hex(frame.AsSpan(3), frame.Length - 3)),
-                    ("reason", $"id:{frame[2]} 的 payload 必须正好 {expectedLen} 字节，禁止发送"));
-
-                throw new InvalidOperationException(
-                    $"禁止发送 {payloadLen} 字节的 id:{frame[2]}（{name}，要求 {expectedLen} 字节）：客户端收到错误长度会死锁");
-            }
-        }
+        // 固定长度消息先过硬闸门（4→40, 16→5, 42→5, 5→9, 12→9）
+        EnsureFrameLength(frame);
 
         if (_suppressOutbound)
         {
@@ -1098,6 +1107,7 @@ internal sealed class Session : ISessionTicker
         int offset = 0;
         foreach (byte[] frame in frames)
         {
+            EnsureFrameLength(frame);
             frame.CopyTo(buffer, offset);
             offset += frame.Length;
         }
@@ -1125,13 +1135,17 @@ internal sealed class Session : ISessionTicker
         {
             _framesOut[frame[2]]++;
 
+            int payloadLen = frame.Length - 3;
+
             _log.Info("frame.send",
                 ("conn", _id),
                 ("id", frame[2]),
                 ("name", Messages.Name(frame[2])),
                 ("len", frame.Length),
+                ("payloadLen", payloadLen),
+                ("bundle", true),
                 ("seq", _framesOut[frame[2]]),
-                ("hex", Codec.Hex(frame.AsSpan(3), 24)));
+                ("hex", Codec.Hex(frame.AsSpan(3), payloadLen <= 64 ? payloadLen : 24)));
         }
 
         _log.Info("frame.bundle", ("conn", _id), ("frames", frames.Count), ("bytes", total), ("note", "同一次 write"));
