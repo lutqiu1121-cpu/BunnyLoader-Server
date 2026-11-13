@@ -213,8 +213,9 @@ jobs:
           if docker logs panel-doc | grep '"ev":"conn.error"'; then
             echo "出现 conn.error（连接级异常）"; docker logs panel-doc | grep '"ev":"conn.error"'; exit 1
           fi
-          if docker logs panel-doc | grep -q 'OverflowException'; then
-            echo "出现 OverflowException（Math.Abs 崩溃回归）"; exit 1
+          # 只认异常签名（日志里的说明文字会提到这个词，不能按裸词判）
+          if docker logs panel-doc | grep -q '"type":"OverflowException"'; then
+            echo "出现 OverflowException（Math.Abs 崩溃回归）"; docker logs panel-doc | grep '"type":"OverflowException"'; exit 1
           fi
           docker logs panel-doc | grep -q '"ev":"frame.handle.error"' \
             && { echo "单帧处理异常（应尽量没有）"; docker logs panel-doc | grep frame.handle.error; }

@@ -879,7 +879,7 @@ internal sealed class Session : ISessionTicker
                         ("len", payload.Length),
                         ("hex", Codec.Hex(payload, 32)),
                         ("parsed", false),
-                        ("note", "不解析坐标（0x8000 会让 Math.Abs 抛 OverflowException）"));
+                        ("note", "不解析坐标：0x8000 是 short.MinValue，取绝对值会溢出打死连接"));
                 }
                 break;
             }

@@ -2,161 +2,21 @@
   "total_count": 2,
   "jobs": [
     {
-      "id": 131688918302,
-      "run_id": 43365530663,
+      "id": 131694060438,
+      "run_id": 43367123993,
       "workflow_name": "build",
       "head_branch": "main",
-      "run_url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/actions/runs/43365530663",
+      "run_url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/actions/runs/43367123993",
       "run_attempt": 1,
-      "node_id": "CR_kwDOVmVOdM8AAAAeqUVtHg",
-      "head_sha": "5de4b3f96c6161453a8001f416e62fdeb5eb1234",
-      "url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/actions/jobs/131688918302",
-      "html_url": "https://github.com/lutqiu1121-cpu/BunnyLoader-Server/actions/runs/43365530663/job/131688918302",
-      "status": "completed",
-      "conclusion": "success",
-      "created_at": "2026-11-13T04:26:22Z",
-      "started_at": "2026-11-13T04:26:24Z",
-      "completed_at": "2026-11-13T04:26:59Z",
-      "name": "docker build + selftest",
-      "steps": [
-        {
-          "name": "Set up job",
-          "status": "completed",
-          "conclusion": "success",
-          "number": 1,
-          "started_at": "2026-11-13T04:26:25Z",
-          "completed_at": "2026-11-13T04:26:25Z"
-        },
-        {
-          "name": "Checkout",
-          "status": "completed",
-          "conclusion": "success",
-          "number": 2,
-          "started_at": "2026-11-13T04:26:25Z",
-          "completed_at": "2026-11-13T04:26:27Z"
-        },
-        {
-          "name": "Toolchain",
-          "status": "completed",
-          "conclusion": "success",
-          "number": 3,
-          "started_at": "2026-11-13T04:26:27Z",
-          "completed_at": "2026-11-13T04:26:27Z"
-        },
-        {
-          "name": "启动命令红线自检",
-          "status": "completed",
-          "conclusion": "success",
-          "number": 4,
-          "started_at": "2026-11-13T04:26:27Z",
-          "completed_at": "2026-11-13T04:26:27Z"
-        },
-        {
-          "name": "Docker build",
-          "status": "completed",
-          "conclusion": "success",
-          "number": 5,
-          "started_at": "2026-11-13T04:26:27Z",
-          "completed_at": "2026-11-13T04:26:54Z"
-        },
-        {
-          "name": "C# selftest (golden vectors)",
-          "status": "completed",
-          "conclusion": "success",
-          "number": 6,
-          "started_at": "2026-11-13T04:26:54Z",
-          "completed_at": "2026-11-13T04:26:54Z"
-        },
-        {
-          "name": ".plr parser selftest (synthetic v319)",
-          "status": "completed",
-          "conclusion": "success",
-          "number": 7,
-          "started_at": "2026-11-13T04:26:54Z",
-          "completed_at": "2026-11-13T04:26:54Z"
-        },
-        {
-          "name": "Python reference selftest",
-          "status": "completed",
-          "conclusion": "success",
-          "number": 8,
-          "started_at": "2026-11-13T04:26:54Z",
-          "completed_at": "2026-11-13T04:26:54Z"
-        },
-        {
-          "name": "Start server",
-          "status": "completed",
-          "conclusion": "success",
-          "number": 9,
-          "started_at": "2026-11-13T04:26:54Z",
-          "completed_at": "2026-11-13T04:26:56Z"
-        },
-        {
-          "name": "Handshake end-to-end (fake BL client)",
-          "status": "completed",
-          "conclusion": "success",
-          "number": 10,
-          "started_at": "2026-11-13T04:26:56Z",
-          "completed_at": "2026-11-13T04:26:56Z"
-        },
-        {
-          "name": "Server logs",
-          "status": "completed",
-          "conclusion": "success",
-          "number": 11,
-          "started_at": "2026-11-13T04:26:56Z",
-          "completed_at": "2026-11-13T04:26:56Z"
-        },
-        {
-          "name": "Stop server",
-          "status": "completed",
-          "conclusion": "success",
-          "number": 12,
-          "started_at": "2026-11-13T04:26:56Z",
-          "completed_at": "2026-11-13T04:26:56Z"
-        },
-        {
-          "name": "Post Checkout",
-          "status": "completed",
-          "conclusion": "success",
-          "number": 24,
-          "started_at": "2026-11-13T04:26:56Z",
-          "completed_at": "2026-11-13T04:26:57Z"
-        },
-        {
-          "name": "Complete job",
-          "status": "completed",
-          "conclusion": "success",
-          "number": 25,
-          "started_at": "2026-11-13T04:26:57Z",
-          "completed_at": "2026-11-13T04:26:57Z"
-        }
-      ],
-      "check_run_url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/check-runs/131688918302",
-      "labels": [
-        "ubuntu-latest"
-      ],
-      "runner_id": 1000000344,
-      "runner_name": "GitHub Actions 1000000344",
-      "runner_group_id": 0,
-      "runner_group_name": "GitHub Actions"
-    },
-    {
-      "id": 131688918409,
-      "run_id": 43365530663,
-      "workflow_name": "build",
-      "head_branch": "main",
-      "run_url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/actions/runs/43365530663",
-      "run_attempt": 1,
-      "node_id": "CR_kwDOVmVOdM8AAAAeqUVtiQ",
-      "head_sha": "5de4b3f96c6161453a8001f416e62fdeb5eb1234",
-      "url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/actions/jobs/131688918409",
-      "html_url": "https://github.com/lutqiu1121-cpu/BunnyLoader-Server/actions/runs/43365530663/job/131688918409",
+      "node_id": "CR_kwDOVmVOdM8AAAAeqZPjlg",
+      "head_sha": "01ba7b884f7304c1acbbf0b94c581273b58e3cdb",
+      "url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/actions/jobs/131694060438",
+      "html_url": "https://github.com/lutqiu1121-cpu/BunnyLoader-Server/actions/runs/43367123993/job/131694060438",
       "status": "completed",
       "conclusion": "failure",
-      "created_at": "2026-11-13T04:26:22Z",
-      "started_at": "2026-11-13T04:26:25Z",
-      "completed_at": "2026-11-13T04:27:03Z",
+      "created_at": "2026-11-13T04:41:17Z",
+      "started_at": "2026-11-13T04:41:19Z",
+      "completed_at": "2026-11-13T04:41:56Z",
       "name": "panel package (framework-dependent)",
       "steps": [
         {
@@ -164,216 +24,356 @@
           "status": "completed",
           "conclusion": "success",
           "number": 1,
-          "started_at": "2026-11-13T04:26:26Z",
-          "completed_at": "2026-11-13T04:26:28Z"
+          "started_at": "2026-11-13T04:41:20Z",
+          "completed_at": "2026-11-13T04:41:21Z"
         },
         {
           "name": "Checkout",
           "status": "completed",
           "conclusion": "success",
           "number": 2,
-          "started_at": "2026-11-13T04:26:28Z",
-          "completed_at": "2026-11-13T04:26:32Z"
+          "started_at": "2026-11-13T04:41:21Z",
+          "completed_at": "2026-11-13T04:41:22Z"
         },
         {
           "name": "Publish (framework-dependent)",
           "status": "completed",
           "conclusion": "success",
           "number": 3,
-          "started_at": "2026-11-13T04:26:32Z",
-          "completed_at": "2026-11-13T04:26:50Z"
+          "started_at": "2026-11-13T04:41:22Z",
+          "completed_at": "2026-11-13T04:41:44Z"
         },
         {
           "name": "Print effective config (--port wins over everything)",
           "status": "completed",
           "conclusion": "success",
           "number": 4,
-          "started_at": "2026-11-13T04:26:50Z",
-          "completed_at": "2026-11-13T04:26:51Z"
+          "started_at": "2026-11-13T04:41:44Z",
+          "completed_at": "2026-11-13T04:41:44Z"
         },
         {
           "name": "Variant flags+bool1",
           "status": "completed",
           "conclusion": "success",
           "number": 5,
-          "started_at": "2026-11-13T04:26:51Z",
-          "completed_at": "2026-11-13T04:26:53Z"
+          "started_at": "2026-11-13T04:41:44Z",
+          "completed_at": "2026-11-13T04:41:46Z"
         },
         {
           "name": "Variant slot (1 byte)",
           "status": "completed",
           "conclusion": "success",
           "number": 6,
-          "started_at": "2026-11-13T04:26:53Z",
-          "completed_at": "2026-11-13T04:26:55Z"
+          "started_at": "2026-11-13T04:41:46Z",
+          "completed_at": "2026-11-13T04:41:48Z"
         },
         {
           "name": "Variant flags+bool0",
           "status": "completed",
           "conclusion": "success",
           "number": 7,
-          "started_at": "2026-11-13T04:26:55Z",
-          "completed_at": "2026-11-13T04:26:57Z"
+          "started_at": "2026-11-13T04:41:48Z",
+          "completed_at": "2026-11-13T04:41:50Z"
         },
         {
           "name": ".plr parser selftest (published dll)",
           "status": "completed",
           "conclusion": "success",
           "number": 8,
-          "started_at": "2026-11-13T04:26:57Z",
-          "completed_at": "2026-11-13T04:26:57Z"
+          "started_at": "2026-11-13T04:41:50Z",
+          "completed_at": "2026-11-13T04:41:51Z"
         },
         {
           "name": "严格状态机 — 26 字节证明 + 回执 + 163 + 进世界",
           "status": "completed",
           "conclusion": "failure",
           "number": 9,
-          "started_at": "2026-11-13T04:26:57Z",
-          "completed_at": "2026-11-13T04:27:00Z"
+          "started_at": "2026-11-13T04:41:51Z",
+          "completed_at": "2026-11-13T04:41:54Z"
         },
         {
           "name": "严格状态机 — DISABLE_163 对照组",
           "status": "completed",
           "conclusion": "skipped",
           "number": 10,
-          "started_at": "2026-11-13T04:27:00Z",
-          "completed_at": "2026-11-13T04:27:00Z"
+          "started_at": "2026-11-13T04:41:54Z",
+          "completed_at": "2026-11-13T04:41:54Z"
         },
         {
           "name": "严格状态机 — 验证前发 Hello 必须断开",
           "status": "completed",
           "conclusion": "skipped",
           "number": 11,
-          "started_at": "2026-11-13T04:27:00Z",
-          "completed_at": "2026-11-13T04:27:00Z"
+          "started_at": "2026-11-13T04:41:54Z",
+          "completed_at": "2026-11-13T04:41:54Z"
         },
         {
           "name": "Proof off — 老客户端直接发帧（legacy 兼容）",
           "status": "completed",
           "conclusion": "skipped",
           "number": 12,
-          "started_at": "2026-11-13T04:27:00Z",
-          "completed_at": "2026-11-13T04:27:00Z"
+          "started_at": "2026-11-13T04:41:54Z",
+          "completed_at": "2026-11-13T04:41:54Z"
         },
         {
           "name": "Real world — 解析真实 1.4.5.8 存档",
           "status": "completed",
           "conclusion": "skipped",
           "number": 13,
-          "started_at": "2026-11-13T04:27:00Z",
-          "completed_at": "2026-11-13T04:27:00Z"
+          "started_at": "2026-11-13T04:41:54Z",
+          "completed_at": "2026-11-13T04:41:54Z"
         },
         {
           "name": "World file — 解析 .wld 并打印摘要",
           "status": "completed",
           "conclusion": "skipped",
           "number": 14,
-          "started_at": "2026-11-13T04:27:00Z",
-          "completed_at": "2026-11-13T04:27:00Z"
+          "started_at": "2026-11-13T04:41:54Z",
+          "completed_at": "2026-11-13T04:41:54Z"
         },
         {
           "name": "World file — 用 .wld 起服务并进世界",
           "status": "completed",
           "conclusion": "skipped",
           "number": 15,
-          "started_at": "2026-11-13T04:27:00Z",
-          "completed_at": "2026-11-13T04:27:00Z"
+          "started_at": "2026-11-13T04:41:54Z",
+          "completed_at": "2026-11-13T04:41:54Z"
         },
         {
           "name": "World — 平坦世界分块（8 -> 7/9/10×N/49）",
           "status": "completed",
           "conclusion": "skipped",
           "number": 16,
-          "started_at": "2026-11-13T04:27:00Z",
-          "completed_at": "2026-11-13T04:27:00Z"
+          "started_at": "2026-11-13T04:41:54Z",
+          "completed_at": "2026-11-13T04:41:54Z"
         },
         {
           "name": "World fallback — 客户端发 (-1,-1) 时应回退到出生点",
           "status": "completed",
           "conclusion": "skipped",
           "number": 17,
-          "started_at": "2026-11-13T04:27:00Z",
-          "completed_at": "2026-11-13T04:27:00Z"
+          "started_at": "2026-11-13T04:41:54Z",
+          "completed_at": "2026-11-13T04:41:54Z"
         },
         {
           "name": "Bundle — 消息3 + 欢迎 + 7（同一次 write）",
           "status": "completed",
           "conclusion": "skipped",
           "number": 18,
-          "started_at": "2026-11-13T04:27:00Z",
-          "completed_at": "2026-11-13T04:27:00Z"
+          "started_at": "2026-11-13T04:41:54Z",
+          "completed_at": "2026-11-13T04:41:54Z"
         },
         {
           "name": "Bundle — 消息3 + 7（无欢迎，用于对照）",
           "status": "completed",
           "conclusion": "skipped",
           "number": 19,
-          "started_at": "2026-11-13T04:27:00Z",
-          "completed_at": "2026-11-13T04:27:00Z"
+          "started_at": "2026-11-13T04:41:54Z",
+          "completed_at": "2026-11-13T04:41:54Z"
         },
         {
           "name": "Candidates rotation — MSG3_CANDIDATES=auto（第1次应为 16 字节补零）",
           "status": "completed",
           "conclusion": "skipped",
           "number": 20,
-          "started_at": "2026-11-13T04:27:00Z",
-          "completed_at": "2026-11-13T04:27:00Z"
+          "started_at": "2026-11-13T04:41:54Z",
+          "completed_at": "2026-11-13T04:41:54Z"
         },
         {
           "name": "Isolation — SKIP_WELCOME_PACK=true（消息3后必须零字节）",
           "status": "completed",
           "conclusion": "skipped",
           "number": 21,
-          "started_at": "2026-11-13T04:27:00Z",
-          "completed_at": "2026-11-13T04:27:00Z"
+          "started_at": "2026-11-13T04:41:54Z",
+          "completed_at": "2026-11-13T04:41:54Z"
         },
         {
           "name": "Package",
           "status": "completed",
           "conclusion": "skipped",
           "number": 22,
-          "started_at": "2026-11-13T04:27:00Z",
-          "completed_at": "2026-11-13T04:27:00Z"
+          "started_at": "2026-11-13T04:41:54Z",
+          "completed_at": "2026-11-13T04:41:54Z"
         },
         {
           "name": "Upload artifact",
           "status": "completed",
           "conclusion": "skipped",
           "number": 23,
-          "started_at": "2026-11-13T04:27:00Z",
-          "completed_at": "2026-11-13T04:27:00Z"
+          "started_at": "2026-11-13T04:41:54Z",
+          "completed_at": "2026-11-13T04:41:54Z"
         },
         {
           "name": "Publish release asset",
           "status": "completed",
           "conclusion": "skipped",
           "number": 24,
-          "started_at": "2026-11-13T04:27:00Z",
-          "completed_at": "2026-11-13T04:27:00Z"
+          "started_at": "2026-11-13T04:41:54Z",
+          "completed_at": "2026-11-13T04:41:54Z"
         },
         {
           "name": "Post Checkout",
           "status": "completed",
           "conclusion": "success",
           "number": 48,
-          "started_at": "2026-11-13T04:27:00Z",
-          "completed_at": "2026-11-13T04:27:00Z"
+          "started_at": "2026-11-13T04:41:54Z",
+          "completed_at": "2026-11-13T04:41:54Z"
         },
         {
           "name": "Complete job",
           "status": "completed",
           "conclusion": "success",
           "number": 49,
-          "started_at": "2026-11-13T04:27:00Z",
-          "completed_at": "2026-11-13T04:27:00Z"
+          "started_at": "2026-11-13T04:41:54Z",
+          "completed_at": "2026-11-13T04:41:54Z"
         }
       ],
-      "check_run_url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/check-runs/131688918409",
+      "check_run_url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/check-runs/131694060438",
       "labels": [
         "ubuntu-latest"
       ],
-      "runner_id": 1000000345,
-      "runner_name": "GitHub Actions 1000000345",
+      "runner_id": 1000000347,
+      "runner_name": "GitHub Actions 1000000347",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 131694060542,
+      "run_id": 43367123993,
+      "workflow_name": "build",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/actions/runs/43367123993",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOVmVOdM8AAAAeqZPj_g",
+      "head_sha": "01ba7b884f7304c1acbbf0b94c581273b58e3cdb",
+      "url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/actions/jobs/131694060542",
+      "html_url": "https://github.com/lutqiu1121-cpu/BunnyLoader-Server/actions/runs/43367123993/job/131694060542",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-11-13T04:41:17Z",
+      "started_at": "2026-11-13T04:41:20Z",
+      "completed_at": "2026-11-13T04:42:00Z",
+      "name": "docker build + selftest",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-11-13T04:41:21Z",
+          "completed_at": "2026-11-13T04:41:21Z"
+        },
+        {
+          "name": "Checkout",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-11-13T04:41:21Z",
+          "completed_at": "2026-11-13T04:41:22Z"
+        },
+        {
+          "name": "Toolchain",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-11-13T04:41:22Z",
+          "completed_at": "2026-11-13T04:41:22Z"
+        },
+        {
+          "name": "启动命令红线自检",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-11-13T04:41:22Z",
+          "completed_at": "2026-11-13T04:41:22Z"
+        },
+        {
+          "name": "Docker build",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-11-13T04:41:22Z",
+          "completed_at": "2026-11-13T04:41:53Z"
+        },
+        {
+          "name": "C# selftest (golden vectors)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-11-13T04:41:53Z",
+          "completed_at": "2026-11-13T04:41:53Z"
+        },
+        {
+          "name": ".plr parser selftest (synthetic v319)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-11-13T04:41:53Z",
+          "completed_at": "2026-11-13T04:41:54Z"
+        },
+        {
+          "name": "Python reference selftest",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-11-13T04:41:54Z",
+          "completed_at": "2026-11-13T04:41:54Z"
+        },
+        {
+          "name": "Start server",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-11-13T04:41:54Z",
+          "completed_at": "2026-11-13T04:41:55Z"
+        },
+        {
+          "name": "Handshake end-to-end (fake BL client)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-11-13T04:41:55Z",
+          "completed_at": "2026-11-13T04:41:56Z"
+        },
+        {
+          "name": "Server logs",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-11-13T04:41:56Z",
+          "completed_at": "2026-11-13T04:41:56Z"
+        },
+        {
+          "name": "Stop server",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-11-13T04:41:56Z",
+          "completed_at": "2026-11-13T04:41:56Z"
+        },
+        {
+          "name": "Post Checkout",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 24,
+          "started_at": "2026-11-13T04:41:56Z",
+          "completed_at": "2026-11-13T04:41:56Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 25,
+          "started_at": "2026-11-13T04:41:56Z",
+          "completed_at": "2026-11-13T04:41:56Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/lutqiu1121-cpu/BunnyLoader-Server/check-runs/131694060542",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000000346,
+      "runner_name": "GitHub Actions 1000000346",
       "runner_group_id": 0,
       "runner_group_name": "GitHub Actions"
     }
