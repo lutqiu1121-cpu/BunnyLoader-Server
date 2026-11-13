@@ -26,3 +26,20 @@ server/*.zip
 
 # 临时直链/日志
 .signed
+r.json
+runs.json
+j.json
+rel.json
+plr-check.txt
+e*.txt
+p8.txt
+d8.txt
+d.txt
+g.txt
+ok.txt
+r8*.log
+r71*.txt
+r712.txt
+poll_ci.sh
+signed.hdr
+signed_url.txt
