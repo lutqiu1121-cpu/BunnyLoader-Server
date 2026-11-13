@@ -437,13 +437,15 @@ jobs:
           # 否则文档里列出的 config/ 与 testdata/ 解压后不存在。
           cp ../start.sh start.sh
           chmod +x start.sh
+          # 容器内以 root 跑过 selftest/e2e，dist 里的 Players/ 可能是 root 拥有的，先清掉
+          sudo rm -rf Players debug debug2 || true
           mkdir -p config testdata Players
           cp ../config/server.json config/
           cp ../testdata/handshake-vectors.json testdata/
           # 动态档案的**模板**：新玩家用它生成开荒档（玩家自己的档在 Players/<名字>.plr）
           cp ../../debug/Cup.plr Players/.template.plr
           rm -f player.plr
-          # 容器内以 root 跑过一次 selftest 会在 dist 留下 root 拥有的空 debug/，清掉再打包
+          # root 留下的 debug/ 已在上面清过；这里再兜一次
           sudo rm -rf debug debug2 || true
           rm -f *.pdb
           zip -r ../bunny-loader-server-panel.zip .
