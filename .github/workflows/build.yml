@@ -181,9 +181,9 @@ jobs:
           [ "$bad4" -eq 0 ] || { echo "存在非 40 字节的 id:4"; docker logs panel-doc | grep '"name":"SyncPlayer"'; exit 1; }
 
           # SSC：.plr 必须被加载，生命/魔力/背包必须真的下发
-          docker logs panel-doc | grep -q '"ev":"ssc.loaded"' \
-            || { echo "缺少 ssc.loaded（.plr 没被加载）"; exit 1; }
-          docker logs panel-doc | grep '"ev":"ssc.loaded"' | head -1
+          docker logs panel-doc | grep -q '"ev":"ssc.store.ready"' \
+            || { echo "缺少 ssc.store.ready（档案仓库没起来）"; exit 1; }
+          docker logs panel-doc | grep '"ev":"ssc.store.ready"' | head -1
           docker logs panel-doc | grep '"ev":"ssc.sent"' | head -1
 
           ssc5=$(docker logs panel-doc | grep '"ev":"frame.send"' | grep -c '"id":"5"' || true)
