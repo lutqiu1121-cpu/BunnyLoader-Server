@@ -224,19 +224,19 @@ jobs:
           docker logs panel-doc | grep -q '"ev":"ssc.profile.created"' \
             || { echo "缺少 ssc.profile.created（新玩家没有建档）"; docker logs panel-doc | grep ssc.; exit 1; }
           docker logs panel-doc | grep '"ev":"ssc.profile.created"' | head -1
+          docker logs panel-doc | grep '"ev":"ssc.profile.ready"' | head -1
           docker logs panel-doc | grep '"ev":"ssc.profile.saved"' | head -1
-          [ -f "server/dist/Players/Tester.plr" ] \
-            || { echo "Players/Tester.plr 没有落盘"; ls -l server/dist/Players 2>&1; exit 1; }
-          echo "档案文件：" $(ls -l server/dist/Players/Tester.plr)
+          [ -f "server/dist/Players/Tst.plr" ] \
+            || { echo "Players/Tst.plr 没有落盘"; ls -l server/dist/Players 2>&1; exit 1; }
+          echo "档案文件：" $(ls -l server/dist/Players/Tst.plr)
 
-          # 建档内容：能被 --parse-plr 重新读出、名字是 Tester
+          # 建档内容：能被 --parse-plr 重新读出、名字是 Tst
           docker run --rm -v "$PWD/server/dist:/app" -w /app \
             mcr.microsoft.com/dotnet/runtime:8.0 \
-            dotnet BunnyLoader.Server.dll --parse-plr Players/Tester.plr > plr-check.txt 2>&1 || true
+            dotnet BunnyLoader.Server.dll --parse-plr Players/Tst.plr > plr-check.txt 2>&1 || true
           grep -o '"ev":"plr.field","name":"name","offset":[0-9]*,"len":[0-9]*,"value":"[^"]*"' plr-check.txt | head -1
-          grep -q '"value":"\\"Tester\\""' plr-check.txt \
-            || grep -q 'Tester' plr-check.txt \
-            || { echo "Players/Tester.plr 解析不出名字 Tester"; tail -20 plr-check.txt; exit 1; }
+          grep -q 'Tst' plr-check.txt \
+            || { echo "Players/Tst.plr 解析不出名字 Tst"; tail -20 plr-check.txt; exit 1; }
 
           # 第 8 章验收 (5)：同一条会话里 id:4 只能发一次（收到时立即回显那一次）。
           # 只数 frame.send（frame.recv 也会打印 "name":"SyncPlayer"）。

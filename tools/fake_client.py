@@ -287,11 +287,18 @@ def pcap_flow(sock: socket.socket) -> int:
     ident, payload = recv_frame(sock)
     check_welcome(ident, payload, "68 之后的欢迎包")
 
-    # 上报角色：40 字节。本轮（R5 第三轮，技术主管批注）只做诊断打印，
-    # 服务端不得改写 id:4 的任何字节（whoAmI 除外），所以这里逐字节核对回显内容。
-    name = string("Tester")
-    filler = b"\x00" * (40 - 1 - len(name) - 8)
-    sync_payload = b"\xff" + name + filler + b"\xff" * 8
+    # 上报角色：40 字节，**按实测魔改布局**（名字在偏移 8，1 字节长度前缀）。
+    # [0]playerId [1]skinVariant [2]? [3..6]f32 0.2 [7]hair [8..11]=0x03+名字
+    # [12]hairDye [13..14]hideVisuals [15]hideMisc [16..36]7色 [37]difficulty [38..39]tail
+    # 名字固定 3 字节（"Tst"），这样整包正好 40 字节 —— 服务端只允许 40。
+    player_name = "Tst"
+    sync_payload = (
+        bytes([0x01, 0x07, 0x02]) + bytes.fromhex("d0cc4c3e") + bytes([0xc4])
+        + bytes([len(player_name)]) + player_name.encode()
+        + bytes([0x00, 0x00, 0x00, 0x00])
+        + bytes.fromhex("ffffff" "ffbba9" "695a4b" "ffffff" "ffffff" "abc0ab" "ffffff")
+        + bytes([0x00]) + bytes.fromhex("1000")
+    )
     assert len(sync_payload) == 40, len(sync_payload)
     sock.sendall(frame(4, sync_payload))
 
