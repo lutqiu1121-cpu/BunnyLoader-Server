@@ -18,6 +18,13 @@ public static class MessageId
     public const byte TileSection = 10;
     public const byte TileChange = 17;
     public const byte ItemDrop = 21;
+    public const byte NpcUpdate = 23;
+    public const byte HitNpc = 24;
+    public const byte Projectile = 27;
+    public const byte OpenChest = 31;
+    public const byte ChestItem = 32;
+    public const byte HitNpcAlt = 44;
+    public const byte Buff = 50;
     public const byte PlayerControls = 13;
     public const byte PlayerActive = 14;
     /// <summary>16 号：生命+魔力（player, life, lifeMax, mana, manaMax）。</summary>
@@ -139,6 +146,13 @@ public static class Messages
         MessageId.StatusTextSize => "StatusTextSize",
         MessageId.TileChange => "TileChange",
         MessageId.ItemDrop => "ItemDrop",
+        MessageId.NpcUpdate => "NpcUpdate",
+        MessageId.HitNpc => "HitNpc",
+        MessageId.Projectile => "Projectile",
+        MessageId.OpenChest => "OpenChest",
+        MessageId.ChestItem => "ChestItem",
+        MessageId.HitNpcAlt => "HitNpcAlt",
+        MessageId.Buff => "Buff",
         MessageId.PlayerControls => "PlayerControls",
         MessageId.PlayerActive => "PlayerActive",
         MessageId.PlayerHealth => "PlayerHealth",

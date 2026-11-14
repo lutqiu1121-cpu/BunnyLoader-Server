@@ -87,6 +87,10 @@ internal sealed class Session : ISessionTicker
     private List<byte[]> _sscQueue = new();
     private bool _sscBuilt;
     private bool _tailSent;
+    private bool _spawnTileSeen;
+    private byte[]? _lastSyncEcho;
+    private CancellationTokenSource? _sscCoverageCts;
+    private Task? _sscCoverageTask;
 
     public Session(TcpClient client, string id, int sequence, ServerConfig config, JsonLogger log,
                    CaptureWriter? capture, WldWorld? worldFile, PlayerProfileStore? store = null)
@@ -172,6 +176,13 @@ internal sealed class Session : ISessionTicker
         {
             if (_tick is not null)
                 await _tick.StopAsync();
+
+            _sscCoverageCts?.Cancel();
+            if (_sscCoverageTask is not null)
+            {
+                try { await _sscCoverageTask; }
+                catch (OperationCanceledException) { }
+            }
 
             // 玩家退出：把内存里的档案写回 Players/<名字>.plr（改动只在这里落盘）
             if (_profile is not null && _store is not null)
@@ -589,8 +600,7 @@ internal sealed class Session : ISessionTicker
                     tail.Add(Messages.StartPlayingPacket());
                 }
 
-                tail.AddRange(TakeSscFrames());
-
+                // R6：SSC 不再塞进 id:6 tail；必须等客户端收到 id:8 后慢速覆盖。
                 tail.Add(Codec.Frame(MessageId.PlayerActive, new[] { PlayerSlot, (byte)1 }));
 
                 if (!_spawnSent)
@@ -623,6 +633,9 @@ internal sealed class Session : ISessionTicker
 
             case MessageId.SpawnTileData:
             {
+                _spawnTileSeen = true;
+                StartSscCoverage(stream, cancellationToken);
+
                 int reqX = 0, reqY = 0;
                 if (payload.Length >= 8)
                 {
@@ -816,6 +829,7 @@ internal sealed class Session : ISessionTicker
                 // ===== 发送语义（技术主管 R7.1 批注，优先级最高）=====
                 // 收到 id:4 时**只**原样回显 40 字节：不发 id:14，不发任何 SSC 包。
                 // 此时客户端还没请求世界（id:6），早发的包会被丢弃；SSC 全部改到 id:6 的 49 之后。
+                _lastSyncEcho = echo;
                 await SendAsync(stream, Codec.Frame(MessageId.SyncPlayer, echo), cancellationToken);
 
                 _log.Info("syncplayer.echoed",
@@ -876,20 +890,12 @@ internal sealed class Session : ISessionTicker
                     if (!_worldState.TrySet(tileX, tileY, next, out Tile previous))
                         throw new InvalidDataException($"id:17 坐标越界：{tileX},{tileY}");
 
-                    int sx = tileX / ChunkManager.SectionWidth;
-                    int sy = tileY / ChunkManager.SectionHeight;
-                    _chunks.Invalidate(sx, sy);
-
-                    // 原样确认给发送者；随后重发受影响分块，让客户端看到权威状态。
+                    // 只回显原始 id:17；不重发 id:10，避免客户端重绘闪烁/方块复活。
                     await SendAsync(stream, Codec.Frame(MessageId.TileChange, payload), cancellationToken);
-                    await SendAsync(stream,
-                        Messages.TileSectionPacket(TileSection.Encode(sx, sy, GetTile, IsFrameImportant)),
-                        cancellationToken);
 
                     _log.Info("tile.changed",
                         ("conn", _id), ("action", action), ("x", tileX), ("y", tileY),
-                        ("type", type), ("previousActive", previous.Active), ("previousType", previous.Type),
-                        ("section", $"{sx},{sy}"));
+                        ("type", type), ("previousActive", previous.Active), ("previousType", previous.Type));
                 }
                 catch (Exception e)
                 {
@@ -903,9 +909,19 @@ internal sealed class Session : ISessionTicker
             }
 
             case MessageId.ItemDrop:
+            case MessageId.Projectile:
+            case MessageId.HitNpc:
+            case MessageId.HitNpcAlt:
+            case MessageId.NpcUpdate:
+            case MessageId.Buff:
+            case MessageId.OpenChest:
+            case MessageId.ChestItem:
             {
-                // R6 先不改变掉落物状态；未知/畸形 id:21 只记录并丢弃。
-                _log.Debug("itemdrop.ignored", ("conn", _id), ("payloadLen", payload.Length));
+                // 协议字段尚未由抓包/权威文档确认：绝不猜长度或坐标。
+                // 保持单帧容错，避免 R6 新消息打断进图连接。
+                _log.Debug("r6.packet.ignored", ("conn", _id), ("id", id),
+                    ("name", Messages.Name(id)), ("payloadLen", payload.Length),
+                    ("note", "字段布局未确认，安全忽略"));
                 break;
             }
 
@@ -1006,47 +1022,45 @@ internal sealed class Session : ISessionTicker
 
         _sscBuilt = true;
         _sscQueue = BuildSscFrames(_profile);
-
-        if (_tailSent && _sscQueue.Count > 0)
-        {
-            // 客户端先请求了世界（49 已发）：现在补发，顺序仍是 49 之后
-            _log.Info("ssc.flush",
-                ("conn", _id),
-                ("player", _profile.Name),
-                ("frames", _sscQueue.Count),
-                ("reason", "id:6 早于 id:4，档案就绪后立即补发"));
-
-            await SendBundleAsync(stream, _sscQueue, cancellationToken);
-            _sscQueue.Clear();
-        }
+        StartSscCoverage(stream, cancellationToken);
     }
 
-    /// <summary>取走 SSC 队列（tail 用，只取一次）。</summary>
-    private List<byte[]> TakeSscFrames()
+    private void StartSscCoverage(NetworkStream stream, CancellationToken cancellationToken)
     {
-        if (_sscQueue.Count == 0)
-            return new List<byte[]>();
-
-        List<byte[]> frames = _sscQueue;
-        _sscQueue = new List<byte[]>();
-
-        if (_profile is not null)
-        {
-            _log.Info("ssc.sent",
-                ("conn", _id),
-                ("file", _profile.Path),
-                ("player", _profile.Name),
-                ("new", _profile.IsNew),
-                ("life", $"{_profile.Health}/{_profile.HealthMax}"),
-                ("mana", $"{_profile.Mana}/{_profile.ManaMax}"),
-                ("slots", frames.Count - 2),
-                ("nonEmpty", _profile.Data.Inventory.Count(i => !i.IsEmpty)),
-                ("order", "49 -> 16(5B) -> 42(5B) -> 98x5(9B) -> 14 -> 12(9B) -> 129"),
-                ("queueAt", "id:4 之后入队，id:6 tail 里 49 之后发送"));
-        }
-
-        return frames;
+        if (_sscCoverageTask is not null)
+            return;
+        _sscCoverageCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _sscCoverageTask = SscCoverageLoopAsync(stream, _sscCoverageCts.Token);
+        _log.Info("ssc.coverage.started", ("conn", _id), ("intervalMs", 50), ("trigger", "id:8"));
     }
+
+    private async Task SscCoverageLoopAsync(NetworkStream stream, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                if (_sscBuilt && _profile is not null && _lastSyncEcho is not null)
+                {
+                    var frames = new List<byte[]>(100) { Codec.Frame(MessageId.SyncPlayer, _lastSyncEcho) };
+                    frames.AddRange(BuildSscFrames(_profile));
+                    await SendBundleAsync(stream, frames, cancellationToken);
+                    _log.Debug("ssc.coverage.sent", ("conn", _id), ("frames", frames.Count));
+                }
+                await Task.Delay(50, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception e)
+        {
+            _log.Error("frame.handle.error", ("conn", _id), ("id", 8),
+                ("type", e.GetType().Name), ("message", e.Message),
+                ("action", "SSC 覆盖队列停止，连接继续"));
+        }
+    }
+
+    /// <summary>R6：id:6 tail 不再取 SSC；SSC 只由 id:8 后覆盖队列发送。</summary>
+    private List<byte[]> TakeSscFrames() => new();
 
     /// <summary>
     /// 把档案转成 SSC 帧：id:16(5B) → id:42(5B) → 每个槽位一条 id:5(9B)。

@@ -62,6 +62,9 @@ public static class PlayerSsc
     public static byte[] InventorySlotPayload(byte player, int slot, PlayerItem item)
     {
         byte[] payload = new byte[9];
+        if (item.IsEmpty)
+            return payload;
+
         payload[0] = player;
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(1, 2), (short)slot);
         BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(3, 2), (short)Math.Clamp(item.Count, 0, short.MaxValue));
