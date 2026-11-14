@@ -795,7 +795,10 @@ public static class PlrCommand
         return path;
     }
 
-    /// <summary>按 v319 顺序造一份最小但完整的明文存档（自检专用）。</summary>
+    /// <summary>代码内置的合法 v319 玩家明文模板；外部 .plr 不存在时作为 SSC 兜底。</summary>
+    public static byte[] CreateBuiltInDefaultPlaintext() => BuildSyntheticV319();
+
+    /// <summary>按 v319 顺序造一份最小但完整的明文存档。</summary>
     private static byte[] BuildSyntheticV319()
     {
         using var ms = new MemoryStream();

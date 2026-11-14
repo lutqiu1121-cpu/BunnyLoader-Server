@@ -413,14 +413,11 @@ def pcap_flow(sock: socket.socket) -> int:
     sock.sendall(frame(13, bytes(normal)))
     sock.sendall(frame(14, b"\x00\x01"))
 
-    # id:5 必须原样回传（R7.1 实测 9 字节：player, slot, stack, prefix, itemId, tail）
+    # id:5：SSC 权威模式下客户端上行槽位被服务端拦截，不再原样回显。
     equip = bytearray.fromhex("010000010024b30d00")
     sock.sendall(frame(5, equip))
-    ident, payload = expect_frame(sock, 5)
-    check("id:5 原样回传", ident == 5 and payload == equip, f"{ident} {payload.hex()}")
-    check("发过含 0x8000 的 id:13 之后连接仍存活（没被 OverflowException 打死）", ident == 5, ident)
 
-    # 血量由客户端决定：只回显，不覆盖
+    # 血量仍按 R5/R7.1 规则回显，用它证明 id:5 被丢弃后连接仍然活着。
     hp = b"\x00" + (400).to_bytes(2, "little") + (400).to_bytes(2, "little")
     sock.sendall(frame(16, hp))
     ident, payload = expect_frame(sock, 16)

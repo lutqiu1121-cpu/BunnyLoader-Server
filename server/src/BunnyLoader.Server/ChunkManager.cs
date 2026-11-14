@@ -81,6 +81,9 @@ public sealed class ChunkManager
     /// <summary>标记为已发送；返回 false 表示之前已经发过。</summary>
     public bool MarkSent(int sx, int sy) => _sent.Add((sx, sy));
 
+    /// <summary>使一个分块失效，使其下次窗口刷新时重新编码发送。</summary>
+    public void Invalidate(int sx, int sy) => _sent.Remove((sx, sy));
+
     /// <summary>世界尺寸变了（换图）时清空。</summary>
     public void Reset() => _sent.Clear();
 }

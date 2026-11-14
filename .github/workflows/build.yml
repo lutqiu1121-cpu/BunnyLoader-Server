@@ -189,6 +189,9 @@ jobs:
           ssc5=$(docker logs panel-doc | grep '"ev":"frame.send"' | grep -c '"id":"5"' || true)
           echo "id:5（槽位）下发帧数 = $ssc5"
           [ "$ssc5" -ge 97 ] || { echo "id:5 只有 $ssc5 帧，应 ≥97"; exit 1; }
+          if docker logs panel-doc | grep -q '"ev":"player.equip.echoed"'; then
+            echo "客户端 id:5 被错误回显"; docker logs panel-doc | grep 'player.equip.echoed'; exit 1
+          fi
 
           for m in 16 42; do
             n=$(docker logs panel-doc | grep '"ev":"frame.send"' | grep -c "\"id\":\"$m\"" || true)

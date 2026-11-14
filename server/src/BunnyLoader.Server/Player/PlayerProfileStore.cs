@@ -5,8 +5,7 @@ namespace BunnyLoader.Server.Player;
 ///   - 按玩家名找 `Players/&lt;名字&gt;.plr`；
 ///   - 有就加载，没有就用模板造一个开荒档并立刻落盘；
 ///   - 内存里缓存，退出时保存。
-/// 找不到模板就退化为「从零建」——但 .plr 结构复杂，所以**优先**要求模板存在，
-/// 实在没有就报错返回 null（SSC 关闭），绝不写半截文件。
+/// 外部模板是可选的；找不到时使用代码内置合法 v319 默认档案。
 /// </summary>
 public sealed class PlayerProfileStore
 {
@@ -81,10 +80,14 @@ public sealed class PlayerProfileStore
 
         if (template is null)
         {
-            log.Warn("ssc.store.disabled",
+            // R6 兜底：外部模板可选。代码内置合法 v319 明文结构，CreateFresh 会把它改成
+            // 100/100、20/20、空容器 + 3507/3509/3506，并立即保存为玩家档案。
+            template = PlrCommand.CreateBuiltInDefaultPlaintext();
+            templatePath = "<built-in-default-v319>";
+            log.Warn("ssc.template.builtin",
                 ("dir", dir),
-                ("reason", "找不到可用的 .plr 模板（放一个 Players/.template.plr 即可启用动态档案）"));
-            return null;
+                ("template", templatePath),
+                ("note", "外部 .plr 模板不存在，使用代码内置默认档案"));
         }
 
         try

@@ -142,6 +142,7 @@ public static class Program
         var log = new JsonLogger(config.Logging.Level);
 
         worldPath ??= string.IsNullOrWhiteSpace(config.World.File) ? null : config.World.File;
+        worldPath = ResolveWorldPath(worldPath);
 
         WldWorld? world = null;
         if (worldPath is not null)
@@ -382,6 +383,28 @@ public static class Program
 
         value = args[++index];
         return true;
+    }
+
+    private static string? ResolveWorldPath(string? requested)
+    {
+        string? env = Environment.GetEnvironmentVariable("WORLD_FILE");
+        string? first = !string.IsNullOrWhiteSpace(requested) ? requested : env;
+        if (!string.IsNullOrWhiteSpace(first) && File.Exists(first))
+            return first;
+
+        string name = string.IsNullOrWhiteSpace(first) ? "world.wld" : Path.GetFileName(first);
+        string nested = Path.Combine("world", name);
+        if (File.Exists(nested))
+            return nested;
+
+        if (Directory.Exists("world"))
+        {
+            string[] files = Directory.GetFiles("world", "*.wld");
+            if (files.Length == 1)
+                return files[0];
+        }
+
+        return first;
     }
 
     private static string _worldFileName(string path)

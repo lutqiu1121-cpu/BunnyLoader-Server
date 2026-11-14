@@ -46,6 +46,7 @@ internal sealed class Session : ISessionTicker
     private readonly JsonLogger _log;
     private readonly CaptureWriter? _capture;
     private readonly WldWorld? _wld;
+    private readonly WorldState _worldState;
 
     private readonly SemaphoreSlim _sendGate = new(1, 1);
     private readonly Stopwatch _clock = Stopwatch.StartNew();
@@ -99,6 +100,7 @@ internal sealed class Session : ISessionTicker
         _store = store;
 
         _wld = worldFile;
+        _worldState = new WorldState(worldFile, GetFlatTile, config.World.MaxTilesX, config.World.MaxTilesY);
 
         // 注意：这里不能用 WorldSpawnX 初始化——_wld 刚赋值，SafeSpawn 要延迟到真正需要时再算。
         _player = new PlayerState { Slot = 0 };
@@ -834,29 +836,76 @@ internal sealed class Session : ISessionTicker
 
             case MessageId.SyncEquipment:
             {
-                // 原样回传；R7.1：只允许 9 字节（player, slot, stack, prefix, itemId, tail）
+                // SSC 权威模式：客户端上行槽位不回显，避免客户端数据反向覆盖服务器。
                 _equipRecv++;
-
                 if (payload.Length != 9)
                 {
                     _log.Warn("player.equip.badlen",
-                        ("conn", _id),
-                        ("recvLen", payload.Length),
-                        ("expected", 9),
-                        ("hex", Codec.Hex(payload, 12)),
-                        ("note", "id:5 只接受 9 字节；不回显"));
+                        ("conn", _id), ("recvLen", payload.Length), ("expected", 9),
+                        ("hex", Codec.Hex(payload, 12)), ("note", "id:5 上行只丢弃；不回显"));
                     break;
                 }
 
-                await SendAsync(stream, Codec.Frame(MessageId.SyncEquipment, payload), cancellationToken);
-                _equipSent++;
+                _log.Debug("player.equip.ignored",
+                    ("conn", _id), ("recvLen", payload.Length),
+                    ("recvCount", _equipRecv), ("note", "SSC 权威模式，客户端槽位不回显"));
+                break;
+            }
 
-                _log.Info("player.equip.echoed",
-                    ("conn", _id),
-                    ("recvLen", payload.Length),
-                    ("sendLen", payload.Length),
-                    ("recvCount", _equipRecv),
-                    ("sentCount", _equipSent));
+            case MessageId.TileChange:
+            {
+                // R6：只接受已约定的最小 7B 变更帧；畸形/越界只丢帧，绝不让连接退出。
+                try
+                {
+                    if (payload.Length < 7)
+                        throw new InvalidDataException($"id:17 payload 太短：{payload.Length} < 7");
+
+                    byte action = payload[0];
+                    int tileX = BinaryPrimitives.ReadInt16LittleEndian(payload.AsSpan(1, 2));
+                    int tileY = BinaryPrimitives.ReadInt16LittleEndian(payload.AsSpan(3, 2));
+                    ushort type = BinaryPrimitives.ReadUInt16LittleEndian(payload.AsSpan(5, 2));
+
+                    if (action is not (0 or 1))
+                        throw new InvalidDataException($"id:17 action 未知：{action}");
+                    if (tileX < 0 || tileY < 0 || tileX >= WorldMaxX || tileY >= WorldMaxY)
+                        throw new InvalidDataException($"id:17 坐标越界：{tileX},{tileY} 世界={WorldMaxX}x{WorldMaxY}");
+                    if (action == 1 && type == 0)
+                        throw new InvalidDataException("id:17 放置不能使用 Air(type=0)");
+
+                    Tile next = action == 0 ? Tile.Air : Tile.Solid(type);
+                    if (!_worldState.TrySet(tileX, tileY, next, out Tile previous))
+                        throw new InvalidDataException($"id:17 坐标越界：{tileX},{tileY}");
+
+                    int sx = tileX / ChunkManager.SectionWidth;
+                    int sy = tileY / ChunkManager.SectionHeight;
+                    _chunks.Invalidate(sx, sy);
+
+                    // 原样确认给发送者；随后重发受影响分块，让客户端看到权威状态。
+                    await SendAsync(stream, Codec.Frame(MessageId.TileChange, payload), cancellationToken);
+                    await SendAsync(stream,
+                        Messages.TileSectionPacket(TileSection.Encode(sx, sy, GetTile, IsFrameImportant)),
+                        cancellationToken);
+
+                    _log.Info("tile.changed",
+                        ("conn", _id), ("action", action), ("x", tileX), ("y", tileY),
+                        ("type", type), ("previousActive", previous.Active), ("previousType", previous.Type),
+                        ("section", $"{sx},{sy}"));
+                }
+                catch (Exception e)
+                {
+                    _log.Error("frame.handle.error",
+                        ("conn", _id), ("id", MessageId.TileChange),
+                        ("payloadLen", payload.Length), ("hex", Codec.Hex(payload, 32)),
+                        ("type", e.GetType().Name), ("message", e.Message),
+                        ("action", "丢弃 id:17，连接继续"));
+                }
+                break;
+            }
+
+            case MessageId.ItemDrop:
+            {
+                // R6 先不改变掉落物状态；未知/畸形 id:21 只记录并丢弃。
+                _log.Debug("itemdrop.ignored", ("conn", _id), ("payloadLen", payload.Length));
                 break;
             }
 
@@ -873,7 +922,7 @@ internal sealed class Session : ISessionTicker
 
                 if (_controlsReceived % 60 == 1)
                 {
-                    _log.Info("controls.update",
+                    _log.Debug("controls.update",
                         ("conn", _id),
                         ("count", _controlsReceived),
                         ("len", payload.Length),
@@ -1533,14 +1582,12 @@ internal sealed class Session : ISessionTicker
     private int WorldSpawnX => RawSpawnX;
     private int WorldSpawnY => RawSpawnY;
 
-    private Tile GetTile(int x, int y)
-    {
-        if (_wld is not null)
-            return _wld.Get(x, y);
+    private Tile GetTile(int x, int y) => _worldState.Get(x, y);
 
+    private Tile GetFlatTile(int x, int y)
+    {
         if (x < 0 || y < 0 || x >= _config.World.MaxTilesX || y >= _config.World.MaxTilesY)
             return default;
-
         short surface = _config.World.WorldSurface;
         short rock = _config.World.RockLayer;
 

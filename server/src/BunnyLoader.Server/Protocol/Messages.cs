@@ -16,6 +16,8 @@ public static class MessageId
     public const byte StatusTextSize = 9;
     public const byte SpawnTileData = 8;
     public const byte TileSection = 10;
+    public const byte TileChange = 17;
+    public const byte ItemDrop = 21;
     public const byte PlayerControls = 13;
     public const byte PlayerActive = 14;
     /// <summary>16 号：生命+魔力（player, life, lifeMax, mana, manaMax）。</summary>
@@ -135,6 +137,8 @@ public static class Messages
         MessageId.TileSection => "TileSection",
         MessageId.PlayerSpawn => "PlayerSpawn",
         MessageId.StatusTextSize => "StatusTextSize",
+        MessageId.TileChange => "TileChange",
+        MessageId.ItemDrop => "ItemDrop",
         MessageId.PlayerControls => "PlayerControls",
         MessageId.PlayerActive => "PlayerActive",
         MessageId.PlayerHealth => "PlayerHealth",
