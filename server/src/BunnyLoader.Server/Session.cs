@@ -1038,7 +1038,8 @@ internal sealed class Session : ISessionTicker
     {
         try
         {
-            while (!cancellationToken.IsCancellationRequested)
+            int rounds = 0;
+            while (!cancellationToken.IsCancellationRequested && rounds++ < 8)
             {
                 if (_sscBuilt && _profile is not null && _lastSyncEcho is not null)
                 {
