@@ -353,37 +353,32 @@ def pcap_flow(sock: socket.socket) -> int:
     tail_ids = [i for i in ids if i in (49, 14, 12, 129)]
     check("tail 顺序 = 49 -> 14 -> 12 -> 129", tail_ids == [49, 14, 12, 129], tail_ids)
 
-    # R7.1：SSC 必须且只能在 49 之后、14 之前，顺序 16 -> 42 -> 98×5
-    block = ids[ids.index(49) + 1:ids.index(129)] if 49 in ids and 129 in ids else []
-    if 16 in ids:
-        expected = [16, 42] + [5] * 98 + [14, 12]
-        check("49 之后严格 = 16 -> 42 -> 98×5 -> 14 -> 12", block == expected,
-              f"{block[:6]}…{block[-4:]} (len={len(block)})")
-        l16 = payloads.get(16, [[]])[0]
-        l42 = payloads.get(42, [[]])[0]
-        check("id:16 payload = 5 字节（player+life+lifeMax）", len(l16) == 5, len(l16))
-        check("id:42 payload = 5 字节（player+mana+manaMax）", len(l42) == 5, len(l42))
-        bad5 = [len(p) for p in payloads.get(5, []) if len(p) != 9]
-        check("全部 id:5 payload = 9 字节", bad5 == [], bad5[:5])
-        if len(l16) == 5:
-            cur = int.from_bytes(l16[1:3], "little")
-            mx = int.from_bytes(l16[3:5], "little")
-            check("SSC 生命来自存档（1..500）", 1 <= cur <= mx <= 500, f"{cur}/{mx}")
-        if len(l42) == 5:
-            mcur = int.from_bytes(l42[1:3], "little")
-            mmx = int.from_bytes(l42[3:5], "little")
-            check("SSC 魔力来自存档（0..400）", 0 <= mcur <= mmx <= 400, f"{mcur}/{mmx}")
-        slot0 = payloads.get(5, [b""])[0]
-        if len(slot0) == 9:
-            check("id:5 槽 0 = .plr 的 itemId 3507 / stack 1",
-                  int.from_bytes(slot0[6:8], "little") == 3507
-                  and int.from_bytes(slot0[3:5], "little") == 1,
-                  slot0.hex())
-        print(f"[info] SSC 帧：16×{len(payloads.get(16, []))}，42×{len(payloads.get(42, []))}，5×{len(payloads.get(5, []))}")
-    else:
-        check("未加载 .plr 时 49 之后只有 14 -> 12", block == [14, 12], block)
+    # R6：id:6 tail 严禁包含 SSC；SSC 只在 id:8 后覆盖。
+    check("id:6 tail 不含 SSC", 16 not in ids and 42 not in ids and 5 not in ids,
+          [i for i in ids if i in (4, 5, 16, 42)])
 
-    # id:12 payload 必须 9 字节：player, x, y, 0000 0000（坐标随世界而定）
+    # R6：id:8 后才开始 50ms 覆盖队列。
+    sock.sendall(frame(8, _struct.pack("<iiB", 2100, 349, 0)))
+    sock.settimeout(5)
+    coverage_ids = []
+    coverage_payloads = {}
+    deadline = time.time() + 2.0
+    while time.time() < deadline and len(coverage_payloads.get(5, [])) < 98:
+        try:
+            ident, payload = recv_frame(sock)
+        except socket.timeout:
+            break
+        coverage_ids.append(ident)
+        coverage_payloads.setdefault(ident, []).append(payload)
+    check("id:8 后收到 SSC 外观覆盖", 4 in coverage_ids, coverage_ids[:8])
+    check("id:8 后收到 SSC 生命/魔力", 16 in coverage_ids and 42 in coverage_ids, coverage_ids[:12])
+    check("id:8 后收到 98 个槽位覆盖", len(coverage_payloads.get(5, [])) >= 98,
+          len(coverage_payloads.get(5, [])))
+
+    slot_payloads = coverage_payloads.get(5, [])
+    check("SSC 空槽 payload 全 0", any(p == b"\x00" * 9 for p in slot_payloads),
+          [p.hex() for p in slot_payloads[:3]])
+
     spawn = payloads.get(12, [b""])[0]
     check("id:12 payload = 9 字节", len(spawn) == 9, len(spawn))
     if len(spawn) == 9:

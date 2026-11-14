@@ -207,12 +207,19 @@ jobs:
             [ "$bad" -eq 0 ] || { echo "id:$mid 存在非 $want 字节的发送"; docker logs panel-doc | grep "\"id\":\"$mid\""; exit 1; }
           done
 
-          # SSC 队列时机：只能出现在 id:6 之后（world.tail 里），不允许在 id:4 之后立刻发
+          # R6：SSC 不在 id:6 tail；在 id:8 后的覆盖队列中发送
+          docker logs panel-doc | grep -q '"ev":"ssc.coverage.started"' \
+            || { echo "缺少 ssc.coverage.started"; exit 1; }
+          docker logs panel-doc | grep -q '"ev":"tile.changed"' \
+            && echo "检测到方块变更日志"
           if docker logs panel-doc | grep '"ev":"syncplayer.echoed"' | grep -qv '"alsoSent":"none"'; then
             echo "id:4 回显时还发了别的东西"; docker logs panel-doc | grep syncplayer.echoed; exit 1
           fi
 
-          # R8-1 崩溃回归：含 0x8000 的 id:13 绝不允许打死连接/进程
+          # R6：id:17 只回显，不能因为方块修改发送整块 id:10
+          if docker logs panel-doc | grep -q '"ev":"tile.changed"' && docker logs panel-doc | grep -q '"ev":"frame.send".*"id":"10"'; then
+            echo "id:17 之后不应发送 id:10（仅回显单条变更）"; exit 1
+          fi
           if docker logs panel-doc | grep '"ev":"conn.error"'; then
             echo "出现 conn.error（连接级异常）"; docker logs panel-doc | grep '"ev":"conn.error"'; exit 1
           fi
@@ -442,7 +449,8 @@ jobs:
           chmod +x start.sh
           # 容器内以 root 跑过 selftest/e2e，dist 里的 Players/ 可能是 root 拥有的，先清掉
           sudo rm -rf Players debug debug2 || true
-          mkdir -p config testdata Players
+          mkdir -p config testdata Players world
+          touch world/.gitkeep
           cp ../config/server.json config/
           cp ../testdata/handshake-vectors.json testdata/
           # 动态档案的**模板**：新玩家用它生成开荒档（玩家自己的档在 Players/<名字>.plr）
