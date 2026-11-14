@@ -1022,7 +1022,6 @@ internal sealed class Session : ISessionTicker
 
         _sscBuilt = true;
         _sscQueue = BuildSscFrames(_profile);
-        StartSscCoverage(stream, cancellationToken);
     }
 
     private void StartSscCoverage(NetworkStream stream, CancellationToken cancellationToken)
