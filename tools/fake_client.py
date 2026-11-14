@@ -353,6 +353,7 @@ def pcap_flow(sock: socket.socket) -> int:
     tail_ids = [i for i in ids if i in (49, 14, 12, 129)]
     check("tail 顺序 = 49 -> 14 -> 12 -> 129", tail_ids == [49, 14, 12, 129], tail_ids)
 
+    import struct as _struct
     # R6：id:6 tail 严禁包含 SSC；SSC 只在 id:8 后覆盖。
     check("id:6 tail 不含 SSC", 16 not in ids and 42 not in ids and 5 not in ids,
           [i for i in ids if i in (4, 5, 16, 42)])
