@@ -793,10 +793,10 @@ standard(1+13*3+2=42) 差 -14      ← 标准全量布局需要 42 字节，实�
 
 ```bash
 # 只解析存档
-dotnet BunnyLoader.Server.dll --parse-plr debug/Cup.plr
+dotnet BunnyLoader.Server.dll --parse-plr debug/example.plr
 
 # 解析 + 与 id:4 的 40 字节 payload 对照（推荐）
-dotnet BunnyLoader.Server.dll --parse-plr debug/Cup.plr --sync-raw "01 07 02 d0 cc ...（共 40 组）"
+dotnet BunnyLoader.Server.dll --parse-plr debug/example.plr --sync-raw "01 07 02 d0 cc ...（共 40 组）"
 ```
 
 输出全是逐行 JSON：`plr.file`（前 32 字节 hex）、`plr.header`（版本/加密/判断依据）、
@@ -822,7 +822,7 @@ dotnet BunnyLoader.Server.dll --plr-selftest
 
 `debug/` 下若存在真实 `.plr`，自检会自动带上它（断言名字非空、颜色有值、至少 1 个非空物品）。
 
-### 11.5 真实文件实测结论（Cup.plr，v319，4000 字节）
+### 11.5 真实文件实测结论（example.plr，v319，4000 字节）
 
 7 个颜色（文件偏移 86..106，值与独立 Python 参考实现完全一致）：
 
@@ -946,7 +946,7 @@ id==4 且 payloadLen!=40  →  frame.send.fatal + 抛异常（不发）
 ```bash
 ls -l Players/                 # 每个连过的玩家一个 <名字>.plr
 # 想给某人换开荒数据：删掉他的 .plr，下次登录会重新建档
-rm -f Players/Cup.plr
+rm -f Players/example.plr
 ```
 
 ### 13.4 id:13 稳定性

@@ -51,7 +51,6 @@ public sealed class PlayerProfileStore
         foreach (string baseDir in searchDirs)
         {
             candidates.Add(System.IO.Path.Combine(baseDir, "player.plr"));
-            candidates.Add(System.IO.Path.Combine(baseDir, "debug", "Cup.plr"));
             string debugDir = System.IO.Path.Combine(baseDir, "debug");
             if (System.IO.Directory.Exists(debugDir))
                 candidates.AddRange(System.IO.Directory.GetFiles(debugDir, "*.plr"));

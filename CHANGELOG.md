@@ -91,7 +91,7 @@
 
 ### 验证方式
 
-- CI：`--plr-selftest` 断言「识别加密 / 版本 319 / 名字 Cup / 发色 #ffffff / 肤色 #ffbba9 /
+- CI：`--plr-selftest` 断言「识别加密 / 版本 319 / 名字 Example / 发色 #ffffff / 肤色 #ffbba9 /
   生命 400/500 / 背包 50 槽 / 至少 1 个非空槽 / 解析结束偏移 > 1000」，
   另断言「明文文件同样能解析」与「已知 24 字节前缀：名字在 8、颜色起点 16、hairColor 已确认」。
 - 合成存档布局已用独立 Python 参考实现交叉验证：明文 3688 字节，补齐到 3696，尾随 8 个 0。
@@ -105,11 +105,11 @@
 
 ---
 
-## 2026-11-10 | R6-2：接入真实 Cup.plr（真实颜色到手，布局确定）
+## 2026-11-10 | R6-2：接入真实 example.plr（真实颜色到手，布局确定）
 
-### 真实文件解析结果（`--parse-plr debug/Cup.plr`，4000 字节）
+### 真实文件解析结果（`--parse-plr debug/example.plr`，4000 字节）
 
-版本 319 / `relogic` / fileType 3 / 名字 `Cup` / 难度 0 / 发色染料 0 /
+版本 319 / `relogic` / fileType 3 / 合成样本名字 `Example` / 难度 0 / 发色染料 0 /
 hideVisibleAccessory `0,0` / hideMisc 0 / skinVariant 7 / 生命 100·100 / 魔力 20·20。
 
 | # | 颜色字段 | hex | RGB | 文件偏移 |
@@ -203,7 +203,7 @@ payload `22..23 = 69 5a` = eyeColor `#695a4b` 的前两字节。
 
 - 自检换成**真实 40 字节金标**：逐字段 + 7 色 7/7 + 回传逐字节 + 39 字节非法包不解析。
 - e2e 增加：`payloadLen=40` 硬门禁、`ssc.loaded`/`ssc.sent`、`id:5 ≥ 97` 帧、`id:16`/`id:42` 各 ≥1。
-- 打包把 `debug/Cup.plr` 一起打进去，面板不用额外上传。
+- 打包把 `debug/example.plr` 一起打进去，面板不用额外上传。
 - 启动命令红线未变，自检脚本通过。
 
 ---
@@ -307,7 +307,7 @@ id:129 FinishedConnecting
 
 目录与模板：
 - 档案目录：`--players <dir>` → `PLAYERS_DIR` → `<程序目录>/Players`
-- 模板：`Players/.template.plr` → `player.plr` → `debug/Cup.plr` → `debug/*.plr`
+- 模板：`Players/.template.plr` → `player.plr` → `debug/example.plr` → `debug/*.plr`
 - 找不到模板 → 记 `ssc.store.disabled`，SSC 关闭，服务照常跑（绝不写半截文件）。
 
 ### 3. 强制覆盖客户端本地数据
