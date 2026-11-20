@@ -9,11 +9,13 @@
   // 抓包开关：默认 captures，空字符串 = 关闭。
   "captureDir": "captures",
 
-  // R6 一次性候选注入实验：SSC 3 轮覆盖后串行发 3 个「未验证候选」帧。
+  // R6 候选注入实验 v2：与 SSC 并行起独立 Task，先等 initialDelayMs，
+  // 再串行发 8 个「未验证候选」帧（长度扫描），间隔 intervalMs，一轮即停。
   // 真机验证通过前不并入正式协议路径；设 false 可完全关闭。
   "experiment": {
     "enabled": true,
-    "intervalMs": 3000
+    "initialDelayMs": 3000,
+    "intervalMs": 1000
   },
 
   // 日志级别：debug / info / warn / error。

@@ -255,21 +255,30 @@ public static class ProtocolSelfTest
         ok &= Check(log, "id:5 金标 = 01 00 00 01 00 24 b3 0d 00",
             Convert.ToHexString(slot).ToLowerInvariant() == "010000010024b30d00", Convert.ToHexString(slot));
 
-        // ===== R6 候选帧 golden（只断言自洽，不代表协议已验证）=====
+        // ===== R6 候选帧 golden v2（只断言自洽，不代表协议已验证）=====
         var candidates = BunnyLoader.Server.Experiment.CandidateInjector.Build(2105, 312);
-        ok &= Check(log, "实验候选数 = 3", candidates.Count == 3, candidates.Count);
-        ok &= Check(log, "候选 A id:21 payload = 22B",
-            candidates[0].Id == 21 && candidates[0].Frame.Length - 3 == 22, candidates[0].Frame.Length - 3);
-        ok &= Check(log, "候选 B id:21 payload = 24B",
-            candidates[1].Id == 21 && candidates[1].Frame.Length - 3 == 24, candidates[1].Frame.Length - 3);
-        ok &= Check(log, "候选 C id:23 高风险占位",
-            candidates[2].Id == 23 && candidates[2].Frame.Length - 3 == 20, candidates[2].Frame.Length - 3);
-        foreach (var c in candidates)
+        int[] expectLens = { 22, 24, 20, 25, 26, 28, 28, 36 };
+        int[] expectIds = { 21, 21, 23, 21, 21, 21, 23, 23 };
+        ok &= Check(log, "实验候选数 = 8", candidates.Count == 8, candidates.Count);
+        for (int i = 0; i < candidates.Count; i++)
         {
+            var c = candidates[i];
             int declared = c.Frame[0] | (c.Frame[1] << 8);
-            ok &= Check(log, $"候选 {c.Index} 帧头长度一致",
-                declared == c.Frame.Length, $"{declared}/{c.Frame.Length}");
+            ok &= Check(log, $"候选 {c.Index} id={expectIds[i]} len={expectLens[i]}B / 帧头一致",
+                c.Index == i + 1 && c.Id == expectIds[i]
+                && c.Frame.Length - 3 == expectLens[i] && declared == c.Frame.Length,
+                $"{c.Index}/{c.Id}/{c.Frame.Length - 3}/{declared}");
         }
+        // idx 1..3 必须与 v1 逐字节一致，否则跨版本对照失去意义。
+        ok &= Check(log, "idx1 v1 对照 hex 不变",
+            Convert.ToHexString(candidates[0].Frame.AsSpan(3)).ToLowerInvariant()
+            == "00000098034700409c45000000000000000001000001", "mismatch");
+        ok &= Check(log, "idx2 v1 对照 hex 不变",
+            Convert.ToHexString(candidates[1].Frame.AsSpan(3)).ToLowerInvariant()
+            == "00000098034700409c450000000000000000010000000100", "mismatch");
+        ok &= Check(log, "idx3 v1 对照 hex 不变",
+            Convert.ToHexString(candidates[2].Frame.AsSpan(3)).ToLowerInvariant()
+            == "00000098034700409c4500000000000000000100", "mismatch");
 
         // ===== R9 真帧 golden（2026-11-20 抓包；日志 hex 带 … 截断，按公式重建）=====
         byte[] uuidPayload = Codec.String("f4ea4156-ddcc-4be1-baf9-66ba6141c849");

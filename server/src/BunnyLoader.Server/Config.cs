@@ -466,6 +466,8 @@ public sealed class ServerConfig
             throw new InvalidDataException($"logging.level 只能是 debug/info/warn/error，当前: {Logging.Level}");
         Logging.Level = level;
 
+        if (Experiment.InitialDelayMs < 0 || Experiment.InitialDelayMs > 120000)
+            throw new InvalidDataException($"experiment.initialDelayMs 应在 0..120000，当前 {Experiment.InitialDelayMs}");
         if (Experiment.IntervalMs < 100 || Experiment.IntervalMs > 60000)
             throw new InvalidDataException($"experiment.intervalMs 应在 100..60000，当前 {Experiment.IntervalMs}");
 
@@ -589,14 +591,21 @@ public sealed class RulesSection
     public string Password { get; set; } = "";
 }
 
-/// <summary>R6 候选注入实验：串行发 3 个未验证候选帧，一轮发完即停。</summary>
+/// <summary>
+/// R6 候选注入实验 v2：与 SSC 覆盖并行起独立 Task，先等 initialDelayMs，
+/// 再串行发 8 个未验证候选帧，一轮发完即停。间隔与初始延迟都可配，
+/// 便于把「发送时机」本身也当作实验变量。
+/// </summary>
 public sealed class ExperimentSection
 {
     [JsonPropertyName("enabled")]
     public bool Enabled { get; set; } = true;
 
+    [JsonPropertyName("initialDelayMs")]
+    public int InitialDelayMs { get; set; } = 3000;
+
     [JsonPropertyName("intervalMs")]
-    public int IntervalMs { get; set; } = 3000;
+    public int IntervalMs { get; set; } = 1000;
 }
 
 public sealed class ModEntry

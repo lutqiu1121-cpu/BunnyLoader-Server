@@ -36,9 +36,11 @@ The mobile client is modified. Preserve the tested R5 sequence (`7 -> 10×40 -> 
 
 ## Candidate injection experiment (R6 evidence gathering)
 
-`config/server.json` ships with `experiment.enabled: true`. After the SSC coverage finishes its three rounds, the server sends three **unverified** candidate frames (two `id:21` layouts, one high-risk `id:23` placeholder) at 3-second intervals, then stops. Each one is logged as `experiment.candidate` with its full payload hex and also written to the `s2c` capture.
+`config/server.json` ships with `experiment.enabled: true`. On the `id:8` trigger the server starts an **independent** task (no longer waiting for the ~30s SSC coverage to finish), waits `initialDelayMs` (3s), then sends eight **unverified** candidate frames at 1-second intervals and stops. The first three are byte-identical to v1 for cross-run comparison; the remaining five sweep common payload widths for `id:21` / `id:23`. Field order is reconstructed from public protocol documentation only — no TShock / OTAPI / Terraria source is copied.
 
-These candidates are **not protocol conclusions**. They exist only to make the client render an item or NPC so it emits real `id:24` / `id:44` frames back. The injector is isolated in `Experiment/CandidateInjector.cs`, builds frames only, and sends through the normal `SendAsync` path. Nothing here is merged into the normal message-handling path until a real-device test confirms a layout. Set `experiment.enabled` to `false` to disable it entirely.
+Each candidate logs `experiment.candidate` (full payload hex) → `experiment.candidate.sent` → `experiment.probe` (`deltaIn` plus any `21/23/24/44` frames seen back). Cancellation or I/O errors log `atIdx`, so the last attempted index is always identifiable. All frames also go through `frame.send` and the `s2c` capture.
+
+These candidates are **not protocol conclusions**. They exist only to make the client render an item or NPC so it emits real `id:24` / `id:44` frames back. The injector is isolated in `Experiment/CandidateInjector.cs`, builds frames only, and sends through the normal `SendAsync` path. Nothing here is merged into the normal message-handling path until a real-device test confirms a layout. Set `experiment.enabled` to `false` to disable it entirely. In v1 all three candidates were silently ignored by the client (no crash, no reply, connection stayed alive), so a fully silent v2 run would point to a different root cause rather than a wrong length.
 
 `mods.check` (R9) is a log-only comparison of the client's `bunnyloader-sync:` mod list against `config.mods`. A mismatch warns but never disconnects the client.
 

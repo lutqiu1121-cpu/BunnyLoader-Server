@@ -91,6 +91,9 @@ internal sealed class Session : ISessionTicker
     private byte[]? _lastSyncEcho;
     private CancellationTokenSource? _sscCoverageCts;
     private Task? _sscCoverageTask;
+    private CancellationTokenSource? _experimentCts;
+    private Task? _experimentTask;
+    private int _lastCandidateIdx;
 
     public Session(TcpClient client, string id, int sequence, ServerConfig config, JsonLogger log,
                    CaptureWriter? capture, WldWorld? worldFile, PlayerProfileStore? store = null)
@@ -181,6 +184,13 @@ internal sealed class Session : ISessionTicker
             if (_sscCoverageTask is not null)
             {
                 try { await _sscCoverageTask; }
+                catch (OperationCanceledException) { }
+            }
+
+            _experimentCts?.Cancel();
+            if (_experimentTask is not null)
+            {
+                try { await _experimentTask; }
                 catch (OperationCanceledException) { }
             }
 
@@ -1048,6 +1058,78 @@ internal sealed class Session : ISessionTicker
         _sscCoverageCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _sscCoverageTask = SscCoverageLoopAsync(stream, _sscCoverageCts.Token);
         _log.Info("ssc.coverage.started", ("conn", _id), ("intervalMs", 50), ("trigger", "id:8"));
+
+        // 实验是独立 Task，与 SSC 覆盖并行，不再等它 3 轮跑完（v1 要等约 30 秒）。
+        StartCandidateExperiment(stream, cancellationToken);
+    }
+
+    private void StartCandidateExperiment(NetworkStream stream, CancellationToken cancellationToken)
+    {
+        if (!_config.Experiment.Enabled || _experimentTask is not null)
+            return;
+        _experimentCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _experimentTask = CandidateExperimentLoopAsync(stream, _experimentCts.Token);
+        _log.Info("experiment.start", ("conn", _id),
+            ("initialDelayMs", _config.Experiment.InitialDelayMs),
+            ("intervalMs", _config.Experiment.IntervalMs),
+            ("note", "独立 Task，与 SSC 覆盖并行"));
+    }
+
+    /// <summary>
+    /// 发候选 → 等一个间隔 → 读客户端反应。每步都打日志，取消/异常都带 atIdx，
+    /// 这样「最后一个 idx」就是可定位的罪魁，不再像 v1 那样静默吞掉。
+    /// </summary>
+    private async Task CandidateExperimentLoopAsync(NetworkStream stream, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (_config.Experiment.InitialDelayMs > 0)
+                await Task.Delay(_config.Experiment.InitialDelayMs, cancellationToken);
+
+            int sx = _wld?.SpawnTileX ?? _config.World.SpawnTileX;
+            int sy = _wld?.SpawnTileY ?? _config.World.SpawnTileY;
+            var candidates = Experiment.CandidateInjector.Build(sx, sy);
+            _log.Info("experiment.ready", ("conn", _id), ("count", candidates.Count));
+
+            foreach (var c in candidates)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                _lastCandidateIdx = c.Index;
+
+                int before = TotalInbound();
+                _log.Info("experiment.candidate", ("conn", _id),
+                    ("idx", c.Index), ("id", c.Id), ("len", c.Frame.Length - 3),
+                    ("note", c.Note), ("hex", Codec.Hex(c.Frame.AsSpan(3), 64)));
+                await SendAsync(stream, c.Frame, cancellationToken);
+                _log.Info("experiment.candidate.sent", ("conn", _id), ("idx", c.Index));
+
+                await Task.Delay(_config.Experiment.IntervalMs, cancellationToken);
+                _log.Info("experiment.probe", ("conn", _id), ("idx", c.Index),
+                    ("deltaIn", TotalInbound() - before),
+                    ("hits", $"21:{_framesIn[21]} 23:{_framesIn[23]} 24:{_framesIn[24]} 44:{_framesIn[44]}"));
+            }
+
+            _log.Info("experiment.done", ("conn", _id), ("count", candidates.Count));
+        }
+        catch (OperationCanceledException)
+        {
+            _log.Warn("experiment.cancelled", ("conn", _id), ("atIdx", _lastCandidateIdx),
+                ("note", "连接关闭或取消，实验提前结束；atIdx 即最后尝试的候选"));
+        }
+        catch (Exception e)
+        {
+            _log.Error("experiment.error", ("conn", _id), ("atIdx", _lastCandidateIdx),
+                ("type", e.GetType().Name), ("message", e.Message),
+                ("action", "实验停止，连接继续"));
+        }
+    }
+
+    private int TotalInbound()
+    {
+        int n = 0;
+        for (int i = 0; i < _framesIn.Length; i++)
+            n += _framesIn[i];
+        return n;
     }
 
     private async Task SscCoverageLoopAsync(NetworkStream stream, CancellationToken cancellationToken)
@@ -1070,34 +1152,8 @@ internal sealed class Session : ISessionTicker
                     ("frames", frames.Count), ("intervalMs", 50));
             }
 
-            // ===== R6 一次性候选注入实验（隔离，异常吞掉，绝不影响连接）=====
-            // 挂在 SSC 3 轮覆盖收尾之后，不进任何消息解析/状态机分支。
-            if (_config.Experiment.Enabled)
-            {
-                try
-                {
-                    int sx = _wld?.SpawnTileX ?? _config.World.SpawnTileX;
-                    int sy = _wld?.SpawnTileY ?? _config.World.SpawnTileY;
-                    var candidates = Experiment.CandidateInjector.Build(sx, sy);
-
-                    foreach (var c in candidates)
-                    {
-                        await Task.Delay(_config.Experiment.IntervalMs, cancellationToken);
-                        _log.Info("experiment.candidate", ("conn", _id),
-                            ("idx", c.Index), ("id", c.Id), ("len", c.Frame.Length - 3),
-                            ("note", c.Note), ("hex", Codec.Hex(c.Frame.AsSpan(3), 64)));
-                        await SendAsync(stream, c.Frame, cancellationToken);
-                    }
-                    _log.Info("experiment.done", ("conn", _id), ("count", candidates.Count));
-                }
-                catch (OperationCanceledException) { }
-                catch (Exception e)
-                {
-                    _log.Error("experiment.error", ("conn", _id),
-                        ("type", e.GetType().Name), ("message", e.Message),
-                        ("action", "实验停止，连接继续"));
-                }
-            }
+            // v2：候选注入已移到独立的 CandidateExperimentLoopAsync，
+            // 与 SSC 并行、不等这里收尾。本方法只负责档案覆盖队列。
         }
         catch (OperationCanceledException) { }
         catch (Exception e)
