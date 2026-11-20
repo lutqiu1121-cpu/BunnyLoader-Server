@@ -29,7 +29,7 @@ public sealed class PlayerProfileStore
 
     /// <summary>
     /// 建仓库：档案目录默认 `&lt;程序目录&gt;/Players`，模板按 `Players/.template.plr` →
-    /// `debug/Cup.plr` → `player.plr` → `debug/*.plr` 找。
+    /// `player.plr` → optional `debug/*.plr` 找；找不到时使用代码内置模板。
     /// </summary>
     public static PlayerProfileStore? TryCreate(string? directory, JsonLogger log)
     {

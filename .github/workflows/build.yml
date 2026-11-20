@@ -141,11 +141,10 @@ jobs:
           python3 tools/fake_client.py 127.0.0.1 17782 flags0
           docker rm -f panel-v3
 
-      # 发布产物上的 .plr 解析自检（合成 v319 + debug/ 下的真实样本，若有）
+      # R6 parser selftest is fully synthetic; no personal .plr fixture is mounted.
       - name: .plr parser selftest (published dll)
         run: |
-          mkdir -p debug
-          docker run --rm -v "$PWD/server/dist:/app" -v "$PWD/debug:/app/debug" -w /app \
+          docker run --rm -v "$PWD/server/dist:/app" -w /app \
             mcr.microsoft.com/dotnet/runtime:8.0 \
             dotnet BunnyLoader.Server.dll --plr-selftest
 
@@ -153,7 +152,7 @@ jobs:
         run: |
           docker run -d --name panel-doc --restart=no \
             -e PROOF_MODE=on -e MSG3_VARIANT=flags1 \
-            -p 17790:7777 -v "$PWD/server/dist:/app" -v "$PWD/debug:/app/debug" -w /app \
+            -p 17790:7777 -v "$PWD/server/dist:/app" -w /app \
             mcr.microsoft.com/dotnet/runtime:8.0 \
             dotnet BunnyLoader.Server.dll --port 7777
           for i in $(seq 1 30); do
@@ -313,26 +312,17 @@ jobs:
           docker logs panel-auto | grep -E 'proof\.skipped' | head -2
           docker rm -f panel-auto
 
-      - name: Real world — 解析真实 1.4.5.8 存档
-        run: |
-          docker run --rm -v "$PWD/server/testdata:/td:ro" -v "$PWD/server/dist:/app" -w /app \
-            mcr.microsoft.com/dotnet/runtime:8.0 \
-            dotnet BunnyLoader.Server.dll --world-info /td/real-world.wld | tee /tmp/real.txt
-          grep -q '"size":"4200x1200"' /tmp/real.txt
-          grep -q '"spawn":"2105,312"' /tmp/real.txt
-          grep -q '"version":326' /tmp/real.txt
-          grep -q '块状的小屋' /tmp/real.txt
-
-      - name: World file — 解析 .wld 并打印摘要
+      - name: Synthetic world — world info parser
         run: |
           mkdir -p /tmp/wld
           python3 tools/make_test_world.py /tmp/wld/test.wld
           docker run --rm -v /tmp/wld:/wld -v "$PWD/server/dist:/app" -w /app \
-            -e LOG_LEVEL=info \
             mcr.microsoft.com/dotnet/runtime:8.0 \
-            dotnet BunnyLoader.Server.dll --world-info /wld/test.wld | tee /tmp/wld/info.txt
-          grep -q '"size":"400x300"' /tmp/wld/info.txt
-          grep -q '"name":"TestWorld"' /tmp/wld/info.txt
+            dotnet BunnyLoader.Server.dll --world-info /wld/test.wld > /tmp/world-info.jsonl
+          grep -q '"size":"400x300"' /tmp/world-info.jsonl
+          grep -q '"name":"TestWorld"' /tmp/world-info.jsonl
+          grep -q '"version":326' /tmp/world-info.jsonl
+
 
       - name: World file — 用 .wld 起服务并进世界
         run: |
@@ -453,8 +443,9 @@ jobs:
           touch world/.gitkeep
           cp ../config/server.json config/
           cp ../testdata/handshake-vectors.json testdata/
-          # 动态档案的**模板**：新玩家用它生成开荒档（玩家自己的档在 Players/<名字>.plr）
-          cp ../../debug/Cup.plr Players/.template.plr
+          # Generate the package template from code; never package a personal character file.
+          docker run --rm -v "$PWD:/app" -w /app mcr.microsoft.com/dotnet/runtime:8.0 \
+            dotnet BunnyLoader.Server.dll --write-builtin-plr Players/.template.plr
           rm -f player.plr
           # root 留下的 debug/ 已在上面清过；这里再兜一次
           sudo rm -rf debug debug2 || true

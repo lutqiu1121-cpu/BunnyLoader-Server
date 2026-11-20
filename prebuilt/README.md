@@ -65,8 +65,7 @@ start.sh                             R10 才允许用的入口脚本
    未建模的尾部字节原样保留，绝不写出半截文件。
 
 目录优先级：`--players <dir>` → `PLAYERS_DIR` → `<程序目录>/Players`。
-模板优先级：`Players/.template.plr` → `player.plr` → `debug/Cup.plr` → `debug/*.plr`。
-找不到模板 → 日志 `ssc.store.disabled`，SSC 不下发，服务照常跑。
+模板优先级：`Players/.template.plr` → `player.plr` → 代码内置默认档案。当前发布包的模板由 CI 从合成数据生成，不包含个人存档。
 
 ### 3) 强制覆盖客户端本地数据
 

@@ -43,3 +43,10 @@ r712.txt
 poll_ci.sh
 signed.hdr
 signed_url.txt
+
+# Never commit private game data or generated release artifacts
+*.plr
+*.wld
+*.zip
+captures/
+debug/

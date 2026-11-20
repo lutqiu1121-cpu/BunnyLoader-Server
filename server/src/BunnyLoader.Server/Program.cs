@@ -33,6 +33,7 @@ public static class Program
         string? parsePlrPath = null;
         string? syncRawHex = null;
         bool plrSelftest = false;
+        string? writeBuiltinPlrPath = null;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -82,6 +83,9 @@ public static class Program
                 case "--players":
                     if (!TryValue(args, ref i, out playerFilePath)) return 2;
                     break;
+                case "--write-builtin-plr":
+                    if (!TryValue(args, ref i, out writeBuiltinPlrPath)) return 2;
+                    break;
                 case "--parse-plr":
                     if (!TryValue(args, ref i, out parsePlrPath)) return 2;
                     break;
@@ -102,6 +106,25 @@ public static class Program
                     Console.Error.WriteLine($"未知参数: {args[i]}");
                     PrintHelp();
                     return 2;
+            }
+        }
+
+        // .plr template export is deterministic synthetic data only; it never reads a player profile.
+        if (writeBuiltinPlrPath is not null)
+        {
+            try
+            {
+                string fullPath = Path.GetFullPath(writeBuiltinPlrPath);
+                Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+                byte[] plain = PlrCommand.CreateBuiltInDefaultPlaintext();
+                File.WriteAllBytes(fullPath, PlayerFileReader.EncryptAesCbc(plain));
+                Console.WriteLine($"Built-in template written: {fullPath}");
+                return 0;
+            }
+            catch (Exception e)
+            {
+                Console.Error.WriteLine($"Built-in template write failed: {e.Message}");
+                return 1;
             }
         }
 
@@ -446,6 +469,7 @@ public static class Program
         Console.WriteLine("  --world-info <path>  只解析 .wld 并打印摘要后退出");
         Console.WriteLine("  --proof <auto|on|off> 二开版纯文本握手：auto=先探测（默认）");
         Console.WriteLine("  --players <dir>      玩家档案目录（缺省 <程序目录>/Players）；名字来自 id:4");
+        Console.WriteLine("  --write-builtin-plr <path>  写出合成默认档案模板（仅构建辅助）");
         Console.WriteLine("  --parse-plr <path>   只解析 .plr（AES-128 自动解密）并打印字段，退出；不联网");
         Console.WriteLine("  --sync-raw <hex>     配合 --parse-plr：给出 id:4 的完整 payload，做颜色对照");
         Console.WriteLine("  --plr-selftest       用合成 v319 存档自检 .plr 解析器后退出");
