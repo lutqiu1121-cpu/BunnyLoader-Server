@@ -307,8 +307,9 @@ def pcap_flow(sock: socket.socket) -> int:
     check("id:4 立即被回显（不改变时延）", ident == 4, ident)
     check("id:4 长度不变（40）", len(payload) == 40, len(payload))
     check("whoAmI 改写为 1", payload[:1] == b"\x01", payload[:2].hex())
-    server_colors = bytes.fromhex("ffffff ffbba9 695a4b ffffff ffffff abc0ab ffffff")
-    check("id:4 发型覆盖为服务器档案值 196", payload[7] == 196, payload[7])
+    # 公开 CI 使用代码内置合成 v319 默认档：hair=2，7 色来自合成档案。
+    server_colors = bytes.fromhex("ffffff ffbba9 695a00 2b2b2b 000000 2b2b2b 2b2b2b")
+    check("id:4 发型覆盖为服务器合成档案值 2", payload[7] == 2, payload[7])
     check("id:4 七色覆盖为服务器档案", payload[16:37] == server_colors, payload[16:37].hex())
     check("id:4 未知/客户端专属字段未猜改",
           payload[1:7] == sync_payload[1:7] and payload[8:16] == sync_payload[8:16]
