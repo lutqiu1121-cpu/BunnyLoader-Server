@@ -78,7 +78,7 @@ id:12 当前固定为 9 字节：`player:u8, x:i16 little-endian, y:i16 little-e
 | 1 | 1 | skinVariant | 已读取，当前只在诊断中使用 |
 | 2 | 1 | 二开未知字段 0x02 | 否，不猜 |
 | 3..6 | 4 | 客户端 f32 0.2，小端 `d0 cc 4c 3e` | 否，不猜 |
-| 7 | 1 | hair，真实 Cup 样本为 196 | 是，来自服务器档案 |
+| 7 | 1 | hair，客户端样本曾为 196 | 是，来自服务器档案 |
 | 8 | 1+N | 7bit/单字节长度前缀和 UTF-8 名字 | 目前保留客户端名字以便档案查找 |
 | 12 | 1 | hairDye | 未强行覆盖 |
 | 13..14 | 2 | hideVisuals | 未强行覆盖 |
@@ -87,7 +87,7 @@ id:12 当前固定为 9 字节：`player:u8, x:i16 little-endian, y:i16 little-e
 | 37 | 1 | difficulty | 当前保留客户端字段 |
 | 38..39 | 2 | 尾部 `10 00` 等客户端字段 | 否，不猜 |
 
-7 个颜色顺序是 hairColor、skinColor、eyeColor、shirtColor、underShirtColor、pantsColor、shoeColor。真实样本和 id:4 的 7/7 对照值曾为 `#ffffff/#ffbba9/#695a4b/#ffffff/#ffffff/#abc0ab/#ffffff`。`PlayerSsc.ApplyAppearance` 只写 playerId、hair 和 21 字节颜色区，明确保留未知字段、客户端浮点字段、名字区、隐藏标志和尾部。
+7 个颜色顺序是 hairColor、skinColor、eyeColor、shirtColor、underShirtColor、pantsColor、shoeColor。历史测试样本和 id:4 曾有 7/7 颜色匹配；当前公开 CI 使用合成档案。`PlayerSsc.ApplyAppearance` 只写 playerId、hair 和 21 字节颜色区，明确保留未知字段、客户端浮点字段、名字区、隐藏标志和尾部。
 
 ### 5.2 当前发送逻辑
 
