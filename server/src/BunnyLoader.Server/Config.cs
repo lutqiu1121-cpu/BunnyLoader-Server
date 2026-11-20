@@ -15,6 +15,13 @@ public sealed class ServerConfig
     [JsonPropertyName("logging")]
     public LoggingSection Logging { get; set; } = new();
 
+    /// <summary>
+    /// 双向原始字节落盘目录。空字符串 = 关闭。
+    /// 优先级：--capture > CAPTURE_DIR > 本字段。
+    /// </summary>
+    [JsonPropertyName("captureDir")]
+    public string CaptureDir { get; set; } = "";
+
     [JsonPropertyName("rules")]
     public RulesSection Rules { get; set; } = new();
 

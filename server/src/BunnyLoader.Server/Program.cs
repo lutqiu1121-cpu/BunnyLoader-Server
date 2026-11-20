@@ -277,6 +277,8 @@ public static class Program
         }
 
         captureDirectory ??= Environment.GetEnvironmentVariable("CAPTURE_DIR");
+        if (string.IsNullOrWhiteSpace(captureDirectory) && !string.IsNullOrWhiteSpace(config.CaptureDir))
+            captureDirectory = config.CaptureDir;
         if (!configFound)
             log.Warn("config.missing", ("path", Path.GetFullPath(configPath)), ("note", "使用内置默认值；可用环境变量覆盖"));
 

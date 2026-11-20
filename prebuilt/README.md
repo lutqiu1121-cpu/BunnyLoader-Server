@@ -8,11 +8,9 @@
 
 - 构建方式：Docker 里 `dotnet publish -c Release`（框架依赖，面板自带 .NET 8 即可）
 - 重新构建：`./server/build-panel.sh`
-- 对应提交：`1a18e98`（分支 `main`，CI 全绿）
-- 包内 `BunnyLoader.Server.dll` 大小 / SHA-256：`207360` 字节 /
-  `5f473cdf14bc54d1470cd63c91317cce7f9286cb34a7791b3851aa858706e245`
-  —— 这是**确定性构建**，与 Releases 里最新资产内的 DLL 逐字节相同（已实测核对）；
-  ZIP 因内部时间戳每次重新打包都会变哈希，**认 DLL 的哈希**，不要认 ZIP 的。
+- 对应提交：以 Releases 里 `panel` 资产的实际构建为准；历史提交号不在当前 git 历史中，不要引用。
+- 历史 DLL 哈希已失效：旧构建的 `207360` 字节 / `5f473cdf14bc54d1470cd63c91317cce7f9286cb34a7791b3851aa858706e245` 不再代表当前源码。
+  下载最新 ZIP 后，以 ZIP 内 DLL 的实际 SHA-256 为准。
 - 部署说明：[../docs/panel-deploy.md](../docs/panel-deploy.md)
 
 **R5～R9 启动命令红线（逐字一致）：**
@@ -69,8 +67,7 @@ start.sh                             R10 才允许用的入口脚本
 
 ### 3) 强制覆盖客户端本地数据
 
-档案就绪后在 `id:49` 之后下发：`id:16`(5B) → `id:42`(5B) → 98×`id:5`(9B)。
-若客户端先发 `id:6`（49 已发）再发 `id:4`，会立刻补发（日志 `ssc.flush`），顺序语义不变。
+档案就绪后**收到 `id:8`（SpawnTileData）才启动**后台覆盖任务，每 50ms 逐帧发送，至少 3 轮：`id:4` 外观 → `id:16`(5B) → `id:42`(5B) → 98×全零 `id:5`(9B) → 98×真实 `id:5`(9B)。一次性 bundle 会被客户端在落地窗口内直接无视，不能合并下发。
 
 长度红线（全部由 `EnsureFrameLength` 硬卡，不合规直接 `frame.send.fatal` 拒发）：
 `id:4`→40、`id:16`→5、`id:42`→5、`id:5`→9、`id:12`→9。

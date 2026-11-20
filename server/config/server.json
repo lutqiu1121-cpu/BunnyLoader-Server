@@ -6,6 +6,9 @@
     "name": "Bunny Loader Server"
   },
 
+  // 抓包开关：默认 captures，空字符串 = 关闭。
+  "captureDir": "captures",
+
   // 日志级别：debug / info / warn / error。
   // dumpBytes=true 时，每次收到数据都记一条 conn.bytes（含首 8 字节十六进制）。
   "logging": {
