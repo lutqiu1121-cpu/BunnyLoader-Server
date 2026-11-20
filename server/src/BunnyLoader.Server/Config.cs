@@ -29,6 +29,14 @@ public sealed class ServerConfig
     [JsonPropertyName("experiment")]
     public ExperimentSection Experiment { get; set; } = new();
 
+    /// <summary>
+    /// 离线客户端 dll 元数据探针。面板无 shell 终端，故把读 dll 编进服务端自身：
+    /// 启动时若实例目录里放了客户端 dll 就自动解析并写文本报告。
+    /// 找不到输入文件则静默跳过，不影响服务。
+    /// </summary>
+    [JsonPropertyName("analysis")]
+    public AnalysisSection Analysis { get; set; } = new();
+
     [JsonPropertyName("rules")]
     public RulesSection Rules { get; set; } = new();
 
@@ -470,6 +478,8 @@ public sealed class ServerConfig
             throw new InvalidDataException($"experiment.initialDelayMs 应在 0..120000，当前 {Experiment.InitialDelayMs}");
         if (Experiment.IntervalMs < 100 || Experiment.IntervalMs > 60000)
             throw new InvalidDataException($"experiment.intervalMs 应在 100..60000，当前 {Experiment.IntervalMs}");
+        if (string.IsNullOrWhiteSpace(Analysis.Output))
+            throw new InvalidDataException("analysis.output 不能为空");
 
         for (int i = 0; i < Mods.Count; i++)
         {
@@ -596,6 +606,16 @@ public sealed class RulesSection
 /// 再串行发 8 个未验证候选帧，一轮发完即停。间隔与初始延迟都可配，
 /// 便于把「发送时机」本身也当作实验变量。
 /// </summary>
+/// <summary>离线 dll 探针配置；输入路径为内置候选列表，无需用户敲命令。</summary>
+public sealed class AnalysisSection
+{
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; } = true;
+
+    [JsonPropertyName("output")]
+    public string Output { get; set; } = "analysis/proto_notes.txt";
+}
+
 public sealed class ExperimentSection
 {
     [JsonPropertyName("enabled")]

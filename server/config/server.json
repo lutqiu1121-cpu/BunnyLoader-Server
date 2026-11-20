@@ -18,6 +18,14 @@
     "intervalMs": 1000
   },
 
+  // 离线客户端 dll 探针：覆盖后把客户端 dll 放进 analysis/（或根目录），
+  // 重启即自动解析，结论写到 analysis/proto_notes.txt。无需终端、无需敲命令。
+  // 文件不存在时静默跳过，不影响服务；设 false 可完全关闭。
+  "analysis": {
+    "enabled": true,
+    "output": "analysis/proto_notes.txt"
+  },
+
   // 日志级别：debug / info / warn / error。
   // dumpBytes=true 时，每次收到数据都记一条 conn.bytes（含首 8 字节十六进制）。
   "logging": {

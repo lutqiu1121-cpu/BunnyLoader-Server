@@ -44,6 +44,12 @@ These candidates are **not protocol conclusions**. They exist only to make the c
 
 `mods.check` (R9) is a log-only comparison of the client's `bunnyloader-sync:` mod list against `config.mods`. A mismatch warns but never disconnects the client.
 
+## Offline client-dll probe (no shell required)
+
+Some panels expose only a process-stdin command box, not an OS shell — `python3`, `dotnet --list-sdks` and `ilspycmd` cannot run there. So the probe is compiled into the server itself. `config.analysis.enabled` defaults to `true`: on startup the server looks for `analysis/client.dll`, `analysis/BunnyLoader.dll`, `BunnyLoader.dll` or `client.dll` in the instance directory, parses its PE / CLI header / `#Strings` heap with plain BCL (no NuGet, no network, no external tools), and writes a text report to `analysis/proto_notes.txt`. Log lines `dll.probe.start` / `dll.probe.done` carry the summary. If no file is present it logs `dll.probe.skip` and serves normally.
+
+Upload the client dll **after** replacing the zip, then restart — a full overwrite may clear the directory. The binary stays in your instance: it is never committed, never sent back, and no source is reproduced. The report lists only type/method names and fingerprint hits. This answers which ids and handlers exist; field order for `id:21/23/24/44` is IL-level and needs a targeted second round or real bidirectional hex. If the CLI header is empty the assembly is native/AOT and the managed layer holds no protocol info.
+
 ## License and upstream notice
 
 This repository contains an independent implementation and protocol observations, not Terraria or Bunny Loader source code. See [LICENSE](LICENSE). Compatibility with third-party software is not an endorsement by its authors. Users are responsible for complying with applicable game, mod, and hosting terms.

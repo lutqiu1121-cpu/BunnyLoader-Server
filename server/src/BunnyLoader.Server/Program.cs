@@ -164,6 +164,9 @@ public static class Program
 
         var log = new JsonLogger(config.Logging.Level);
 
+        // 离线 dll 探针：只读，找不到输入就静默跳过；异常也吞掉，绝不影响监听。
+        BunnyLoader.Server.Analysis.DllProbe.TryRun(config, log);
+
         worldPath ??= string.IsNullOrWhiteSpace(config.World.File) ? null : config.World.File;
         worldPath = ResolveWorldPath(worldPath);
 

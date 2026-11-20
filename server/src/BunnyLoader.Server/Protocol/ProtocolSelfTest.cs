@@ -296,6 +296,9 @@ public static class ProtocolSelfTest
         ok &= Check(log, "mods 空清单对空清单 match = true",
             modsMatch && clientMods == "" && serverMods == "", $"{clientMods}|{serverMods}");
 
+        // dll 探针自检：扫自身托管程序集，确认 PE→CLI→#Strings 链路可用。
+        ok &= BunnyLoader.Server.Analysis.DllProbe.SelfTest(log);
+
         return ok;
     }
 
