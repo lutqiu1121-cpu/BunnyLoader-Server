@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using BunnyLoader.Server.Protocol;
 
 namespace BunnyLoader.Server.Player;
 
@@ -26,6 +27,28 @@ namespace BunnyLoader.Server.Player;
 /// </summary>
 public static class PlayerSsc
 {
+    /// <summary>把服务端档案外观覆盖到已确认的 40B 魔改 id:4 payload。</summary>
+    public static void ApplyAppearance(byte[] payload, PlayerFileData data, byte playerSlot)
+    {
+        if (payload.Length != SyncPlayer4.PayloadLength)
+            throw new InvalidDataException($"id:4 外观覆盖要求 40 字节，实际 {payload.Length}");
+
+        payload[SyncPlayer4.OffPlayerId] = playerSlot;
+        payload[SyncPlayer4.OffHair] = (byte)Math.Clamp(data.Hair, 0, byte.MaxValue);
+        PlayerColor[] colors =
+        {
+            data.HairColor, data.SkinColor, data.EyeColor, data.ShirtColor,
+            data.UnderShirtColor, data.PantsColor, data.ShoeColor,
+        };
+        int offset = SyncPlayer4.OffColors;
+        foreach (PlayerColor color in colors)
+        {
+            payload[offset++] = color.R;
+            payload[offset++] = color.G;
+            payload[offset++] = color.B;
+        }
+    }
+
     /// <summary>把 .plr 的物品列表映射成 98 个客户端槽位。</summary>
     public static List<(int Slot, PlayerItem Item)> MapSlots(PlayerFileData d)
     {

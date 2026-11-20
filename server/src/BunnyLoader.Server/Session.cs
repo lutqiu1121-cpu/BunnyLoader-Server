@@ -823,28 +823,33 @@ internal sealed class Session : ISessionTicker
                         ("hex", hex));
                 }
 
+                // 档案必须在构造 id:4 回包前加载，才能让服务端外观成为权威值。
+                await LoadProfileAsync(stream, report.Name, cancellationToken);
+                if (_profile is null)
+                {
+                    _log.Warn("syncplayer.dropped", ("conn", _id), ("name", report.Name),
+                        ("note", "SSC 档案不可用，不回显客户端本地外观"));
+                    break;
+                }
+
+                PlayerSsc.ApplyAppearance(echo, _profile.Data, PlayerSlot);
+                _log.Info("syncplayer.ssc.appearance",
+                    ("conn", _id), ("player", _profile.Name), ("hair", _profile.Data.Hair),
+                    ("colors", string.Join("/", _profile.Data.ColorsInPacketOrder.Select(c => c.Color.Hex))));
+
                 if (echo.Length != payload.Length)
                     throw new InvalidOperationException($"id:4 长度被改变: recv={payload.Length} send={echo.Length}");
 
-                // ===== 发送语义（技术主管 R7.1 批注，优先级最高）=====
-                // 收到 id:4 时**只**原样回显 40 字节：不发 id:14，不发任何 SSC 包。
-                // 此时客户端还没请求世界（id:6），早发的包会被丢弃；SSC 全部改到 id:6 的 49 之后。
+                // 仍只发送一次 id:4；只改已确认的 playerId/hair/7 个 RGB 字段。
                 _lastSyncEcho = echo;
                 await SendAsync(stream, Codec.Frame(MessageId.SyncPlayer, echo), cancellationToken);
 
                 _log.Info("syncplayer.echoed",
-                    ("conn", _id),
-                    ("recvLen", payload.Length),
-                    ("sendLen", echo.Length),
-                    ("payloadLen", echo.Length),
-                    ("frameLen", echo.Length + 3),
-                    ("hex", SyncPlayer4.ToSpacedHex(echo)),
-                    ("count", _syncRecvCount),
+                    ("conn", _id), ("recvLen", payload.Length), ("sendLen", echo.Length),
+                    ("payloadLen", echo.Length), ("frameLen", echo.Length + 3),
+                    ("hex", SyncPlayer4.ToSpacedHex(echo)), ("count", _syncRecvCount),
                     ("alsoSent", "none"),
-                    ("note", "只原样 Clone 回传（仅 whoAmI）；不发 14、不发 SSC；SSC 延迟到 id:6 之后"));
-
-                // ===== 动态档案：按 id:4 里的名字加载/创建 .plr =====
-                await LoadProfileAsync(stream, report.Name, cancellationToken);
+                    ("note", "服务端 .plr 覆盖已确认的发型和 7 色；不发任何后续消息"));
                 break;
             }
 
@@ -1037,17 +1042,20 @@ internal sealed class Session : ISessionTicker
     {
         try
         {
-            int rounds = 0;
-            while (!cancellationToken.IsCancellationRequested && rounds++ < 8)
-            {
-                if (_sscBuilt && _profile is not null && _lastSyncEcho is not null)
-                {
-                    var frames = new List<byte[]>(100) { Codec.Frame(MessageId.SyncPlayer, _lastSyncEcho) };
-                    frames.AddRange(BuildSscFrames(_profile));
-                    await SendBundleAsync(stream, frames, cancellationToken);
-                    _log.Debug("ssc.coverage.sent", ("conn", _id), ("frames", frames.Count));
-                }
+            while (!_sscBuilt || _profile is null || _lastSyncEcho is null)
                 await Task.Delay(50, cancellationToken);
+
+            // Repeat three finite rounds to survive the client's local-load window without an unbounded stream.
+            for (int round = 0; round < 3 && !cancellationToken.IsCancellationRequested; round++)
+            {
+                var frames = BuildSscCoverageFrames(_profile, _lastSyncEcho);
+                for (int i = 0; i < frames.Count; i++)
+                {
+                    await SendAsync(stream, frames[i], cancellationToken);
+                    await Task.Delay(50, cancellationToken);
+                }
+                _log.Info("ssc.coverage.round", ("conn", _id), ("round", round + 1),
+                    ("frames", frames.Count), ("intervalMs", 50));
             }
         }
         catch (OperationCanceledException) { }
@@ -1057,6 +1065,30 @@ internal sealed class Session : ISessionTicker
                 ("type", e.GetType().Name), ("message", e.Message),
                 ("action", "SSC 覆盖队列停止，连接继续"));
         }
+    }
+
+    private List<byte[]> BuildSscCoverageFrames(PlayerProfile profile, byte[] appearance)
+    {
+        var frames = new List<byte[]>(200)
+        {
+            Codec.Frame(MessageId.SyncPlayer, appearance),
+            Codec.Frame(MessageId.PlayerHealth, PlayerSsc.LifePayload(PlayerSlot,
+                Math.Clamp(profile.Data.Health, 0, short.MaxValue),
+                Math.Clamp(profile.Data.HealthMax, 1, short.MaxValue))),
+            Codec.Frame(MessageId.PlayerMana, PlayerSsc.ManaPayload(PlayerSlot,
+                Math.Clamp(profile.Data.Mana, 0, short.MaxValue),
+                Math.Clamp(profile.Data.ManaMax, 0, short.MaxValue))),
+        };
+
+        foreach ((int slot, _) in PlayerSsc.MapSlots(profile.Data))
+            frames.Add(Codec.Frame(MessageId.SyncEquipment,
+                PlayerSsc.InventorySlotPayload(0, 0, new PlayerItem())));
+
+        foreach ((int slot, PlayerItem item) in PlayerSsc.MapSlots(profile.Data))
+            frames.Add(Codec.Frame(MessageId.SyncEquipment,
+                PlayerSsc.InventorySlotPayload(PlayerSlot, slot, item)));
+
+        return frames;
     }
 
     /// <summary>R6：id:6 tail 不再取 SSC；SSC 只由 id:8 后覆盖队列发送。</summary>

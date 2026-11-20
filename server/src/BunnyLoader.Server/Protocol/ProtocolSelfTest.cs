@@ -145,6 +145,32 @@ public static class ProtocolSelfTest
         byte[] echo2 = SyncPlayer4.BuildEcho(sample, 0x07);
         ok &= Check(log, "id:4 改 whoAmI 不改其它字节", echo2[0] == 0x07 && echo2.AsSpan(1).SequenceEqual(sample.AsSpan(1)), echo2[0]);
 
+        // ===== R6 服务端外观覆盖：只写已验证字段，不触碰客户端专有字段 =====
+        var profile = new PlayerFileData
+        {
+            Hair = 196,
+            HairColor = new PlayerColor(0x11, 0x12, 0x13),
+            SkinColor = new PlayerColor(0x21, 0x22, 0x23),
+            EyeColor = new PlayerColor(0x31, 0x32, 0x33),
+            ShirtColor = new PlayerColor(0x41, 0x42, 0x43),
+            UnderShirtColor = new PlayerColor(0x51, 0x52, 0x53),
+            PantsColor = new PlayerColor(0x61, 0x62, 0x63),
+            ShoeColor = new PlayerColor(0x71, 0x72, 0x73),
+        };
+        byte[] appearance = (byte[])sample.Clone();
+        PlayerSsc.ApplyAppearance(appearance, profile, 1);
+        ok &= Check(log, "id:4 hair 来自服务器档案", appearance[SyncPlayer4.OffHair] == 196, appearance[SyncPlayer4.OffHair]);
+        ok &= Check(log, "id:4 7 色来自服务器档案",
+            appearance.AsSpan(16, 21).SequenceEqual(Convert.FromHexString("111213212223313233414243515253616263717273")),
+            Convert.ToHexString(appearance.AsSpan(16, 21)));
+        ok &= Check(log, "id:4 不覆盖未知字段",
+            appearance[2] == sample[2] && appearance.AsSpan(3, 4).SequenceEqual(sample.AsSpan(3, 4))
+            && appearance.AsSpan(38, 2).SequenceEqual(sample.AsSpan(38, 2)),
+            SyncPlayer4.ToSpacedHex(appearance));
+
+        byte[] emptySlot = PlayerSsc.InventorySlotPayload(0, 0, new PlayerItem());
+        ok &= Check(log, "id:5 空槽严格全零 9B", emptySlot.SequenceEqual(new byte[9]), Convert.ToHexString(emptySlot));
+
         // ===== 长度不是 40：不许猜字段 =====
         byte[] shortPack = sample.AsSpan(0, 39).ToArray();
         SyncPlayer4.Report bad = SyncPlayer4.Analyze(shortPack);

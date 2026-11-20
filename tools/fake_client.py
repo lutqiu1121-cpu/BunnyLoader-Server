@@ -307,9 +307,12 @@ def pcap_flow(sock: socket.socket) -> int:
     check("id:4 立即被回显（不改变时延）", ident == 4, ident)
     check("id:4 长度不变（40）", len(payload) == 40, len(payload))
     check("whoAmI 改写为 1", payload[:1] == b"\x01", payload[:2].hex())
-    expected_echo = b"\x01" + sync_payload[1:]
-    check("id:4 除 whoAmI 外一个字节都没被改（诊断轮不得改写坐标/颜色）",
-          payload == expected_echo, payload.hex())
+    server_colors = bytes.fromhex("ffffff ffbba9 695a4b ffffff ffffff abc0ab ffffff")
+    check("id:4 发型覆盖为服务器档案值 196", payload[7] == 196, payload[7])
+    check("id:4 七色覆盖为服务器档案", payload[16:37] == server_colors, payload[16:37].hex())
+    check("id:4 未知/客户端专属字段未猜改",
+          payload[1:7] == sync_payload[1:7] and payload[8:16] == sync_payload[8:16]
+          and payload[37:40] == sync_payload[37:40], payload.hex())
 
     # R7.1：收到 id:4 时服务端**只**回显 40 字节——不发 id:14，不发任何 SSC 包。
     # （此时客户端还没发 id:6，早发的包会被丢弃。）
@@ -361,11 +364,16 @@ def pcap_flow(sock: socket.socket) -> int:
 
     # R6：id:8 后才开始 50ms 覆盖队列。
     sock.sendall(frame(8, _struct.pack("<iiB", 2100, 349, 0)))
-    sock.settimeout(5)
+    sock.settimeout(60)
     coverage_ids = []
     coverage_payloads = {}
-    deadline = time.time() + 2.0
-    while time.time() < deadline and len(coverage_payloads.get(5, [])) < 98:
+    deadline = time.time() + 120.0
+    while time.time() < deadline and (
+        len(coverage_payloads.get(5, [])) < 588
+        or len(coverage_payloads.get(4, [])) < 1
+        or len(coverage_payloads.get(16, [])) < 1
+        or len(coverage_payloads.get(42, [])) < 1
+    ):
         try:
             ident, payload = recv_frame(sock)
         except socket.timeout:
@@ -374,12 +382,19 @@ def pcap_flow(sock: socket.socket) -> int:
         coverage_payloads.setdefault(ident, []).append(payload)
     check("id:8 后收到 SSC 外观覆盖", 4 in coverage_ids, coverage_ids[:8])
     check("id:8 后收到 SSC 生命/魔力", 16 in coverage_ids and 42 in coverage_ids, coverage_ids[:12])
-    check("id:8 后收到 98 个槽位覆盖", len(coverage_payloads.get(5, [])) >= 98,
-          len(coverage_payloads.get(5, [])))
+    check("id:8 后收到 SSC 覆盖（3轮×98清空+98权威）",
+          len(coverage_payloads.get(5, [])) >= 588, len(coverage_payloads.get(5, [])))
 
     slot_payloads = coverage_payloads.get(5, [])
-    check("SSC 空槽 payload 全 0", any(p == b"\x00" * 9 for p in slot_payloads),
-          [p.hex() for p in slot_payloads[:3]])
+    if len(slot_payloads) >= 588:
+        clear = slot_payloads[:98]
+        authoritative = slot_payloads[98:196]
+        check("每轮前 98 个 id:5 全零清缓存",
+              all(slot_payloads[r * 196 + i] == b"\x00" * 9 for r in range(3) for i in range(98)),
+              [p.hex() for p in clear[:3]])
+        check("首轮服务端 slot0 = 铜短剑 3507×1",
+              len(authoritative[0]) == 9 and int.from_bytes(authoritative[0][6:8], "little") == 3507
+              and int.from_bytes(authoritative[0][3:5], "little") == 1, authoritative[0].hex())
 
     spawn = payloads.get(12, [b""])[0]
     check("id:12 payload = 9 字节", len(spawn) == 9, len(spawn))
