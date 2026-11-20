@@ -34,6 +34,14 @@ python3 tools/proto_ref.py selftest
 
 The mobile client is modified. Preserve the tested R5 sequence (`7 -> 10×40 -> 49 -> 14 -> 12 -> 129`) and never parse id:13 coordinates. IDs whose payload layout has not been verified against this client are intentionally ignored; do not add guessed packet serializers.
 
+## Candidate injection experiment (R6 evidence gathering)
+
+`config/server.json` ships with `experiment.enabled: true`. After the SSC coverage finishes its three rounds, the server sends three **unverified** candidate frames (two `id:21` layouts, one high-risk `id:23` placeholder) at 3-second intervals, then stops. Each one is logged as `experiment.candidate` with its full payload hex and also written to the `s2c` capture.
+
+These candidates are **not protocol conclusions**. They exist only to make the client render an item or NPC so it emits real `id:24` / `id:44` frames back. The injector is isolated in `Experiment/CandidateInjector.cs`, builds frames only, and sends through the normal `SendAsync` path. Nothing here is merged into the normal message-handling path until a real-device test confirms a layout. Set `experiment.enabled` to `false` to disable it entirely.
+
+`mods.check` (R9) is a log-only comparison of the client's `bunnyloader-sync:` mod list against `config.mods`. A mismatch warns but never disconnects the client.
+
 ## License and upstream notice
 
 This repository contains an independent implementation and protocol observations, not Terraria or Bunny Loader source code. See [LICENSE](LICENSE). Compatibility with third-party software is not an endorsement by its authors. Users are responsible for complying with applicable game, mod, and hosting terms.

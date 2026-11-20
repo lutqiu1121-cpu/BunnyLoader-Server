@@ -22,6 +22,13 @@ public sealed class ServerConfig
     [JsonPropertyName("captureDir")]
     public string CaptureDir { get; set; } = "";
 
+    /// <summary>
+    /// R6 一次性候选注入实验开关。默认开启并随 zip 的 config 一起打包，
+    /// 全量覆盖后无需手动配置；只影响隔离实验代码，不进入正式协议路径。
+    /// </summary>
+    [JsonPropertyName("experiment")]
+    public ExperimentSection Experiment { get; set; } = new();
+
     [JsonPropertyName("rules")]
     public RulesSection Rules { get; set; } = new();
 
@@ -459,6 +466,9 @@ public sealed class ServerConfig
             throw new InvalidDataException($"logging.level 只能是 debug/info/warn/error，当前: {Logging.Level}");
         Logging.Level = level;
 
+        if (Experiment.IntervalMs < 100 || Experiment.IntervalMs > 60000)
+            throw new InvalidDataException($"experiment.intervalMs 应在 100..60000，当前 {Experiment.IntervalMs}");
+
         for (int i = 0; i < Mods.Count; i++)
         {
             ModEntry m = Mods[i];
@@ -577,6 +587,16 @@ public sealed class RulesSection
 
     [JsonPropertyName("password")]
     public string Password { get; set; } = "";
+}
+
+/// <summary>R6 候选注入实验：串行发 3 个未验证候选帧，一轮发完即停。</summary>
+public sealed class ExperimentSection
+{
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; } = true;
+
+    [JsonPropertyName("intervalMs")]
+    public int IntervalMs { get; set; } = 3000;
 }
 
 public sealed class ModEntry

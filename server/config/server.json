@@ -9,6 +9,13 @@
   // 抓包开关：默认 captures，空字符串 = 关闭。
   "captureDir": "captures",
 
+  // R6 一次性候选注入实验：SSC 3 轮覆盖后串行发 3 个「未验证候选」帧。
+  // 真机验证通过前不并入正式协议路径；设 false 可完全关闭。
+  "experiment": {
+    "enabled": true,
+    "intervalMs": 3000
+  },
+
   // 日志级别：debug / info / warn / error。
   // dumpBytes=true 时，每次收到数据都记一条 conn.bytes（含首 8 字节十六进制）。
   "logging": {

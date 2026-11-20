@@ -255,6 +255,38 @@ public static class ProtocolSelfTest
         ok &= Check(log, "id:5 金标 = 01 00 00 01 00 24 b3 0d 00",
             Convert.ToHexString(slot).ToLowerInvariant() == "010000010024b30d00", Convert.ToHexString(slot));
 
+        // ===== R6 候选帧 golden（只断言自洽，不代表协议已验证）=====
+        var candidates = BunnyLoader.Server.Experiment.CandidateInjector.Build(2105, 312);
+        ok &= Check(log, "实验候选数 = 3", candidates.Count == 3, candidates.Count);
+        ok &= Check(log, "候选 A id:21 payload = 22B",
+            candidates[0].Id == 21 && candidates[0].Frame.Length - 3 == 22, candidates[0].Frame.Length - 3);
+        ok &= Check(log, "候选 B id:21 payload = 24B",
+            candidates[1].Id == 21 && candidates[1].Frame.Length - 3 == 24, candidates[1].Frame.Length - 3);
+        ok &= Check(log, "候选 C id:23 高风险占位",
+            candidates[2].Id == 23 && candidates[2].Frame.Length - 3 == 20, candidates[2].Frame.Length - 3);
+        foreach (var c in candidates)
+        {
+            int declared = c.Frame[0] | (c.Frame[1] << 8);
+            ok &= Check(log, $"候选 {c.Index} 帧头长度一致",
+                declared == c.Frame.Length, $"{declared}/{c.Frame.Length}");
+        }
+
+        // ===== R9 真帧 golden（2026-11-20 抓包；日志 hex 带 … 截断，按公式重建）=====
+        byte[] uuidPayload = Codec.String("f4ea4156-ddcc-4be1-baf9-66ba6141c849");
+        byte[] syncPayload = Codec.String("bunnyloader-sync:{\"mods\":[],\"textures\":0}");
+        string uuidText = Codec.ReadString(uuidPayload);
+        string syncText = Codec.ReadString(syncPayload);
+        ok &= Check(log, "id:68 UUID 帧 payload = 37B", uuidPayload.Length == 37, uuidPayload.Length);
+        ok &= Check(log, "id:68 同步串帧 payload = 42B", syncPayload.Length == 42, syncPayload.Length);
+        ok &= Check(log, "id:68 两帧分流正确",
+            !ModSyncCheck.IsSyncPayload(uuidText) && ModSyncCheck.IsSyncPayload(syncText), syncText);
+
+        var emptyConfig = new BunnyLoader.Server.ServerConfig();
+        bool modsMatch = ModSyncCheck.TryEvaluate(syncText, emptyConfig,
+            out string clientMods, out string serverMods);
+        ok &= Check(log, "mods 空清单对空清单 match = true",
+            modsMatch && clientMods == "" && serverMods == "", $"{clientMods}|{serverMods}");
+
         return ok;
     }
 

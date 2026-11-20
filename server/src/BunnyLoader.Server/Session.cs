@@ -564,6 +564,18 @@ internal sealed class Session : ISessionTicker
                     _log.Info("bl.hello", ("conn", _id), ("json", json));
                     await SendWelcomeAsync(stream, cancellationToken);
                 }
+                else if (ModSyncCheck.IsSyncPayload(text))
+                {
+                    // R9：BL 二开的模组清单同步串。只记录与比对，不改握手时序、不断连。
+                    // 注意 Codec.HelloPrefix("bunnyloader-cs:") 是另一路介绍包，不能混用。
+                    bool match = ModSyncCheck.TryEvaluate(text, _config,
+                        out string clientMods, out string serverMods);
+                    _log.Info("mods.check", ("conn", _id),
+                        ("clientMods", clientMods), ("serverMods", serverMods), ("match", match));
+                    if (!match)
+                        _log.Warn("mods.mismatch", ("conn", _id),
+                            ("note", "仅告警，不拒绝连接"));
+                }
                 else
                 {
                     _log.Info("uuid", ("conn", _id), ("uuid", text));
@@ -1056,6 +1068,35 @@ internal sealed class Session : ISessionTicker
                 }
                 _log.Info("ssc.coverage.round", ("conn", _id), ("round", round + 1),
                     ("frames", frames.Count), ("intervalMs", 50));
+            }
+
+            // ===== R6 一次性候选注入实验（隔离，异常吞掉，绝不影响连接）=====
+            // 挂在 SSC 3 轮覆盖收尾之后，不进任何消息解析/状态机分支。
+            if (_config.Experiment.Enabled)
+            {
+                try
+                {
+                    int sx = _wld?.SpawnTileX ?? _config.World.SpawnTileX;
+                    int sy = _wld?.SpawnTileY ?? _config.World.SpawnTileY;
+                    var candidates = Experiment.CandidateInjector.Build(sx, sy);
+
+                    foreach (var c in candidates)
+                    {
+                        await Task.Delay(_config.Experiment.IntervalMs, cancellationToken);
+                        _log.Info("experiment.candidate", ("conn", _id),
+                            ("idx", c.Index), ("id", c.Id), ("len", c.Frame.Length - 3),
+                            ("note", c.Note), ("hex", Codec.Hex(c.Frame.AsSpan(3), 64)));
+                        await SendAsync(stream, c.Frame, cancellationToken);
+                    }
+                    _log.Info("experiment.done", ("conn", _id), ("count", candidates.Count));
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception e)
+                {
+                    _log.Error("experiment.error", ("conn", _id),
+                        ("type", e.GetType().Name), ("message", e.Message),
+                        ("action", "实验停止，连接继续"));
+                }
             }
         }
         catch (OperationCanceledException) { }
